@@ -691,7 +691,7 @@ export class GateRun {
     this.z -= this.speed * dt;
     this.cart.position.set(this.x, 0, this.z);
     this.cart.rotation.z = -move.x * 0.08 * (this.state === 'run' ? 1 : 0); // lean into turns
-    animateCreature(this.beetle, dt, this.speed);
+    animateCreature(this.beetle, dt, this.speed, false); // (runs ignore the Movement speed slider)
 
     // Trick gates: swap sides when you get close (bonus run)
     for (const row of this.rows) {
@@ -806,7 +806,7 @@ export class GateRun {
     }
     // The Lava Rex roars at the passing helicopter
     // The bellhop jogs behind the trolley; the paparazzi flash at the celebrity
-    if (this.bellhop?.root.visible) animateCreature(this.bellhop, dt, this.speed);
+    if (this.bellhop?.root.visible) animateCreature(this.bellhop, dt, this.speed, false);
     if (this.celeb) {
       animateCreature(this.celeb.m, dt, 0);
       const near = this.z - this.finishZ < 22;

@@ -148,11 +148,15 @@ export interface UpgradeHost {
 interface Target {
   pad: UpgradePad;
   apply: (lv: number) => void;
+  /** The building it belongs to (pads stay near it if they have to move). */
+  near: THREE.Vector3;
 }
 
 export class Upgrades {
   private targets: Target[] = [];
   private seen = new Set<object>();
+  private buildings: THREE.Object3D[] = []; // every building's 3D group (for footprints)
+  private box = new THREE.Box3();
   private piles = new Map<string, PileLike[]>(); // one pad per pile TYPE
   private scanT = 0;
   private crewLoaded = 0; // helpers whose saved XP has been loaded
@@ -196,10 +200,54 @@ export class Upgrades {
       if (['save', 'scene', 'camera', 'hud', 'sfx', 'flyers', 'progress', 'player', 'ups', 'tiles', 'cashPads', 'workers'].includes(k)) continue;
       visit(v, 0);
     }
+    let added = false;
     for (const o of found) {
       if (this.seen.has(o)) continue;
       this.seen.add(o);
+      this.buildings.push(o.group);
+      added = true;
       this.register(o, root);
+    }
+    if (added) this.unblock(root);
+  }
+
+  /** A building's footprint on the ground (from its real 3D shape, labels ignored). */
+  private footprint(g: THREE.Object3D): Blocker {
+    this.box.makeEmpty();
+    g.updateWorldMatrix(true, true);
+    g.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || (o as THREE.Object3D & { isSprite?: boolean }).isSprite || !mesh.geometry) return;
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      const b = mesh.geometry.boundingBox;
+      if (b) this.box.union(b.clone().applyMatrix4(mesh.matrixWorld));
+    });
+    const b = this.box;
+    return { minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z };
+  }
+
+  /**
+   * A new building went up: if it landed on a pad (e.g. a 2nd crumb pile's
+   * bread loaf), move that pad to a free spot by its own building.
+   */
+  private unblock(root: any) {
+    const size = SIZES[this.world];
+    const h = size / 2;
+    for (const t of this.targets) {
+      const p = t.pad.mesh.position;
+      const hit = this.buildings.some((g) => {
+        const f = this.footprint(g);
+        return p.x + h > f.minX && p.x - h < f.maxX && p.z + h > f.minZ && p.z - h < f.maxZ;
+      });
+      if (!hit) continue;
+      const others = this.targets.filter((o) => o !== t);
+      const keep = this.targets;
+      this.targets = others; // (so it doesn't avoid its own old spot)
+      const spot = this.freeSpot(t.near, root);
+      this.targets = keep;
+      p.set(spot.x, p.y, spot.z);
+      t.pad.zone.x = spot.x;
+      t.pad.zone.z = spot.z;
     }
   }
 
@@ -238,7 +286,7 @@ export class Upgrades {
     if (this.targets.some((t) => t.pad.id === id)) return;
     const spot = this.freeSpot(near, root);
     const pad = new UpgradePad(this.host.scene, id, kind, label, spot.x, spot.z, UP_BASE[this.world], SIZES[this.world]);
-    this.targets.push({ pad, apply });
+    this.targets.push({ pad, apply, near: near.clone() });
     apply(this.level(id));
   }
 
@@ -268,6 +316,8 @@ export class Upgrades {
       visit(v, 0);
     }
     for (const [x, z] of this.host.tileSpots) out.push({ minX: x - 1.4, maxX: x + 1.4, minZ: z - 1.4, maxZ: z + 1.4 });
+    // Every building's real footprint (a pile's bread loaf, a machine's body...)
+    for (const g of this.buildings) out.push(this.footprint(g));
     for (const t of this.targets) {
       const p = t.pad.mesh.position;
       out.push({ minX: p.x - SIZE / 2, maxX: p.x + SIZE / 2, minZ: p.z - SIZE / 2, maxZ: p.z + SIZE / 2 });

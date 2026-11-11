@@ -6,6 +6,7 @@
 // Every creature faces +z ("forward"). Its 6 legs walk in a tripod gait:
 // legs A (front-left, middle-right, back-left) swing while B rest, then swap.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { lod } from '../core/lod';
 
@@ -214,8 +215,12 @@ function strideLengths(bodyLengthsPerS: number) {
   return 0.4 * THREE.MathUtils.clamp(bodyLengthsPerS / 2.5, 0.35, 1);
 }
 
-/** Call every frame. `speed` is 0 when standing still (world units / s). */
-export function animateCreature(m: CreatureModel, dt: number, speed: number) {
+/**
+ * Call every frame. `speed` is 0 when standing still (world units / s).
+ * `paced` = that speed already includes the Movement speed slider (everything
+ * that walks in the worlds). Gate-run riders pass false.
+ */
+export function animateCreature(m: CreatureModel, dt: number, speed: number, paced = true) {
   // LOD: off-screen bugs skip their leg math entirely; far ones update every
   // third frame (with 3x the time step, so they still move at the right pace).
   if (!m.root.visible) return;
@@ -231,7 +236,11 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
   m.walkBlend += ((moving ? 1 : 0) - m.walkBlend) * Math.min(1, dt * 10);
   // The gait runs on DISTANCE walked (TRADDOMIUM's rule): stop walking = feet stop.
   const bl = speed / m.length;
-  if (moving) m.walkT += dt * ((Math.PI * 2 * bl) / (m.stride ?? strideLengths(bl)));
+  // Movement speed slider: pick the stride for the creature's NORMAL speed, so
+  // at 3x the legs step 3x as fast (not just longer strides), and at 0.2x they
+  // slow right down with the body.
+  const slider = paced ? pace.move || 1 : 1;
+  if (moving) m.walkT += dt * ((Math.PI * 2 * bl) / (m.stride ?? strideLengths(bl / slider)));
 
   if (m.biped) {
     animateBiped(m, m.biped, dt);
@@ -241,12 +250,12 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
     // Built-in clips: walk, or run when fast; nearly still when idle (the
     // file has no idle clip, and its rest pose has the wings stuck out).
     const a = m.anim;
-    const running = speed > m.length * 2.2;
+    const running = speed / slider > m.length * 2.2; // (run clip by normal speed, not the slider)
     const w = running ? 0 : 1;
     a.walk.setEffectiveWeight(a.walk.getEffectiveWeight() + (w - a.walk.getEffectiveWeight()) * Math.min(1, dt * 8));
     a.run.setEffectiveWeight(1 - a.walk.getEffectiveWeight());
-    const pace = THREE.MathUtils.clamp(speed / (m.length * 1.1), 0.5, 2.2);
-    a.walk.timeScale = a.run.timeScale = moving ? pace : 0.15;
+    const clip = THREE.MathUtils.clamp(speed / slider / (m.length * 1.1), 0.5, 2.2) * slider; // x the slider
+    a.walk.timeScale = a.run.timeScale = moving ? clip : 0.15;
     a.mixer.update(dt);
     return;
   }
