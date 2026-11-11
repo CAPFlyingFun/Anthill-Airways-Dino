@@ -262,7 +262,7 @@ export interface CounterOpts {
   customers: CreatureKind[];    // which bugs shop here
   color: number;
 }
-export const SNACK_COUNTER: CounterOpts = { itemType: 'snack', facing: 1, customers: ['black-widow', 'jumping-spider', 'housefly', 'aphid'], color: 0x3d6fb6 };
+export const SNACK_COUNTER: CounterOpts = { itemType: 'snack', facing: 1, customers: ['black-widow', 'jumping-spider', 'housefly', 'aphid', 'wolf-spider'], color: 0x3d6fb6 };
 
 interface Customer {
   model: CreatureModel;

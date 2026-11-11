@@ -4,7 +4,8 @@
 //
 // The models come from Thronemound (fire ant Queen / Major / Worker, larva,
 // aphid, housefly, earthworm, props) and the TRADDOMIUM releases (Black Widow,
-// Jumping Spider). They're rigged but have no animations, so this file finds
+// Jumping Spider, and the Modelsv1 release: Huntsman, Wolf Spider and the
+// Ant-Mimicking Spider). They're rigged but have no animations, so this file finds
 // the leg bones automatically and swings them in code:
 //
 //   1. Find "limbs": chains of bones that branch off the body.
@@ -20,7 +21,10 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CreatureModel, newModel } from './models';
 
-export const CREATURES = ['worker', 'major', 'queen', 'larva', 'aphid', 'housefly', 'earthworm', 'black-widow', 'jumping-spider'] as const;
+export const CREATURES = [
+  'worker', 'major', 'queen', 'larva', 'aphid', 'housefly', 'earthworm',
+  'black-widow', 'jumping-spider', 'huntsman', 'wolf-spider', 'ant-mimic',
+] as const;
 export const PROPS = ['dirt-clod', 'rock-model', 'twig-model'] as const;
 export type CreatureKind = (typeof CREATURES)[number];
 export type PropKind = (typeof PROPS)[number];
@@ -173,7 +177,7 @@ function findLegs(model: CreatureModel, skip: string[] = []) {
     b.getWorldPosition(root);
     chain[chain.length - 1].getWorldPosition(tip);
     const nearGround = tip.y < model.height * 0.35 && tip.y < root.y;
-    const outToSide = Math.abs(tip.x) > model.length * 0.12;
+    const outToSide = Math.abs(tip.x) > model.length * 0.08; // tucked front legs count too (wolf spider)
     if (nearGround && outToSide) legs.push({ bone: b, x: root.x, z: root.z });
   }
   if (legs.length < 4) return; // couldn't find a sensible set; it'll just glide + bob

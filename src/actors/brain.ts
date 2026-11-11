@@ -63,6 +63,21 @@ export const BUGS: Record<string, BugSpecies> = {
     id: 'black-widow', length: 2.4, medium: 'ground', temperament: 'defensive',
     walkBLs: 1.3, fleeBLs: 2, alarmLengths: 1.3, alarmS: 1.5,
   },
+  // Huntsmen are FAST and nervous: they bolt when you get close.
+  huntsman: {
+    id: 'huntsman', length: 3.0, medium: 'ground', temperament: 'skittish',
+    walkBLs: 1.4, fleeBLs: 3.5, alarmLengths: 1.0, alarmS: 1.2,
+  },
+  // Wolf spiders are bold hunters: they stand their ground like the widow.
+  'wolf-spider': {
+    id: 'wolf-spider', length: 2.5, medium: 'ground', temperament: 'defensive',
+    walkBLs: 1.6, fleeBLs: 3, alarmLengths: 1.2, alarmS: 1.6,
+  },
+  // The Ant-Mimicking Spider: looks like one of us... it's the colony's thief.
+  'ant-mimic': {
+    id: 'ant-mimic', length: 2.2, medium: 'ground', temperament: 'skittish',
+    walkBLs: 1.5, fleeBLs: 3.4, alarmLengths: 0, alarmS: 0,
+  },
   // Jumping spiders get around in quick hops and spring away when startled.
   'jumping-spider': {
     id: 'jumping-spider', length: 2.2, medium: 'ground', temperament: 'skittish',

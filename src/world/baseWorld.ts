@@ -22,6 +22,7 @@ import { Progress } from '../core/progress';
 import { Hud } from '../ui/hud';
 import { Player } from '../actors/player';
 import { Route, Worker } from '../actors/worker';
+import { Impostor } from '../actors/impostor';
 import { spawnCreature, spawnProp } from '../actors/creatures';
 import { animateCreature, CreatureModel } from '../actors/models';
 import { Flyers, ITEM_VALUE, ItemType } from './items';
@@ -75,6 +76,8 @@ export class BaseWorld {
   private camOffset = new THREE.Vector3(0, 14, 10.5);
   private timers = new Map<object, number>();
   private zoneName = '';
+  private impostor: Impostor | null = null;
+  private impostorT = 45 + Math.random() * 30; // seconds until the next sneaky visit
 
   constructor(private hud: Hud, private sfx: Sfx, public save: SaveData, private progress: Progress) {
     this.buildEnvironment();
@@ -405,7 +408,7 @@ export class BaseWorld {
       this.processors.push(this.leafPress);
       const pad = new CashPad(this.scene, -33.7, 2.8);
       this.market = this.addCounter(
-        new Counter(this.scene, -36, -1, this.flyers, pad, { itemType: 'wrap', facing: -1, customers: ['earthworm', 'aphid', 'housefly'], color: 0x6b8f3a }),
+        new Counter(this.scene, -36, -1, this.flyers, pad, { itemType: 'wrap', facing: -1, customers: ['earthworm', 'aphid', 'housefly', 'huntsman', 'wolf-spider'], color: 0x6b8f3a }),
         pad,
       );
       this.blockers.push(this.leafPress.blocker);
@@ -425,7 +428,7 @@ export class BaseWorld {
       this.processors.push(this.candyPress);
       const pad = new CashPad(this.scene, 6.7, 30.8);
       this.shop = this.addCounter(
-        new Counter(this.scene, 9, 27, this.flyers, pad, { itemType: 'candy', facing: 1, customers: ['housefly', 'black-widow', 'jumping-spider'], color: 0x8a5cc8 }),
+        new Counter(this.scene, 9, 27, this.flyers, pad, { itemType: 'candy', facing: 1, customers: ['housefly', 'black-widow', 'jumping-spider', 'huntsman'], color: 0x8a5cc8 }),
         pad,
       );
       this.blockers.push(this.candyPress.blocker);
@@ -832,6 +835,9 @@ export class BaseWorld {
       }
     }
 
+    // 8) The Ant-Mimicking Spider sneaks in now and then to steal
+    this.updateImpostor(dt);
+
     // Zone name in the HUD follows where you're standing
     const here = ZONES.find((zd) => this.open.has(zd.id) && p.x >= zd.rect.minX - 0.7 && p.x <= zd.rect.maxX + 0.7 && p.z >= zd.rect.minZ - 0.7 && p.z <= zd.rect.maxZ + 0.7);
     const name = this.save.unlocked.includes('expand3') ? `${here?.name ?? ''} · Act 1 done!` : here?.name ?? '';
@@ -842,6 +848,39 @@ export class BaseWorld {
 
     this.flyers.update(dt);
     this.updateCamera(dt);
+  }
+
+  /** Spawn, run and reward the impostor spider. */
+  private updateImpostor(dt: number) {
+    if (!this.impostor) {
+      if (!this.save.unlocked.includes('pile2')) return; // not until you've got going
+      this.impostorT -= dt;
+      if (this.impostorT > 0) return;
+      this.impostorT = 60 + Math.random() * 45;
+      const pile = this.piles[Math.floor(Math.random() * this.piles.length)];
+      // It sneaks in through that zone's customer gap.
+      const exit = pile.zone.x < -14 ? new THREE.Vector3(-45, 0, -0.6) : pile.zone.z > 11 ? new THREE.Vector3(17, 0, 26.5) : new THREE.Vector3(17, 0, -2.5);
+      this.impostor = new Impostor(this.scene, pile, exit);
+      return;
+    }
+    const imp = this.impostor;
+    const ev = imp.update(dt, this.player.pos, this.flyers);
+    const at = imp.pos.clone().setY(2.5);
+    const tier = imp.pile.type === 'sugar' ? 3 : imp.pile.type === 'leaf' ? 2 : 1;
+    if (ev === 'stealing') {
+      this.hud.floatAt(at, this.camera, '🕷️ IMPOSTOR!', 'big bad');
+      this.hud.banner('An impostor is stealing! 🕷️', 'That "ant" is a spider. Run into it!', 2600);
+      this.sfx.gateBad();
+    } else if (ev === 'caught') {
+      const reward = [0, 40, 150, 500][tier];
+      this.addCash(reward);
+      this.progress.addXp(15 * tier);
+      this.sfx.unlocked();
+      this.hud.floatAt(at, this.camera, `Caught! +$${reward}`, 'big gold');
+    } else if (ev === 'escaped') {
+      this.hud.floatAt(this.player.pos.clone().setY(2.5), this.camera, 'The impostor got away! 😤', 'bad');
+    }
+    if (imp.done) this.impostor = null;
   }
 
   private updateCamera(dt: number) {
