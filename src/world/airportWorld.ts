@@ -81,7 +81,11 @@ interface Guest {
   held: Stack;         // suitcases they arrive with / snack boxes they buy
   wants: number;       // café: boxes still to buy
   path: THREE.Vector3[]; // waypoints still to walk (arriving or leaving)
+  vip?: { patience: number; tag: TextSprite; shown: number }; // 👑 VIP: tips big if served in time
 }
+
+/** VIP passengers at check-in: they tip big if served in time, or leave angry. */
+const VIP = { chance: 0.12, patience: 30, tip: 6 };
 
 export interface DeskOpts {
   mode: 'checkin' | 'cafe';
@@ -92,6 +96,7 @@ export interface DeskOpts {
   kinds: HumanKind[];        // who shows up
   interval: number;          // seconds between new arrivals
   queueMax: number;          // most people in line (or on their way to it)
+  vips?: boolean;            // check-in: some passengers are 👑 VIPs
   serve: number;             // seconds between each sale / check-in step
   entry: THREE.Vector3[];    // waypoints from outside to the back of the line
   exit: (from: THREE.Vector3) => THREE.Vector3[]; // where they go when done
@@ -104,6 +109,10 @@ export class Desk {
   blocker: Blocker;
   hasStaff = false;
   onServe: (byPlayer: boolean) => void = () => {};
+  /** A VIP was served in time (tip) or gave up (angry). */
+  onVip: (what: 'tip' | 'angry', amount: number, where: THREE.Vector3) => void = () => {};
+  /** Rush hour: people arrive ~3x as fast and the line gets longer. */
+  rush = false;
   valueMult: () => number = () => 1;
   private queue: Guest[] = [];
   private leaving: Guest[] = [];
@@ -180,7 +189,14 @@ export class Desk {
       const bags = Math.random() < 0.35 ? 2 : 1;
       for (let i = 0; i < bags; i++) held.addInstant('bag');
     }
-    this.queue.push({ model, held, wants: 1 + Math.floor(Math.random() * 3), path: rest.map((v) => v.clone()) });
+    const g: Guest = { model, held, wants: 1 + Math.floor(Math.random() * 3), path: rest.map((v) => v.clone()) };
+    if (this.opts.vips && Math.random() < VIP.chance) {
+      const tag = new TextSprite(0.42, '#ffd166');
+      tag.setText(`👑 VIP · ${VIP.patience}s`);
+      this.scene.add(tag.sprite);
+      g.vip = { patience: VIP.patience, tag, shown: VIP.patience };
+    }
+    this.queue.push(g);
   }
 
   /** How many are waiting (for hints). */
@@ -190,15 +206,30 @@ export class Desk {
 
   update(dt: number, playerServing: boolean, sfx: Sfx) {
     this.spawnT += dt;
-    if (this.spawnT >= this.opts.interval && this.queue.length < this.opts.queueMax) {
+    const interval = this.rush ? this.opts.interval * 0.35 : this.opts.interval;
+    const queueMax = this.rush ? this.opts.queueMax + 3 : this.opts.queueMax;
+    if (this.spawnT >= interval && this.queue.length < queueMax) {
       this.spawnT = 0;
       this.spawnGuest();
     }
 
     // Walk in (entry waypoints first), then shuffle up the line.
     let frontReady = false;
+    let angry: Guest | null = null;
     this.queue.forEach((g, i) => {
       g.model.holding = g.held.count > 0;
+      if (g.vip) {
+        // VIPs count down once they're in line; the tag floats over them.
+        if (!g.path.length) g.vip.patience -= dt;
+        const secs = Math.max(0, Math.ceil(g.vip.patience));
+        if (secs !== g.vip.shown) {
+          g.vip.shown = secs;
+          g.vip.tag.setText(`👑 VIP · ${secs}s`, secs <= 8 ? '#ff6b6b' : '#ffd166');
+        }
+        const p = g.model.root.position;
+        g.vip.tag.sprite.position.set(p.x, g.model.height + 0.8, p.z);
+        if (g.vip.patience <= 0 && !angry) angry = g;
+      }
       if (g.path.length) {
         if (stepTo(g.model, g.path[0], 4.2, dt)) g.path.shift();
         return;
@@ -207,6 +238,17 @@ export class Desk {
       if (at) faceToward(g.model, -1, 0, dt, 8);
       if (i === 0) frontReady = at;
     });
+
+    // A VIP who waited too long storms off (no ticket, no tip).
+    if (angry) {
+      const a = angry as Guest;
+      this.onVip('angry', 0, a.model.root.position.clone());
+      a.vip!.tag.sprite.removeFromParent();
+      a.vip = undefined;
+      this.queue.splice(this.queue.indexOf(a), 1);
+      a.path = this.opts.exit(a.model.root.position);
+      this.leaving.push(a);
+    }
 
     // Serve the front of the line.
     const g = this.queue[0];
@@ -241,6 +283,14 @@ export class Desk {
       return; // cart full = the line waits (go load the plane!)
     }
     this.spawnBill(AIR.ticket);
+    if (g.vip) {
+      // Served in time: a big tip!
+      const tip = AIR.ticket * VIP.tip;
+      this.spawnBill(tip);
+      this.onVip('tip', Math.round(tip * this.valueMult()), g.model.root.position.clone());
+      g.vip.tag.sprite.removeFromParent();
+      g.vip = undefined;
+    }
     sfx.sale();
     this.onServe(byPlayer);
     this.finish(g);
@@ -446,6 +496,7 @@ export class AirportWorld {
   private blockers: Blocker[] = [];
   private timers = new Map<object, number>();
   private trolley = false;
+  private rushT = 150 + Math.random() * 60;
   private sun = new THREE.DirectionalLight(0xffffff, 2.6);
   private camOffset = new THREE.Vector3(0, 14, 10.5);
   private intro = 1; // 0 -> 1: camera zooming out from the planter
@@ -483,12 +534,17 @@ export class AirportWorld {
     this.cashPads.push(ticketPad);
     this.checkin = new Desk(this.scene, 9, -3, this.flyers, ticketPad, this.bagPile, {
       mode: 'checkin', label: '✈️ CHECK-IN', color: 0x2d6cdf, kinds: ['h-exec', 'h-balance', 'h-ember'], interval: AIR.passengerInterval,
-      queueMax: AIR.queueMax, serve: AIR.serveInterval,
+      queueMax: AIR.queueMax, serve: AIR.serveInterval, vips: true,
       entry: [new THREE.Vector3(34, 0, 0), new THREE.Vector3(21, 0, -1)],
       // After check-in: around the desk, then out through the boarding gate
       exit: (from) => [new THREE.Vector3(from.x, 0, 1.0), new THREE.Vector3(2.5, 0, -1.5), new THREE.Vector3(1.5, 0, -11.2), new THREE.Vector3(1.5, 0, -14)],
     });
     this.addDesk(this.checkin);
+    this.checkin.onVip = (what, amount, where) => {
+      if (!this.active) return;
+      if (what === 'tip') this.hud.floatAt(where.setY(H + 1), this.camera, `👑 VIP tip +$${amount}`, 'big gold');
+      else this.hud.floatAt(where.setY(H + 1), this.camera, '😠 VIP left!', 'big bad');
+    };
 
     // The plane (starts as a Cessna 172; fleet upgrades swap it) + its cash pad
     this.flightPad = new CashPad(this.scene, 15.6, -9.5);
@@ -849,6 +905,13 @@ export class AirportWorld {
     const prog = this.progress;
     const xp = CONFIG.xp;
 
+    // Rush hour now and then: passengers pour in (~40 s every 2.5-3.5 min)
+    this.rushT -= dt;
+    if (this.rushT <= 0) {
+      this.checkin.rush = !this.checkin.rush;
+      this.rushT = this.checkin.rush ? 40 : 150 + Math.random() * 60;
+      if (this.active && this.checkin.rush) this.hud.banner('🏃 Rush hour!', 'Passengers are pouring in: keep the bags moving', 2800);
+    }
     this.checkin.update(dt, this.active && this.checkin.staffZone.contains(p), this.sfx);
     this.cafe?.update(dt, this.active && this.cafe.staffZone.contains(p), this.sfx);
     this.crate?.update(dt);

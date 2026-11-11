@@ -7,9 +7,10 @@ import * as THREE from 'three';
 import './style.css';
 import { Input } from './core/input';
 import { Sfx } from './core/audio';
-import { clearSave, loadSave, writeSave } from './core/save';
+import { SLOTS, Slot, activeSlot, clearSave, eraseSlot, loadSave, slotSummary, switchSlot, writeSave } from './core/save';
 import { Progress, QueenProgress } from './core/progress';
 import { OFFLINE, QUEEN_UNLOCK_LEVEL } from './data/config';
+import { weather } from './core/weather';
 import { Hud } from './ui/hud';
 import { BaseWorld } from './world/baseWorld';
 import { GateRun } from './runs/gateRun';
@@ -48,7 +49,24 @@ hud.initSettings({
     clearSave();
     window.location.reload();
   },
+  onOpen: () => showSlots(),
 });
+
+/** 💾 Save slots in Settings: tap one to switch (the game restarts into it). */
+function showSlots() {
+  const here = activeSlot();
+  hud.renderSlots(
+    SLOTS.map((n) => ({ n, here: n === here, info: slotSummary(n) })),
+    (n) => {
+      switchSlot(save, n as Slot); // pauses this slot (no offline income while away)
+      window.location.reload();
+    },
+    (n) => {
+      eraseSlot(n as Slot);
+      showSlots();
+    },
+  );
+}
 
 async function start() {
   // 1) Load the real bug models (shows the loading bar).
@@ -207,6 +225,16 @@ async function start() {
     }),
   );
   refreshModeBtn();
+
+  // ⛈️ Storms (airport + island share the sky; the colony is underground)
+  const stormEl = document.getElementById('storm')!;
+  const humanWorld = () => mode === 'air' || mode === 'island';
+  weather.onChange = (sky) => {
+    if (!humanWorld()) return;
+    if (sky === 'warning') hud.banner('⛈️ Storm in 15 s!', 'Flights + safaris will be grounded. Stock up now!', 3500);
+    else if (sky === 'storm') hud.banner('⛈️ Tropical storm!', 'Everything waits for it to blow over (~45 s)', 3000);
+    else hud.banner('☀️ The storm has passed', 'Flights and safaris are back on', 2200);
+  };
 
   // First-person / third-person view (both worlds; gate runs stay as they are).
   const viewBtn = document.getElementById('viewBtn')!;
@@ -452,6 +480,8 @@ async function start() {
     last = now;
     watchQuality(rawMs);
     trackIncome(Math.min(1, rawMs / 1000)); // real seconds (income per real second)
+    weather.update(dt);
+    stormEl.classList.toggle('on', weather.storm && humanWorld());
     // Rotating the phone: some browsers report the new size a moment late, so
     // check every frame and resize as soon as it changes (no squashed view).
     if (app.clientWidth !== lastW || app.clientHeight !== lastH) resize();
@@ -490,6 +520,7 @@ async function start() {
     base, run, save, progress, lod, renderer, quality: () => quality,
     get airport() { return airport; },
     get island() { return island; },
+    weather,
     switchWorld,
   };
 }

@@ -36,6 +36,15 @@ interface Row {
   swapped?: boolean;
 }
 
+/** Sea Safari: a sea creature that leaps out beside the boat (get close for a photo!). */
+interface Breacher {
+  m: THREE.Object3D;
+  x: number;
+  z: number;
+  t: number;        // 0..1 through its leap (-1 = still waiting)
+  snapped: boolean;
+}
+
 /** Options for a special run (the offline-earnings bonus run). */
 export interface RunOpts {
   hard?: boolean;     // more traps: worse gates, more hazards, gates that swap sides
@@ -82,6 +91,10 @@ export class GateRun {
 
   private rows: Row[] = [];
   private puddles: Puddle[] = [];
+  private breachers: Breacher[] = [];
+  private boss: THREE.Object3D | null = null; // the Megalodon at the Sea Safari finish
+  private bossT = -1;
+  private bossDone = false;
   private dynamic = new THREE.Group(); // everything rebuilt each run
   private cart = new THREE.Group();
   private cargo = new THREE.Group();
@@ -162,6 +175,10 @@ export class GateRun {
     this.dynamic.clear();
     this.rows = [];
     this.puddles = [];
+    this.breachers = [];
+    this.boss = null;
+    this.bossT = -1;
+    this.bossDone = false;
     const { rows, rowSpacing, firstRow, laneHalfWidth } = CONFIG.run;
     this.finishZ = -(firstRow + rows * rowSpacing) + 6;
     const length = -this.finishZ + 60;
@@ -287,6 +304,35 @@ export class GateRun {
           puddle.position.set(p.x, 0.03, p.z);
           this.dynamic.add(puddle);
         }
+      }
+    }
+
+    if (ocean) {
+      // 📸 Photo spots: now and then a sea creature leaps out beside the lane.
+      // Be on its side as you pass to get the shot (= more happy tourists).
+      for (const row of this.rows) {
+        if (Math.random() > 0.6 || row.z - rowSpacing * 0.2 < this.finishZ + 8) continue;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const kinds: SeaKind[] = ['s-ichthyo', 's-mosasaurus', 's-ichthyo'];
+        const m = spawnSea(kinds[Math.floor(Math.random() * kinds.length)], 6)?.root;
+        if (!m) continue;
+        const b: Breacher = { m, x: side * (laneHalfWidth - 0.6), z: row.z - rowSpacing * 0.2, t: -1, snapped: false };
+        m.position.set(b.x, -3, b.z);
+        m.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2; // leaps across toward the middle
+        this.dynamic.add(m);
+        this.breachers.push(b);
+        const marker = new TextSprite(0.6, '#ffffff');
+        marker.setText('📸');
+        marker.sprite.position.set(b.x, 1.2, b.z);
+        this.dynamic.add(marker.sprite);
+      }
+      // The big one: a Megalodon waiting just past the finish
+      const boss = spawnSea('s-megalodon', 16)?.root;
+      if (boss) {
+        boss.position.set(-14, -6, this.finishZ - 2);
+        boss.rotation.y = Math.PI / 2;
+        this.boss = boss;
+        this.dynamic.add(boss);
       }
     }
 
@@ -445,8 +491,37 @@ export class GateRun {
       this.sfx.splash();
     }
 
+    // 📸 Breaching sea creatures (Sea Safari)
+    for (const b of this.breachers) {
+      if (b.t < 0 && this.z - b.z < 9) b.t = 0;
+      if (b.t < 0 || b.t > 1) continue;
+      b.t = Math.min(1.01, b.t + dt / 1.7);
+      const arc = Math.sin(Math.min(1, b.t) * Math.PI);
+      b.m.position.set(b.x - Math.sign(b.x) * b.t * 2.5, -3 + arc * 4.2, b.z);
+      b.m.rotation.x = (0.5 - b.t) * 1.4; // nose up, then nose down
+      // Snap! (when the boat passes on its side of the lane)
+      if (!b.snapped && Math.abs(this.z - b.z) < 1.6 && Math.abs(this.x - b.x) < 3.0) {
+        b.snapped = true;
+        const bonus = Math.max(3, Math.round(this.count * 0.12));
+        this.changeCount(this.count + bonus, new THREE.Vector3(this.x, 2.6, this.z), `📸 +${bonus}`, true);
+      }
+    }
+    // The Megalodon leaps right over the finish line as you cross it
+    if (this.boss && this.bossT < 0 && this.z - this.finishZ < 16) this.bossT = 0;
+    if (this.boss && this.bossT >= 0 && this.bossT <= 1) {
+      this.bossT = Math.min(1.01, this.bossT + dt / 2.2);
+      const u = Math.min(1, this.bossT);
+      this.boss.position.set(-14 + u * 28, -6 + Math.sin(u * Math.PI) * 13, this.finishZ - 2);
+      this.boss.rotation.z = (0.5 - u) * 1.2;
+    }
+
     // Finish
     if (this.state === 'run' && this.z <= this.finishZ) {
+      if (this.boss && !this.bossDone) {
+        // The money shot: everyone got the Megalodon on camera
+        this.bossDone = true;
+        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 MEGALODON! ×1.25', true);
+      }
       this.state = 'done';
       this.stateT = 0;
       this.hud.setHint(null);

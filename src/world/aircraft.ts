@@ -14,6 +14,7 @@
 // ============================================================================
 import * as THREE from 'three';
 import { AIR, AircraftKind, FLEET } from '../data/config';
+import { weather } from '../core/weather';
 import { Flyers, Stack, StackItem } from './items';
 import { TextSprite, makePad } from './labels';
 import { Zone, gridLayout } from './stations';
@@ -245,6 +246,7 @@ export class Aircraft {
   private belt = new THREE.Group();
   private spin = 0;
   private idleT = 0; // seconds since the last bag went aboard
+  private wasGrounded = false;
 
   constructor(private scene: THREE.Scene, private flyers: Flyers, private padX: number, private padZ: number, kind: AircraftKind, private windowZ: number) {
     scene.add(this.group, this.belt);
@@ -363,7 +365,8 @@ export class Aircraft {
   private drawLabel() {
     const s = this.spec;
     const txt =
-      this.state === 'parked' ? `${this.kind === 'heli' ? '🚁' : '✈️'} ${s.name}  🧳 ${this.hold}/${s.hold}`
+      this.state === 'parked' && weather.storm ? `⛈️ Grounded  🧳 ${this.hold}/${s.hold}`
+        : this.state === 'parked' ? `${this.kind === 'heli' ? '🚁' : '✈️'} ${s.name}  🧳 ${this.hold}/${s.hold}`
         : this.state === 'away' ? `Back in ${Math.max(0, Math.ceil(s.flight - this.t))}s`
           : this.kind === 'heli' ? '🚁' : '✈️';
     this.label.setText(txt);
@@ -471,7 +474,13 @@ export class Aircraft {
     this.flying = this.riders.length + this.hopping;
     // Leave when full, or with a partial load once no bags have come for a while.
     if (this.hold > 0 && this.flying === 0 && !this.cargo.count) this.idleT += dt;
-    if (this.flying === 0 && (this.hold >= this.holdMax || (this.hold > 0 && this.idleT >= AIR.partialWait))) {
+    // Storms ground every flight (the bags wait aboard until it clears).
+    const grounded = weather.storm;
+    if (grounded !== this.wasGrounded) {
+      this.wasGrounded = grounded;
+      this.drawLabel();
+    }
+    if (!grounded && this.flying === 0 && (this.hold >= this.holdMax || (this.hold > 0 && this.idleT >= AIR.partialWait))) {
       this.idleT = 0;
       this.state = 'leaving';
       this.t = 0;

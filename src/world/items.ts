@@ -69,7 +69,7 @@ const mat = {
 };
 
 /** Cash value of each sellable item (counter price; gate runs pay the same per item). */
-export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25, fruit: 0, smoothie: 45, meat: 0, egg: 60, ticket: 40 };
+export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25, fruit: 0, smoothie: 60, meat: 0, egg: 80, ticket: 50 };
 
 /** Build the 3D mesh for one item. Box faces order: +x, -x, +y(top), -y, +z, -z */
 export function makeItem(type: ItemType): THREE.Mesh {

@@ -410,3 +410,47 @@ html, body {
   color: #3a2a1a;
 }
 .world-menu button.here { background: linear-gradient(#ffe27a, #f2b632); }
+
+/* Storm: a dark tint + falling rain streaks over the 3D view (not the HUD) */
+.storm {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2.5s ease;
+  background:
+    repeating-linear-gradient(105deg, rgba(200, 220, 255, 0.0) 0 22px, rgba(200, 220, 255, 0.28) 22px 23.5px, rgba(200, 220, 255, 0.0) 23.5px 61px),
+    repeating-linear-gradient(100deg, rgba(200, 220, 255, 0.0) 0 37px, rgba(200, 220, 255, 0.18) 37px 38px, rgba(200, 220, 255, 0.0) 38px 83px),
+    rgba(25, 35, 55, 0.42);
+  background-size: 140px 300px, 190px 420px, auto;
+  animation: rain 0.45s linear infinite;
+  z-index: 0;
+}
+.storm.on { opacity: 1; }
+@keyframes rain {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to { background-position: -40px 300px, -50px 420px, 0 0; }
+}
+
+/* Save slots (in Settings) */
+.slots-title { font-weight: 900; font-size: 16px; margin: 10px 0 6px; text-align: left; }
+.slot-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: #fff3dc;
+  border: 2px solid transparent;
+  text-align: left;
+  font-family: var(--font);
+  color: #3a2a1a;
+  pointer-events: auto;
+}
+.slot.here { border-color: #f2b632; background: #fff0c2; }
+.slot .num { font-size: 22px; font-weight: 900; width: 26px; text-align: center; }
+.slot .info { flex: 1; font-size: 13px; line-height: 1.3; }
+.slot .info b { font-size: 15px; }
+.slot .tag { font-size: 12px; font-weight: 900; color: #2f8a3a; }
+.slot .erase { border: none; background: none; font-size: 18px; padding: 4px; }

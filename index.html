@@ -14,6 +14,8 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- Rain + dark sky during a storm (airport + island only) -->
+    <div id="storm" class="storm"></div>
     <!-- Fades the screen while switching between the ant and human worlds -->
     <div id="fade" class="fade"></div>
 
@@ -89,7 +91,10 @@
           <button id="soundBtn" class="menu-btn">Sound: On</button>
           <button id="updateBtn" class="menu-btn">Check for updates</button>
           <p id="updateStatus" class="ver"></p>
-          <button id="resetBtn" class="menu-btn danger">Reset progress</button>
+          <!-- Three separate games; tap one to play it -->
+          <div class="slots-title">💾 Save slots</div>
+          <div id="slotList" class="slot-list"></div>
+          <button id="resetBtn" class="menu-btn danger">Reset this slot</button>
           <button id="closeSettings" class="menu-btn">Close</button>
           <p class="ver"><b>Anthill Airways</b><br /><span id="versionText"></span></p>
         </div>

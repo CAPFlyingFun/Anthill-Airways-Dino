@@ -47,11 +47,31 @@ Colony, the Airport and Dino Island (all three keep earning in the background).
   full belly, the crowd in the stands pays; a hungry dino means no show
 - 🦤 **Dodo Ranch**: the Dodos (with their own walk animation) lay 🥚 in the nests →
   sell them at the Dodo Shop
-- 🚤 **Sea Safari**: tourists fly in and wait on the pier → a gate run on the open sea,
-  where the Mosasaurus and Megalodon surface as hazards
-- Crew for every job, a Boat Captain who runs safaris by himself, and a 💰 Cash Dodo
+- 🚤 **Photo Safari**: tourists fly in and wait on the pier → a gate run on the open sea.
+  Sail past a breaching sea creature for a 📸 bonus, and the Megalodon boss at the finish
+  pays ×1.25. The boat is away ~25 s per trip
+- Crew for every job, a Boat Captain who runs safaris by himself, and **Sarah** 👩‍💼, who
+  comes along as your island assistant and collects the cash
 - The island's models (Dodo, Dilophosaurus, 5 sea creatures, 5 trees) come from the
   Beyond-Extinction repo and only download the first time you fly there
+
+## Challenges ⚠️
+
+Each act costs more than the last (Act 2 ≈ $290k total, the island ≈ $2.7M), and things go wrong:
+
+- ⛈️ **Storms** (airport + island): a 15 s warning, then ~45 s of rain. Flights, safaris and
+  island arrivals are grounded, the supply drop stops and fruit grows slower
+- ⭐ **VIPs + rush hour** (airport): VIPs tip 6× but only wait 30 s; rush hour floods the
+  check-in line for 40 s
+- 🦖 **Dilo escape** (island): starve the Dilophosaurus for 20 s and it breaks out. If it
+  chomps you, you drop everything. Lure it back to FEED with 🍖
+- 🦖 **Thieves** (island): a baby Dilo sneaks in to steal. Catch it for a reward
+
+## Save slots 💾
+
+Settings has **3 save slots**, each a completely separate game (its own cash, levels and
+unlocks). Your existing progress is Slot 1. Only the slot you're playing earns offline income;
+switching pauses the one you leave, so slots never stack.
 
 ## Idle earnings 💤
 

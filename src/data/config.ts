@@ -170,18 +170,18 @@ export const FLEET: Record<AircraftKind, { name: string; hold: number; fare: num
 
 /** Act 2 unlock tiles (inside the terminal). Same shape as UNLOCKS. */
 export const AIR_UNLOCKS: UnlockDef[] = [
-  { id: 'a2-agent',   name: 'Check-in Agent',  icon: '🛂', cost: 2000,  pos: [2.5, -5],    requires: [] },
-  { id: 'a2-trolley', name: 'Luggage Trolley', icon: '🛒', cost: 2500,  pos: [0, 2],       requires: ['a2-agent'] },
-  { id: 'a2-cafe',    name: 'Ant Café',        icon: '☕', cost: 3500,  pos: [-9, 4],      requires: ['a2-agent'] },
-  { id: 'a2-handler', name: 'Baggage Handler', icon: '🧳', cost: 5000,  pos: [8.5, -6.2],  requires: ['a2-agent'] },
-  { id: 'a2-barista', name: 'Barista',         icon: '🧋', cost: 6500,  pos: [-5, 7.6],    requires: ['a2-cafe'] },
-  { id: 'a2-host',    name: 'Café Host',       icon: '🍱', cost: 8000,  pos: [-4.5, -6],   requires: ['a2-cafe'] },
-  { id: 'a2-twin',    name: 'Plane: Twin Prop', icon: '🛩️', cost: 6000,  pos: [8.5, -10.5], requires: ['a2-handler'] },
-  { id: 'a2-heli',    name: 'Helipad',          icon: '🚁', cost: 9000,  pos: [-15.5, -10.2], requires: ['a2-handler'] },
-  { id: 'a2-jet',     name: 'Plane: Learjet',   icon: '🛫', cost: 14000, pos: [8.5, -10.5], requires: ['a2-twin'] },
-  { id: 'a2-sarah',   name: 'Sarah: Assistant', icon: '👩‍💼', cost: 18000, pos: [3, 6.5],  requires: ['a2-barista', 'a2-host', 'a2-handler'] },
-  { id: 'a2-liner',   name: 'Plane: Airliner',  icon: '✈️', cost: 26000, pos: [8.5, -10.5], requires: ['a2-jet', 'a2-sarah'] },
-  { id: 'a2-island',  name: 'Big Order: Island', icon: '🏝️', cost: 45000, pos: [-2.5, 9.6], requires: ['a2-liner', 'a2-heli'] },
+  { id: 'a2-agent',   name: 'Check-in Agent',  icon: '🛂', cost: 4000,  pos: [2.5, -5],    requires: [] },
+  { id: 'a2-trolley', name: 'Luggage Trolley', icon: '🛒', cost: 5000,  pos: [0, 2],       requires: ['a2-agent'] },
+  { id: 'a2-cafe',    name: 'Ant Café',        icon: '☕', cost: 7000,  pos: [-9, 4],      requires: ['a2-agent'] },
+  { id: 'a2-handler', name: 'Baggage Handler', icon: '🧳', cost: 10000,  pos: [8.5, -6.2],  requires: ['a2-agent'] },
+  { id: 'a2-barista', name: 'Barista',         icon: '🧋', cost: 13000,  pos: [-5, 7.6],    requires: ['a2-cafe'] },
+  { id: 'a2-host',    name: 'Café Host',       icon: '🍱', cost: 16000,  pos: [-4.5, -6],   requires: ['a2-cafe'] },
+  { id: 'a2-twin',    name: 'Plane: Twin Prop', icon: '🛩️', cost: 12000,  pos: [8.5, -10.5], requires: ['a2-handler'] },
+  { id: 'a2-heli',    name: 'Helipad',          icon: '🚁', cost: 18000,  pos: [-15.5, -10.2], requires: ['a2-handler'] },
+  { id: 'a2-jet',     name: 'Plane: Learjet',   icon: '🛫', cost: 28000, pos: [8.5, -10.5], requires: ['a2-twin'] },
+  { id: 'a2-sarah',   name: 'Sarah: Assistant', icon: '👩‍💼', cost: 36000, pos: [3, 6.5],  requires: ['a2-barista', 'a2-host', 'a2-handler'] },
+  { id: 'a2-liner',   name: 'Plane: Airliner',  icon: '✈️', cost: 52000, pos: [8.5, -10.5], requires: ['a2-jet', 'a2-sarah'] },
+  { id: 'a2-island',  name: 'Big Order: Island', icon: '🏝️', cost: 90000, pos: [-2.5, 9.6], requires: ['a2-liner', 'a2-heli'] },
 ];
 
 /** The map grows zone by zone. A zone opens when its `unlock` is bought. */
@@ -261,29 +261,33 @@ export const ISLAND_CFG = {
   fruitEvery: 1.1,      // a fruit tree grows one fruit every ... seconds
   eggEvery: 1.6,        // a nest gets a new egg every ... seconds
   meatEvery: 0.9,       // the supply crate refills one dino food every ... seconds
-  dinoHunger: 40,       // seconds for a full Dilophosaurus to get hungry again
-  biteFill: 0.34,       // one dino food = this much of a full belly
+  dinoHunger: 32,       // seconds for a full Dilophosaurus to get hungry again
+  biteFill: 0.25,       // one dino food = this much of a full belly
+  escapeAfter: 20,      // seconds starving before he jumps the fence
   showPayEvery: 2.0,    // while fed, the stands pay every ... seconds
-  showPay: 55,          // ... this much
+  showPay: 70,          // ... this much
   safariMin: 5,         // tourists needed to launch a Sea Safari
   safariMax: 40,
   captainEvery: 30,     // the Boat Captain runs a safari (at 1x) every ... seconds
+  tripTime: 25,         // seconds the safari boat is away on a trip
+  thiefEvery: [100, 170] as [number, number], // seconds between baby Dilo thieves
+  thiefReward: 400,     // cash for catching one
   crewCarry: 12,
   crewSpeed: 5.2,
 };
 
 /** Act 3 unlock tiles. Same shape as UNLOCKS. */
 export const ISLAND_UNLOCKS: UnlockDef[] = [
-  { id: 'i3-cashier',  name: 'Juice Cashier',    icon: '🧃', cost: 6000,   pos: [-2, 21],   requires: [] },
-  { id: 'i3-picker',   name: 'Fruit Picker',     icon: '🍈', cost: 9000,   pos: [-20, 3],   requires: [] },
-  { id: 'i3-runner',   name: 'Smoothie Runner',  icon: '🥤', cost: 12000,  pos: [-9, 2],    requires: ['i3-picker'] },
-  { id: 'i3-dilo',     name: 'Dilo Show',        icon: '🦖', cost: 20000,  pos: [-8, -8],   requires: ['i3-cashier'] },
-  { id: 'i3-keeper',   name: 'Dino Keeper',      icon: '🍖', cost: 26000,  pos: [-2, -4],   requires: ['i3-dilo'] },
-  { id: 'i3-dodo',     name: 'Dodo Ranch',       icon: '🦤', cost: 34000,  pos: [10, -6],   requires: ['i3-dilo'] },
-  { id: 'i3-eggs',     name: 'Egg Collector',    icon: '🥚', cost: 42000,  pos: [6, 6],     requires: ['i3-dodo'] },
-  { id: 'i3-clerk',    name: 'Shop Clerk',       icon: '🛍️', cost: 48000,  pos: [12, 10.5], requires: ['i3-dodo'] },
-  { id: 'i3-dock',     name: 'Sea Safari Dock',  icon: '🚤', cost: 60000,  pos: [27, 13],   requires: ['i3-dodo'] },
-  { id: 'i3-captain',  name: 'Boat Captain',     icon: '🧑‍✈️', cost: 75000, pos: [25, 25],   requires: ['i3-dock'] },
-  { id: 'i3-cashdodo', name: 'Cash Dodo',        icon: '💰', cost: 90000,  pos: [4, 14],    requires: ['i3-cashier', 'i3-keeper', 'i3-clerk'] },
-  { id: 'i3-volcano',  name: 'Big Order: Volcano', icon: '🌋', cost: 250000, pos: [0, -20], requires: ['i3-cashdodo', 'i3-captain'] },
+  { id: 'i3-cashier',  name: 'Juice Cashier',    icon: '🧃', cost: 25000,   pos: [-2, 21],   requires: [] },
+  { id: 'i3-picker',   name: 'Fruit Picker',     icon: '🍈', cost: 36000,   pos: [-20, 3],   requires: [] },
+  { id: 'i3-runner',   name: 'Smoothie Runner',  icon: '🥤', cost: 48000,  pos: [-9, 2],    requires: ['i3-picker'] },
+  { id: 'i3-dilo',     name: 'Dilo Show',        icon: '🦖', cost: 80000,  pos: [-8, -8],   requires: ['i3-cashier'] },
+  { id: 'i3-keeper',   name: 'Dino Keeper',      icon: '🍖', cost: 105000,  pos: [-2, -4],   requires: ['i3-dilo'] },
+  { id: 'i3-dodo',     name: 'Dodo Ranch',       icon: '🦤', cost: 140000,  pos: [10, -6],   requires: ['i3-dilo'] },
+  { id: 'i3-eggs',     name: 'Egg Collector',    icon: '🥚', cost: 170000,  pos: [6, 6],     requires: ['i3-dodo'] },
+  { id: 'i3-clerk',    name: 'Shop Clerk',       icon: '🛍️', cost: 195000,  pos: [12, 10.5], requires: ['i3-dodo'] },
+  { id: 'i3-dock',     name: 'Sea Safari Dock',  icon: '🚤', cost: 240000,  pos: [27, 13],   requires: ['i3-dodo'] },
+  { id: 'i3-captain',  name: 'Boat Captain',     icon: '🧑‍✈️', cost: 300000, pos: [25, 25],   requires: ['i3-dock'] },
+  { id: 'i3-cashdodo', name: 'Sarah: Assistant', icon: '👩‍💼', cost: 360000,  pos: [4, 14],    requires: ['i3-cashier', 'i3-keeper', 'i3-clerk'] },
+  { id: 'i3-volcano',  name: 'Big Order: Volcano', icon: '🌋', cost: 1000000, pos: [0, -20], requires: ['i3-cashdodo', 'i3-captain'] },
 ];

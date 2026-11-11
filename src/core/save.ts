@@ -1,5 +1,10 @@
 // ============================================================================
 // save.ts — saves progress to the browser (localStorage).
+//
+// THREE SAVE SLOTS: each is a completely separate game (own cash, levels,
+// unlocks). Slot 1 uses the original key, so existing progress is Slot 1.
+// Only the slot you're playing earns offline: switching slots pauses the one
+// you leave (its "last seen" is cleared), so slots never stack offline income.
 // Everything is wrapped in try/catch because private browsing or a full
 // disk can make localStorage throw; the game still works, it just won't save.
 // ============================================================================
@@ -36,9 +41,70 @@ export function newSave(): SaveData {
   return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} }, world: 'ant', airSeen: false, view: 'third', lastSeen: 0, rate: 0 };
 }
 
+export const SLOTS = [1, 2, 3] as const;
+export type Slot = (typeof SLOTS)[number];
+const SLOT_KEY = 'anthill-airways-slot';
+
+/** The localStorage key for a slot (slot 1 = the original key). */
+function keyFor(slot: Slot) {
+  return slot === 1 ? CONFIG.saveKey : `${CONFIG.saveKey}-slot${slot}`;
+}
+
+/** Which slot is being played. */
+export function activeSlot(): Slot {
+  try {
+    const n = Number(localStorage.getItem(SLOT_KEY));
+    return (SLOTS as readonly number[]).includes(n) ? (n as Slot) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** Once we're switching slots, nothing more may be written to the old one. */
+let locked = false;
+
+/** A slot's headline numbers (for the slot picker); null = empty slot. */
+export function slotSummary(slot: Slot) {
+  try {
+    const raw = localStorage.getItem(keyFor(slot));
+    if (!raw) return null;
+    const d = { ...newSave(), ...JSON.parse(raw) } as SaveData;
+    const act = d.unlocked.includes('a2-island') ? '🏝️ Act 3' : d.unlocked.includes('expand3') ? '✈️ Act 2' : '🐜 Act 1';
+    return { level: d.level, cash: d.cash, act, lastSeen: d.lastSeen };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save + pause the current slot, then make `slot` the active one. The caller
+ * reloads the page to start it. The slot we leave gets no offline earnings
+ * for the time spent in other slots.
+ */
+export function switchSlot(current: SaveData, slot: Slot) {
+  try {
+    current.lastSeen = 0; // paused: no offline income while you're elsewhere
+    localStorage.setItem(keyFor(activeSlot()), JSON.stringify(current));
+    localStorage.setItem(SLOT_KEY, String(slot));
+  } catch {
+    /* ignore */
+  }
+  locked = true;
+}
+
+/** Erase one slot (if it's the one being played, the caller reloads). */
+export function eraseSlot(slot: Slot) {
+  try {
+    localStorage.removeItem(keyFor(slot));
+  } catch {
+    /* ignore */
+  }
+  if (slot === activeSlot()) locked = true;
+}
+
 export function loadSave(): SaveData {
   try {
-    const raw = localStorage.getItem(CONFIG.saveKey);
+    const raw = localStorage.getItem(keyFor(activeSlot()));
     if (!raw) return newSave();
     // Merge with defaults so older saves still load after we add new fields.
     return { ...newSave(), ...JSON.parse(raw) };
@@ -48,18 +114,16 @@ export function loadSave(): SaveData {
 }
 
 export function writeSave(data: SaveData) {
+  if (locked) return; // switching slots: don't touch the one we left
   try {
     data.lastSeen = Date.now(); // offline earnings count from the last save
-    localStorage.setItem(CONFIG.saveKey, JSON.stringify(data));
+    localStorage.setItem(keyFor(activeSlot()), JSON.stringify(data));
   } catch {
     /* saving is best-effort */
   }
 }
 
+/** Reset the slot being played. */
 export function clearSave() {
-  try {
-    localStorage.removeItem(CONFIG.saveKey);
-  } catch {
-    /* ignore */
-  }
+  eraseSlot(activeSlot());
 }

@@ -279,7 +279,46 @@ export class Hud {
   }
 
   /** Settings panel: sound toggle + reset (tap reset twice to confirm). */
-  initSettings(opts: { sound: boolean; onSound: (on: boolean) => void; onReset: () => void }) {
+  /**
+   * Save slots list. `slots` = summaries (null = empty). Tapping a slot plays
+   * it; the 🗑️ erases it (tap twice).
+   */
+  renderSlots(
+    slots: { n: number; here: boolean; info: { level: number; cash: number; act: string; lastSeen: number } | null }[],
+    onPlay: (n: number) => void,
+    onErase: (n: number) => void,
+  ) {
+    const list = $('slotList');
+    list.innerHTML = '';
+    for (const s of slots) {
+      const row = document.createElement('div');
+      row.className = `slot${s.here ? ' here' : ''}`;
+      const when = s.info?.lastSeen ? new Date(s.info.lastSeen).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+      row.innerHTML = `<span class="num">${s.n}</span><span class="info">${
+        s.info ? `<b>Lv ${s.info.level} · ${s.info.act}</b><br>💵 ${Math.floor(s.info.cash).toLocaleString()}${when ? ` · ${when}` : ''}` : '<b>Empty</b><br>Tap to start a new game'
+      }</span>${s.here ? '<span class="tag">PLAYING</span>' : ''}`;
+      if (!s.here) row.addEventListener('click', () => onPlay(s.n));
+      if (s.info && !s.here) {
+        const del = document.createElement('button');
+        del.className = 'erase';
+        del.textContent = '🗑️';
+        let armed = false;
+        del.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!armed) {
+            armed = true;
+            del.textContent = 'Erase?';
+            return;
+          }
+          onErase(s.n);
+        });
+        row.appendChild(del);
+      }
+      list.appendChild(row);
+    }
+  }
+
+  initSettings(opts: { sound: boolean; onSound: (on: boolean) => void; onReset: () => void; onOpen?: () => void }) {
     const panel = $('settings');
     const soundBtn = $('soundBtn');
     const resetBtn = $('resetBtn');
@@ -289,7 +328,8 @@ export class Hud {
     label();
     $('settingsBtn').addEventListener('click', () => {
       armed = false;
-      resetBtn.textContent = 'Reset progress';
+      resetBtn.textContent = 'Reset this slot';
+      opts.onOpen?.();
       panel.classList.remove('hidden');
     });
     $('closeSettings').addEventListener('click', () => panel.classList.add('hidden'));
@@ -301,7 +341,7 @@ export class Hud {
     resetBtn.addEventListener('click', () => {
       if (!armed) {
         armed = true;
-        resetBtn.textContent = 'Tap again to erase everything';
+        resetBtn.textContent = 'Tap again to erase this slot';
         return;
       }
       opts.onReset();

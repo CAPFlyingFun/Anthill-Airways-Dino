@@ -12,8 +12,7 @@
 //   🚤 SEA SAFARI   arriving tourists wait on the dock -> a gate run on the
 //                   open sea (Mosasaurus + Megalodon surface as hazards)
 //
-// Crew unlocks automate each job, and a Cash Dodo waddles around collecting
-// the money. Like the airport, the island keeps working while you're away.
+// Crew unlocks automate each job, and Sarah (your assistant) collects the money. Like the airport, the island keeps working while you're away.
 // ============================================================================
 import * as THREE from 'three';
 import { CONFIG, ISLAND_CFG as C, ISLAND_UNLOCKS } from '../data/config';
@@ -29,6 +28,7 @@ import { Flyers, ITEM_VALUE, ItemType, Stack } from './items';
 import { TextSprite, makePad } from './labels';
 import { Bakery, Blocker, CashPad, ProcessorOpts, ResourcePile, TrashBin, UnlockTile, Zone, gridLayout } from './stations';
 import { Assistant, Desk, payBill, person, stepTo } from './airportWorld';
+import { weather } from '../core/weather';
 import { buildAircraftModel } from './aircraft';
 
 const H = 2.8; // people are this tall (same as the airport)
@@ -115,6 +115,15 @@ class DiloShow {
   private crowd: CreatureModel[] = [];
   private cheerT = 0;
   readonly pen = { minX: -32, maxX: -13, minZ: -24, maxZ: -9 };
+  // Escape: starve him too long and he jumps the fence.
+  free = false;
+  private starveT = 0;
+  private hop: { from: THREE.Vector3; to: THREE.Vector3; t: number } | null = null;
+  private chompCd = 0;
+  private roam = new THREE.Vector3();
+  /** 'escaped' / 'chomp' / 'back' (for banners). */
+  onEvent: (what: 'escaped' | 'chomp' | 'back') => void = () => {};
+  private feedSpot = new THREE.Vector3();
 
   constructor(private scene: THREE.Scene, private flyers: Flyers, private payMult: () => number, private sfx: Sfx) {
     const p = this.pen;
@@ -147,6 +156,7 @@ class DiloShow {
     scene.add(holder);
     this.feed = new Stack(holder, gridLayout(3, 3, 0.5, 0.5, 0.05), 24);
     this.feedZone = new Zone(fx, fz, 1.3, 1.3);
+    this.feedSpot.set(fx, 0, fz);
     this.trough.set(p.maxX - 2.4, 0, fz);
     scene.add(box(1.2, 0.5, 2.6, mat(0x5a3a22, 0.9), p.maxX - 0.9, 0.25, fz));
 
@@ -181,10 +191,11 @@ class DiloShow {
     this.target.set(rand(p.minX + 4, p.maxX - 4), 0, rand(p.minZ + 4, p.maxZ - 4));
   }
 
-  update(dt: number) {
+  /** `player` = you, when you're on the island (null while you're away). */
+  update(dt: number, player: Player | null) {
     // Belly empties over time; a fed dino puts on a show (the crowd pays).
     this.belly = Math.max(0, this.belly - dt / C.dinoHunger);
-    const fed = this.belly > 0.05;
+    const fed = this.belly > 0.05 && !this.free;
     if (fed) {
       this.payT += dt;
       if (this.payT >= C.showPayEvery) {
@@ -192,7 +203,8 @@ class DiloShow {
         payBill(this.scene, this.flyers, this.pad, this.crowd[2]?.root ?? this.pad.group, Math.round(C.showPay * this.payMult()));
       }
     }
-    const mood = this.belly > 0.5 ? '🦖 DILO SHOW · 😋 Fed!' : fed ? '🦖 DILO SHOW · 🙂 Peckish' : '🦖 DILO SHOW · 😠 HUNGRY!';
+    const mood = this.free ? '🚨 DILO ESCAPED! Lure him back with 🍖'
+      : this.belly > 0.5 ? '🦖 DILO SHOW · 😋 Fed!' : fed ? '🦖 DILO SHOW · 🙂 Peckish' : '🦖 DILO SHOW · 😠 HUNGRY!';
     if (mood !== this.shownMood) {
       this.shownMood = mood;
       this.sign.setText(mood, fed ? '#ffd166' : '#ff6b6b');
@@ -207,6 +219,36 @@ class DiloShow {
     const d = this.dino;
     if (!d) return;
     const pos = d.root.position;
+    if (this.hop) {
+      // Leaping over the fence (out, or back in)
+      this.hop.t = Math.min(1, this.hop.t + dt / 1.3);
+      pos.lerpVectors(this.hop.from, this.hop.to, this.hop.t);
+      pos.y = Math.sin(this.hop.t * Math.PI) * 4.2;
+      faceToward(d, this.hop.to.x - this.hop.from.x, this.hop.to.z - this.hop.from.z, dt, 8);
+      animateCreature(d, dt, 0);
+      if (this.hop.t >= 1) {
+        pos.y = 0;
+        this.hop = null;
+      }
+      return;
+    }
+    if (this.free) {
+      this.updateFree(dt, d, player);
+      return;
+    }
+    // Starving too long -> he jumps the fence!
+    if (this.belly <= 0) {
+      this.starveT += dt;
+      if (this.starveT > C.escapeAfter) {
+        this.starveT = 0;
+        this.free = true;
+        this.state = 'wander';
+        this.hop = { from: pos.clone(), to: new THREE.Vector3(this.pen.maxX + 6, 0, rand(-20, -12)), t: 0 };
+        this.roam.copy(this.hop.to);
+        this.onEvent('escaped');
+        return;
+      }
+    } else this.starveT = 0;
     switch (this.state) {
       case 'wander':
         if (this.belly < 0.7 && this.feed.canPop()) {
@@ -261,6 +303,130 @@ class DiloShow {
   private walk(d: CreatureModel, to: THREE.Vector3, speed: number, dt: number) {
     return stepTo(d, to, speed, dt);
   }
+
+  /**
+   * On the loose: he chases you (a chomp makes you drop everything you carry),
+   * unless you're carrying 🍖, then he follows you like a puppy. Lead him to
+   * the FEED platform and he jumps back into the paddock to eat it.
+   */
+  private updateFree(dt: number, d: CreatureModel, player: Player | null) {
+    const pos = d.root.position;
+    this.chompCd -= dt;
+    if (player) {
+      const pp = player.pos;
+      const gap = Math.hypot(pp.x - pos.x, pp.z - pos.z);
+      const lured = player.stack.has('meat') && gap < 10;
+      if (lured && pos.distanceTo(this.feedSpot) < 5.5) {
+        // Back home! He takes the food you carried and hops in.
+        while (player.stack.has('meat') && !this.feed.full) this.flyers.transferType(player.stack, this.feed, 'meat');
+        this.free = false;
+        this.belly = Math.max(this.belly, 0.45);
+        this.hop = { from: pos.clone(), to: this.trough.clone(), t: 0 };
+        this.state = 'rest';
+        this.t = 1;
+        this.onEvent('back');
+        return;
+      }
+      if (gap < 28) {
+        if (lured) {
+          // Follow at a polite distance
+          const k = Math.max(0, gap - 2.8) / Math.max(gap, 0.001);
+          this.roam.set(pos.x + (pp.x - pos.x) * k, 0, pos.z + (pp.z - pos.z) * k);
+          stepTo(d, this.roam, 4.2, dt);
+        } else {
+          stepTo(d, this.roam.set(pp.x, 0, pp.z), 3.7, dt);
+          if (gap < 2.6 && this.chompCd <= 0) {
+            this.chompCd = 5;
+            // CHOMP: everything you carry goes flying
+            while (player.stack.count) {
+              const it = player.stack.pop()!;
+              const land = new THREE.Vector3(pp.x + rand(-4, 4), 0.2, pp.z + rand(-4, 4));
+              this.flyers.fly(it.mesh, () => land, () => it.mesh.removeFromParent(), 0.5, 2.5);
+            }
+            this.onEvent('chomp');
+          }
+        }
+        return;
+      }
+    }
+    // Nobody around: roam the island
+    if (stepTo(d, this.roam, 1.8, dt)) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.random() * 0.8;
+      this.roam.set(Math.cos(a) * WALK.rx * r, 0, Math.sin(a) * WALK.rz * r);
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 🦖 THIEF: a baby Dilophosaurus sneaks in from the jungle, grabs a few things
+// from a counter/nest/blender and runs off. Walk into it to get them back.
+// ----------------------------------------------------------------------------
+class DinoThief {
+  model: CreatureModel | null;
+  stack: Stack | null = null;
+  state: 'sneak' | 'steal' | 'escape' | 'caught' = 'sneak';
+  done = false;
+  private t = 0;
+  private tag = new TextSprite(0.45, '#ff6b6b');
+  private to = new THREE.Vector3();
+
+  constructor(private scene: THREE.Scene, public loot: { stack: Stack; zone: Zone; name: string }, private exit: THREE.Vector3) {
+    this.model = spawnDino('d-dilo', 3.2);
+    if (!this.model) {
+      this.done = true;
+      return;
+    }
+    this.model.root.position.copy(exit);
+    scene.add(this.model.root);
+    const spot = handsSpot(this.model);
+    this.stack = new Stack(this.model.bob, (i, _type, out) => out.set(0, spot.y0 + i * 0.32, spot.z0 + 0.6), 6);
+    this.tag.setText('🦖 THIEF!');
+    scene.add(this.tag.sprite);
+  }
+
+  /** Returns what happened this frame (for banners). */
+  update(dt: number, player: THREE.Vector3 | null, flyers: Flyers): 'stealing' | 'caught' | 'escaped' | null {
+    const m = this.model;
+    if (!m || !this.stack || this.done) return null;
+    const p = m.root.position;
+    this.tag.sprite.position.set(p.x, m.height + 0.9, p.z);
+    if (player && this.state !== 'caught' && Math.hypot(player.x - p.x, player.z - p.z) < 2.4) {
+      // Caught! The loot hops back where it came from.
+      this.state = 'caught';
+      while (this.stack.canPop()) {
+        if (!flyers.transfer(this.stack, this.loot.stack)) this.stack.pop()?.mesh.removeFromParent();
+      }
+      this.tag.setText('😵', '#ffffff');
+      return 'caught';
+    }
+    let event: 'stealing' | 'escaped' | null = null;
+    switch (this.state) {
+      case 'sneak':
+        if (stepTo(m, this.to.set(this.loot.zone.x, 0, this.loot.zone.z), 3.4, dt)) this.state = 'steal';
+        break;
+      case 'steal':
+        animateCreature(m, dt, 0);
+        this.t += dt;
+        if (this.t > 0.5) {
+          this.t = 0;
+          if (!this.stack.full && flyers.transfer(this.loot.stack, this.stack)) {
+            if (this.stack.count === 1) event = 'stealing';
+          } else this.state = 'escape';
+        }
+        break;
+      case 'escape':
+      case 'caught':
+        if (stepTo(m, this.exit, this.state === 'caught' ? 8 : 5.6, dt)) {
+          this.done = true;
+          m.root.removeFromParent();
+          this.tag.sprite.removeFromParent();
+          if (this.state === 'escape' && this.stack.count) event = 'escaped';
+        }
+        break;
+    }
+    return event;
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -300,7 +466,7 @@ class DodoRanch {
       this.nests.push(n);
     }
     for (let i = 0; i < 5; i++) {
-      const m = spawnDino('d-dodo', rand(1.8, 2.2));
+      const m = spawnDino('d-dodo', rand(0.95, 1.15)); // about chest-high on a person
       if (!m) continue;
       m.root.position.set(rand(p.minX + 2, p.maxX - 2), 0, rand(p.minZ + 2, p.maxZ - 2));
       scene.add(m.root);
@@ -322,7 +488,7 @@ class DodoRanch {
         }
         continue;
       }
-      if (stepTo(d.m, d.target, 1.5, dt)) d.rest = rand(1, 4);
+      if (stepTo(d.m, d.target, 1.1, dt)) d.rest = rand(1, 4);
     }
   }
 }
@@ -341,6 +507,9 @@ class SafariDock {
   private boat = new THREE.Group();
   private bobT = 0;
   private captainT = 0;
+  /** Seconds until the boat is back from its current trip (0 = at the pier). */
+  away = 0;
+  private boatHome = new THREE.Vector3(46, -0.25, 25);
 
   constructor(scene: THREE.Scene) {
     // The pier, out into the sea to the east
@@ -388,27 +557,46 @@ class SafariDock {
     this.drawLabel();
   }
 
+  /** Everyone boards: the boat heads out on a safari. */
   take() {
     const n = this.waiting;
     this.waiting = 0;
+    this.away = C.tripTime;
     this.drawLabel();
     return n;
   }
 
+  /** Can a safari leave right now? */
+  get ready() {
+    return this.away <= 0 && this.waiting >= C.safariMin && !weather.storm;
+  }
+
+  private shown = '';
   private drawLabel() {
-    this.label.setText(`🧍 ${this.waiting} waiting${this.waiting < C.safariMin ? ` (need ${C.safariMin})` : ''}`);
+    const txt = this.away > 0 ? `🚤 Out on safari · back in ${Math.ceil(this.away)}s · 🧍 ${this.waiting}`
+      : weather.storm ? `⛈️ No safaris in a storm · 🧍 ${this.waiting}`
+        : `🧍 ${this.waiting} waiting${this.waiting < C.safariMin ? ` (need ${C.safariMin})` : ''}`;
+    if (txt === this.shown) return;
+    this.shown = txt;
+    this.label.setText(txt);
     this.figures.forEach((m, i) => (m.root.visible = i < Math.min(3, Math.ceil(this.waiting / 6))));
   }
 
   update(dt: number) {
     this.bobT += dt;
-    this.boat.position.y = -0.25 + Math.sin(this.bobT * 1.6) * 0.08;
+    // Off on a trip: sail out east, vanish over the horizon, then come back.
+    if (this.away > 0) this.away = Math.max(0, this.away - dt);
+    const trip = C.tripTime;
+    const out = this.away > 0 ? Math.min(1, (trip - this.away) / 6, this.away / 6) : 0;
+    this.boat.position.set(this.boatHome.x + out * 60, -0.25 + Math.sin(this.bobT * 1.6) * 0.08, this.boatHome.z + out * 8);
+    this.boat.visible = out < 0.98;
     this.boat.rotation.z = Math.sin(this.bobT * 1.1) * 0.03;
+    this.drawLabel();
     for (const m of this.figures) if (m.root.visible) animateCreature(m, dt, 0);
     // The Boat Captain takes full boats out by himself (a steady 1x trip).
     if (this.hasCaptain) {
       this.captainT += dt;
-      if (this.captainT >= C.captainEvery && this.waiting >= C.safariMin) {
+      if (this.captainT >= C.captainEvery && this.ready) {
         this.captainT = 0;
         this.onAutoTrip(this.take());
       }
@@ -438,7 +626,7 @@ class Arrivals {
     this.t += dt;
     const g = this.plane.group.position;
     const z = AIRSTRIP_Z;
-    if (this.state === 'away' && this.t >= C.arrivalEvery) {
+    if (this.state === 'away' && this.t >= C.arrivalEvery && !weather.storm) {
       this.state = 'landing';
       this.t = 0;
       this.plane.group.visible = true;
@@ -510,6 +698,8 @@ export class IslandWorld {
   private dock: SafariDock | null = null;
   private arrivals: Arrivals;
   private cashDodo: Assistant | null = null;
+  private thief: DinoThief | null = null;
+  private thiefT = rand(90, 150);
   private trash: TrashBin;
   private blockers: Blocker[] = [];
   private timers = new Map<object, number>();
@@ -537,7 +727,7 @@ export class IslandWorld {
     // 🥤 Juice Bar: two fruit trees, the blender, the counter + its cash pad
     for (const [x, z] of [[-24, 18], [-29, 9]]) {
       const pile = new ResourcePile(this.scene, x, z, this.flyers, 'fruit', 'fruit');
-      pile.spawnEvery = () => C.fruitEvery;
+      pile.spawnEvery = () => (weather.storm ? C.fruitEvery * 3 : C.fruitEvery); // storms slow the trees
       this.piles.push(pile);
       this.blockers.push({ minX: x - 0.8, maxX: x + 0.8, minZ: z - 2.8, maxZ: z - 1.2 });
     }
@@ -732,10 +922,16 @@ export class IslandWorld {
         break;
       case 'i3-dilo': {
         this.show = new DiloShow(this.scene, this.flyers, () => this.progress.cashMult, this.sfx);
+        this.show.onEvent = (what) => {
+          if (!this.active) return;
+          if (what === 'escaped') this.hud.banner('🚨 The Dilophosaurus escaped!', 'Grab 🍖 from the supply drop: he follows food. Lead him to FEED!', 5000);
+          else if (what === 'chomp') this.hud.floatAt(this.player.pos.clone().setY(H + 1), this.camera, '🦖 CHOMP! Dropped everything', 'big bad');
+          else this.hud.banner('🦖 Back in the paddock!', 'The show is back on', 2500);
+        };
         this.cashPads.push(this.show.pad);
         this.blockers.push(...this.show.blockers);
         this.supply = new ResourcePile(this.scene, -4, -12, this.flyers, 'meat', 'supply');
-        this.supply.spawnEvery = () => C.meatEvery;
+        this.supply.spawnEvery = () => (weather.storm ? Infinity : C.meatEvery); // no supply drops in a storm
         this.blockers.push({ minX: -5.3, maxX: -2.7, minZ: -14.9, maxZ: -13.1 });
         grow(this.supply.group);
         if (animate) this.hud.banner('🦖 The Dilo Show is open!', 'Carry 🍖 from the supply drop to FEED: a fed dino = a paying crowd', 4200);
@@ -781,17 +977,17 @@ export class IslandWorld {
         if (animate) this.hud.banner('🧑‍✈️ Boat Captain hired', 'He takes full boats out by himself (steady 1x trips)', 3500);
         break;
       case 'i3-cashdodo': {
-        const m = spawnDino('d-dodo', 2.1);
-        if (!m) break;
+        // Sarah, your personal assistant, comes over from the airport to run
+        // the island's cash (the unlock's id is kept so old saves still work).
+        const m = person('h-sarah');
         m.root.position.set(4, 0, 12);
         this.scene.add(m.root);
         grow(m.root);
         const tag = new TextSprite(0.45, '#ffd166');
-        tag.setText('💰 CASH DODO');
+        tag.setText('💼 SARAH');
         this.scene.add(tag.sprite);
         this.cashDodo = new Assistant(m, new THREE.Vector3(4, 0, 12), tag, (v) => this.addCash(v));
-        this.cashDodo.speed = 3.2;
-        if (animate) this.hud.banner('💰 Cash Dodo hired!', 'It waddles to every cash pad and brings you the money', 3500);
+        if (animate) this.hud.banner('👩‍💼 Sarah is on the island!', 'She collects the cash from every pad for you', 3500);
         break;
       }
       case 'i3-volcano':
@@ -860,7 +1056,8 @@ export class IslandWorld {
     this.juice.update(dt, this.active && this.juice.staffZone.contains(me.pos), this.sfx);
     this.shop?.update(dt, this.active && this.shop.staffZone.contains(me.pos), this.sfx);
     this.supply?.update(dt);
-    this.show?.update(dt);
+    this.show?.update(dt, this.active ? me : null);
+    this.updateThief(dt);
     this.ranch?.update(dt);
     this.dock?.update(dt);
     this.arrivals.update(dt);
@@ -885,6 +1082,40 @@ export class IslandWorld {
       animateCreature(me.model, dt, 0);
     }
     this.flyers.update(dt);
+  }
+
+  /** Baby Dilo thieves sneak in now and then (only while you're here to stop them). */
+  private updateThief(dt: number) {
+    if (this.thief) {
+      const ev = this.thief.update(dt, this.active ? this.player.pos : null, this.flyers);
+      if (ev === 'stealing' && this.active) this.hud.banner('🦖 Thief!', `A baby Dilo is stealing your ${this.thief.loot.name}. Run into it!`, 3200);
+      else if (ev === 'caught') {
+        const reward = Math.round(C.thiefReward * this.progress.cashMult);
+        this.addCash(reward);
+        this.sfx.unlocked();
+        this.hud.floatAt(this.player.pos.clone().setY(H + 1), this.camera, `🦖 Caught! +$${reward}`, 'big gold');
+      } else if (ev === 'escaped' && this.active) this.hud.floatAt(this.player.pos.clone().setY(H + 1), this.camera, '🦖 It got away with the loot…', 'big bad');
+      if (this.thief.done) this.thief = null;
+      return;
+    }
+    if (!this.active) return;
+    this.thiefT -= dt;
+    if (this.thiefT > 0) return;
+    this.thiefT = rand(C.thiefEvery[0], C.thiefEvery[1]);
+    // Go after whatever has the most stuff on it
+    const spots: { stack: Stack; zone: Zone; name: string }[] = [
+      { stack: this.juice.shelf!, zone: this.juice.staffZone, name: 'smoothies 🥤' },
+      { stack: this.blender.output, zone: this.blender.outZone, name: 'smoothies 🥤' },
+      ...this.piles.map((p) => ({ stack: p.stack, zone: p.zone, name: 'fruit 🍈' })),
+      ...(this.shop?.shelf ? [{ stack: this.shop.shelf, zone: this.shop.staffZone, name: 'Dodo eggs 🥚' }] : []),
+      ...(this.ranch ? this.ranch.nests.map((n) => ({ stack: n.stack, zone: n.zone, name: 'Dodo eggs 🥚' })) : []),
+    ].filter((s) => s.stack.count >= 3);
+    if (!spots.length) return;
+    const loot = spots.reduce((a, b) => (b.stack.count > a.stack.count ? b : a));
+    // Sneaks in from the jungle edge on the far side of the loot from you
+    const a = Math.atan2(loot.zone.z, loot.zone.x) + rand(-0.6, 0.6);
+    const exit = new THREE.Vector3(Math.cos(a) * WALK.rx, 0, Math.sin(a) * WALK.rz);
+    this.thief = new DinoThief(this.scene, loot, exit);
   }
 
   private updateScenery(dt: number) {
@@ -941,7 +1172,7 @@ export class IslandWorld {
 
     // Sea Safari: stand on BOARD with enough tourists waiting
     if (this.dock) {
-      const ready = this.dock.zone.contains(p) && this.dock.waiting >= C.safariMin;
+      const ready = this.dock.zone.contains(p) && this.dock.ready;
       if (ready) this.hud.setLaunch(this.dock.waiting, () => this.onSafari(this.dock!.take()), '🚤 SEA SAFARI');
       else if (this.dock.zone.contains(p) || this.launchShown) this.hud.setLaunch(null);
       this.launchShown = ready;
@@ -1014,6 +1245,7 @@ export class IslandWorld {
     this.hintShown = '-';
     this.hud.setCash(this.save.cash);
     this.intro = flyIn ? 0 : 1;
+    if (this.show?.free) this.hud.banner('🚨 The Dilophosaurus is loose!', 'Carry 🍖 near him and lead him to FEED', 4500);
   }
 
   leave() {
