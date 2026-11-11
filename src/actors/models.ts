@@ -9,12 +9,27 @@
 import * as THREE from 'three';
 
 export interface CreatureModel {
-  root: THREE.Group;      // move/rotate this
-  bob: THREE.Group;       // the body; bounces while walking; stacks attach here
-  legs: THREE.Object3D[];
-  legBase: number[];      // resting angle of each leg
-  legPhase: number[];     // 0 or PI (tripod groups)
+  root: THREE.Group;          // move/rotate this
+  bob: THREE.Group;           // the body; bounces while walking; stacks attach here
+  legs: THREE.Object3D[];     // leg pivots (procedural) or leg root bones (3D models)
+  legBase: THREE.Quaternion[];// resting rotation of each leg
+  legAxis: THREE.Vector3[];   // axis each leg swings around (in the leg's own space)
+  legPhase: number[];         // 0 or PI (alternating gait)
+  legAmp: number;             // how far legs swing (radians)
   walkT: number;
+  walkBlend: number;          // 0 = standing, 1 = full walk cycle
+  height: number;             // world height of the body (for stacking things on top)
+  length: number;             // nose-to-tail length
+}
+
+/** Empty model shell; the builders below fill it in. */
+export function newModel(height: number, length: number): CreatureModel {
+  const m: CreatureModel = {
+    root: new THREE.Group(), bob: new THREE.Group(), legs: [], legBase: [], legAxis: [], legPhase: [],
+    legAmp: 0.5, walkT: Math.random() * 10, walkBlend: 0, height, length,
+  };
+  m.root.add(m.bob);
+  return m;
 }
 
 const legGeo = new THREE.CylinderGeometry(0.04, 0.03, 0.8, 5);
@@ -49,7 +64,8 @@ function addLegs(model: CreatureModel, parent: THREE.Object3D, material: THREE.M
       const base = [-0.55, 0, 0.55][row] * side;
       swing.rotation.y = base;
       model.legs.push(swing);
-      model.legBase.push(base);
+      model.legBase.push(swing.quaternion.clone());
+      model.legAxis.push(new THREE.Vector3(0, 1, 0));
       // Tripod gait: front-left, middle-right, back-left move together.
       const groupA = (row % 2 === 0) === (side === -1);
       model.legPhase.push(groupA ? 0 : Math.PI);
@@ -59,10 +75,9 @@ function addLegs(model: CreatureModel, parent: THREE.Object3D, material: THREE.M
 
 /** An ant. `cap` gives it the player's blue pilot cap and goggles. */
 export function makeAnt(color = 0x8e2f14, cap = false): CreatureModel {
-  const model: CreatureModel = { root: new THREE.Group(), bob: new THREE.Group(), legs: [], legBase: [], legPhase: [], walkT: Math.random() * 10 };
+  const model = newModel(0.75 * 1.3, 1.6 * 1.3);
   const body = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.05 });
   model.bob.position.y = 0.45;
-  model.root.add(model.bob);
   const b = model.bob;
 
   b.add(ball(body, 0.42, 0, 0.12, -0.66, 0.9, 0.82, 1.15)); // abdomen (back end)
@@ -110,11 +125,10 @@ export function makeAnt(color = 0x8e2f14, cap = false): CreatureModel {
 
 /** A beetle (the customers, and the cart-puller in gate runs). */
 export function makeBeetle(color: number): CreatureModel {
-  const model: CreatureModel = { root: new THREE.Group(), bob: new THREE.Group(), legs: [], legBase: [], legPhase: [], walkT: Math.random() * 10 };
+  const model = newModel(0.9, 1.3);
   const shellMat = new THREE.MeshStandardMaterial({ color, roughness: 0.25, metalness: 0.1 });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 });
   model.bob.position.y = 0.38;
-  model.root.add(model.bob);
   const b = model.bob;
 
   const shell = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), shellMat);
@@ -138,16 +152,21 @@ export function makeBeetle(color: number): CreatureModel {
   return model;
 }
 
+const swingQ = new THREE.Quaternion();
+
 /** Call every frame. `speed` is 0 when standing still. */
 export function animateCreature(m: CreatureModel, dt: number, speed: number) {
   const moving = speed > 0.1;
-  m.walkT += dt * (moving ? 9 + speed * 1.2 : 0);
+  // Blend smoothly in/out of the walk so legs don't snap.
+  m.walkBlend += ((moving ? 1 : 0) - m.walkBlend) * Math.min(1, dt * 10);
+  m.walkT += dt * (moving ? 9 + speed * 1.2 : 2);
   m.legs.forEach((leg, i) => {
-    const target = m.legBase[i] + (moving ? Math.sin(m.walkT + m.legPhase[i]) * 0.5 : 0);
-    leg.rotation.y += (target - leg.rotation.y) * Math.min(1, dt * 20);
+    const angle = Math.sin(m.walkT + m.legPhase[i]) * m.legAmp * m.walkBlend;
+    swingQ.setFromAxisAngle(m.legAxis[i], angle);
+    leg.quaternion.copy(m.legBase[i]).multiply(swingQ);
   });
   const baseY = m.bob.userData.baseY ?? (m.bob.userData.baseY = m.bob.position.y);
-  m.bob.position.y = baseY + (moving ? Math.abs(Math.sin(m.walkT)) * 0.05 : 0);
+  m.bob.position.y = baseY + Math.abs(Math.sin(m.walkT)) * 0.04 * m.walkBlend;
 }
 
 /** Smoothly turn a creature to face a direction (x, z). */

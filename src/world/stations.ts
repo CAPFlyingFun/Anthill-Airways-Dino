@@ -12,6 +12,7 @@ import { CONFIG, UnlockDef } from '../data/config';
 import { Flyers, ITEM_H, Layout, Stack, StackItem, makeItem } from './items';
 import { GAME_FONT, TextSprite, gameText, makePad, roundRect } from './labels';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
+import { CreatureKind, spawnCreature } from '../actors/creatures';
 
 /** Axis-aligned box the player can't walk through. */
 export interface Blocker {
@@ -209,6 +210,13 @@ export class Bakery {
 
 // ----------------------------------------------------------------------------
 const BEETLE_COLORS = [0xe63946, 0x2a9d8f, 0xf4a261, 0x6a4c93, 0x1d70a2, 0xffb703];
+// Customers are the other bugs of the backyard (length in world units).
+const CUSTOMER_KINDS: [CreatureKind, number][] = [
+  ['black-widow', 2.4],
+  ['jumping-spider', 2.2],
+  ['housefly', 1.9],
+  ['aphid', 1.7],
+];
 
 interface Customer {
   model: CreatureModel;
@@ -224,8 +232,10 @@ export class Counter {
   sellZone: Zone;
   blocker: Blocker;
   hasCashier = false;
-  /** Called every time a snack is sold (for the tutorial). */
-  onSale: () => void = () => {};
+  /** Called every time a snack is sold (tutorial + XP). */
+  onSale: (byPlayer: boolean) => void = () => {};
+  /** Multiplier on sale value (Haggling stat). */
+  valueMult: () => number = () => 1;
   private queue: Customer[] = [];
   private leaving: Customer[] = [];
   private spawnT = 1.5;
@@ -260,13 +270,14 @@ export class Counter {
   /** Spawn the cashier ant who sells for you. */
   hireCashier(animate: boolean) {
     this.hasCashier = true;
-    this.cashier = makeAnt(0x4a2c1a);
+    this.cashier = spawnCreature('worker', 2.0) ?? makeAnt(0x4a2c1a);
     // Give the cashier a little green visor so you can tell who's who.
+    const m = this.cashier;
     const visor = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.3, 0.3, 0.05, 16, 1, false, -Math.PI / 2, Math.PI),
+      new THREE.CylinderGeometry(m.length * 0.14, m.length * 0.14, 0.05, 16, 1, false, -Math.PI / 2, Math.PI),
       new THREE.MeshStandardMaterial({ color: 0x3fbf5a }),
     );
-    visor.position.set(0, 0.42, 0.6);
+    visor.position.set(0, m.height * 0.85, m.length * 0.38);
     this.cashier.bob.add(visor);
     this.cashier.root.position.set(this.x - 1.15, 0, this.z + 1.0);
     this.cashier.root.rotation.y = Math.PI / 2; // face +x (toward customers)
@@ -275,14 +286,16 @@ export class Counter {
   }
 
   private slot(i: number, out: THREE.Vector3) {
-    return out.set(this.x + 1.75 + i * 1.35, 0, this.z - 0.4);
+    return out.set(this.x + 2.0 + i * 2.3, 0, this.z - 0.4);
   }
 
   private spawnCustomer() {
-    const model = makeBeetle(BEETLE_COLORS[Math.floor(Math.random() * BEETLE_COLORS.length)]);
+    const [kind, len] = CUSTOMER_KINDS[Math.floor(Math.random() * CUSTOMER_KINDS.length)];
+    const model = spawnCreature(kind, len) ?? makeBeetle(BEETLE_COLORS[Math.floor(Math.random() * BEETLE_COLORS.length)]);
     model.root.position.set(this.x + 15, 0, this.z - 0.4);
     this.scene.add(model.root);
-    const held = new Stack(model.bob, (i, type, out) => out.set(0, 0.5 + i * ITEM_H[type] + ITEM_H[type] / 2, 0), 4);
+    const top = model.height * 0.9;
+    const held = new Stack(model.bob, (i, type, out) => out.set(0, top + i * ITEM_H[type] + ITEM_H[type] / 2, -model.length * 0.1), 4);
     this.queue.push({ model, held, wants: 1 + Math.floor(Math.random() * 3), path: [], leaving: false });
   }
 
@@ -329,7 +342,7 @@ export class Counter {
           front.wants--;
           this.spawnBill();
           sfx.sale();
-          this.onSale();
+          this.onSale(playerServing);
         }
       }
       if (front.wants <= 0) {
@@ -358,7 +371,7 @@ export class Counter {
 
   /** A cash bill pops out of the register and lands on the cash pad. */
   private spawnBill() {
-    const value = CONFIG.counter.saleValue;
+    const value = Math.round(CONFIG.counter.saleValue * this.valueMult());
     if (this.cashPad.stack.full) {
       // Pad is full: add the value to the top bill instead.
       this.cashPad.stack.items[this.cashPad.stack.count - 1].value += value;
@@ -425,7 +438,7 @@ export class DispatchPad {
       }
     }
     this.cargo = new Stack(cart, gridLayout(3, 4, 0.56, 0.46, 0.91), CONFIG.cart.max);
-    this.beetle = makeBeetle(0x2a9d8f);
+    this.beetle = spawnCreature('aphid', 1.9) ?? makeBeetle(0x2a9d8f);
     this.beetle.root.position.set(0, 0, 1.9);
     cart.add(this.beetle.root);
 
@@ -521,5 +534,129 @@ export class UnlockTile {
     this.pulseT += dt;
     const s = affordable ? 1 + Math.sin(this.pulseT * 5) * 0.04 : 1;
     this.mesh.scale.set(s, s, 1);
+  }
+}
+
+// ----------------------------------------------------------------------------
+/**
+ * Conveyor belt: carries snack packs from the oven's OUT table to the
+ * counter shelf by itself. Items ride along a path of straight segments.
+ */
+export class Conveyor {
+  group = new THREE.Group();
+  blockers: Blocker[] = [];
+  private path: THREE.Vector3[];
+  private segLen: number[] = [];
+  private total = 0;
+  private riders: { it: StackItem; d: number }[] = [];
+  private pending = 0; // items hopping onto the belt right now
+  private pullT = 0;
+  private beltTex: THREE.CanvasTexture[] = [];
+  private tmp = new THREE.Vector3();
+
+  constructor(private scene: THREE.Scene, private bakery: Bakery, private counter: Counter, private flyers: Flyers) {
+    scene.add(this.group);
+    const y = 0.62;
+    // Oven OUT table (2.3, -8.4) -> east -> north to the back of the counter (9, -4.9)
+    const ox = bakery.outZone.x;
+    const oz = bakery.outZone.z - 2.0;
+    const cx = counter.sellZone.x + 2.3;
+    const cz = counter.sellZone.z - 1.9;
+    this.path = [
+      new THREE.Vector3(ox + 1.1, y, oz),
+      new THREE.Vector3(cx, y, oz),
+      new THREE.Vector3(cx, y, cz),
+    ];
+    for (let i = 0; i < this.path.length - 1; i++) {
+      const a = this.path[i];
+      const b = this.path[i + 1];
+      const len = a.distanceTo(b);
+      this.segLen.push(len);
+      this.total += len;
+      this.buildSegment(a, b, len);
+    }
+  }
+
+  private buildSegment(a: THREE.Vector3, b: THREE.Vector3, len: number) {
+    const seg = new THREE.Group();
+    seg.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+    seg.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
+    const L = len + 0.9;
+    // Moving rubber belt: a striped texture that scrolls
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#3a3f45';
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#4d545c';
+    g.fillRect(0, 0, 64, 18);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, L * 2);
+    this.beltTex.push(tex);
+    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, L), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
+    belt.position.y = 0.55;
+    belt.receiveShadow = true;
+    seg.add(belt);
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0xffc928, roughness: 0.5 });
+    for (const s of [-1, 1]) seg.add(box(0.12, 0.25, L, frameMat, s * 0.5, 0.58, 0));
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x555b62 });
+    for (let t = -L / 2 + 0.3; t <= L / 2; t += 1.6) for (const s of [-1, 1]) seg.add(box(0.1, 0.5, 0.1, legMat, s * 0.42, 0.25, t));
+    this.group.add(seg);
+    const minX = Math.min(a.x, b.x) - 0.5;
+    const maxX = Math.max(a.x, b.x) + 0.5;
+    const minZ = Math.min(a.z, b.z) - 0.5;
+    const maxZ = Math.max(a.z, b.z) + 0.5;
+    this.blockers.push({ minX, maxX, minZ, maxZ });
+  }
+
+  /** Position `d` units along the belt. */
+  private pointAt(d: number, out: THREE.Vector3) {
+    let rest = d;
+    for (let i = 0; i < this.segLen.length; i++) {
+      if (rest <= this.segLen[i] || i === this.segLen.length - 1) {
+        return out.lerpVectors(this.path[i], this.path[i + 1], Math.min(1, rest / this.segLen[i]));
+      }
+      rest -= this.segLen[i];
+    }
+    return out.copy(this.path[this.path.length - 1]);
+  }
+
+  update(dt: number) {
+    const { speed, spacing } = CONFIG.conveyor;
+    for (const t of this.beltTex) t.offset.y -= dt * speed * 2;
+
+    // Pull a snack off the oven table onto the start of the belt.
+    this.pullT += dt;
+    const lastD = this.riders.length ? this.riders[this.riders.length - 1].d : Infinity;
+    const room = this.counter.shelf.count + this.riders.length + this.pending < this.counter.shelf.max;
+    if (this.pullT > 0.25 && lastD > spacing && this.pending === 0 && room && this.bakery.output.canPop()) {
+      this.pullT = 0;
+      const it = this.bakery.output.pop()!;
+      this.pending++;
+      const start = this.path[0].clone().setY(this.path[0].y + 0.2);
+      this.flyers.fly(it.mesh, () => start, () => {
+        this.pending--;
+        this.scene.add(it.mesh);
+        this.riders.push({ it, d: 0 });
+      }, 0.25, 0.6);
+    }
+
+    // Move riders; each stops behind the one ahead (or at the end if the shelf is full).
+    for (let i = 0; i < this.riders.length; i++) {
+      const r = this.riders[i];
+      const limit = i === 0 ? this.total : this.riders[i - 1].d - spacing;
+      r.d = Math.min(limit, r.d + speed * dt);
+      this.pointAt(r.d, this.tmp);
+      r.it.mesh.position.set(this.tmp.x, this.tmp.y + 0.2, this.tmp.z);
+    }
+    // Hop off at the end onto the counter shelf.
+    const first = this.riders[0];
+    if (first && first.d >= this.total - 1e-3 && !this.counter.shelf.full) {
+      this.riders.shift();
+      this.flyers.pushInto(first.it, this.counter.shelf, 0.3);
+    }
   }
 }

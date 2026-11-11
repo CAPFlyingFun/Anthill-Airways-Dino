@@ -16,11 +16,19 @@
     <div id="app"></div>
 
     <div id="hud">
-      <div class="top-left">
-        <div id="zone" class="pill">Nest Entrance</div>
-        <button id="settingsBtn" class="round-btn" aria-label="Settings">⚙️</button>
-      </div>
-      <div class="top-right">
+      <!-- Top bar: settings + level on the left, cash on the right -->
+      <div class="topbar">
+        <div class="tl">
+          <div class="row">
+            <button id="settingsBtn" class="round-btn" aria-label="Settings">⚙️</button>
+            <button id="levelBtn" class="pill level" aria-label="Stats">
+              <span id="lvlText">Lv 1</span>
+              <span class="xpbar"><i id="xpFill"></i></span>
+              <b id="ptsBadge" class="pts hidden">+1</b>
+            </button>
+          </div>
+          <div id="zone" class="zone-label">Nest Entrance</div>
+        </div>
         <div id="cash" class="pill cash"><span class="bill">💵</span><span id="cashValue">0</span></div>
       </div>
 
@@ -50,6 +58,24 @@
           <button id="resetBtn" class="menu-btn danger">Reset progress</button>
           <button id="closeSettings" class="menu-btn">Close</button>
           <p class="ver">Anthill Airways · Phase 1 prototype</p>
+        </div>
+      </div>
+
+      <div id="stats" class="overlay hidden">
+        <div class="card stats-card">
+          <h2 id="statsTitle">Level 1</h2>
+          <div class="xp-line"><span class="xpbar big"><i id="statsXpFill"></i></span><span id="statsXpText">0 / 15 XP</span></div>
+          <div id="statsPoints" class="points-line">0 points to spend</div>
+          <div id="statRows"></div>
+          <button id="closeStats" class="menu-btn">Close</button>
+        </div>
+      </div>
+
+      <div id="loading" class="overlay loading">
+        <div class="card">
+          <h2>🐜 Anthill Airways</h2>
+          <p>Waking up the colony…</p>
+          <div class="loadbar"><i id="loadFill"></i></div>
         </div>
       </div>
 

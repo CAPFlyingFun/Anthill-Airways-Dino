@@ -11,10 +11,14 @@ export interface SaveData {
   paid: Record<string, number>;       // partial payments on tiles not finished yet
   tutorial: number;                   // index of the next tutorial hint
   sound: boolean;
+  xp: number;                         // XP toward the next level
+  level: number;
+  points: number;                     // unspent stat points
+  stats: Record<string, number>;      // points spent per stat id
 }
 
 export function newSave(): SaveData {
-  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true };
+  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {} };
 }
 
 export function loadSave(): SaveData {

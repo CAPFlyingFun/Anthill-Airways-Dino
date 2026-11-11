@@ -29,16 +29,32 @@ html, body {
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud button { pointer-events: auto; font-family: var(--font); cursor: pointer; }
 
-.top-left, .top-right {
+/* Top bar: one row that never overlaps. Left side shrinks first. */
+.topbar {
   position: absolute;
-  top: calc(10px + var(--safe-t));
+  top: calc(8px + var(--safe-t));
+  left: calc(10px + var(--safe-l));
+  right: calc(10px + var(--safe-r));
   display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 8px;
-  align-items: center;
 }
-.top-left { left: calc(12px + var(--safe-l)); }
-.top-right { right: calc(12px + var(--safe-r)); }
-
+.tl { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tl .row { display: flex; gap: 8px; align-items: center; }
+.zone-label {
+  color: #fff;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.55), 0 0 6px rgba(0, 0, 0, 0.4);
+  padding-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52vw;
+}
 .pill {
   background: var(--pill);
   color: #fff;
@@ -56,6 +72,39 @@ html, body {
 .pill.bump { animation: bump 0.25s ease-out; }
 @keyframes bump { 50% { transform: scale(1.12); } }
 
+.pill.level {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 12px 7px;
+  font-size: 16px;
+  min-width: 92px;
+}
+.xpbar {
+  display: block;
+  width: 70px;
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+.xpbar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #7df9a0, #3fd06b); border-radius: 4px; transition: width 0.2s; }
+.xpbar.big { width: 100%; height: 10px; background: #ead9bf; }
+.pts {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+  background: #ff4d6d;
+  color: #fff;
+  border-radius: 12px;
+  padding: 2px 7px;
+  font-size: 13px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  animation: pulse 1s ease-in-out infinite;
+}
+
 .round-btn {
   width: 40px; height: 40px;
   border-radius: 50%;
@@ -67,7 +116,7 @@ html, body {
 .hint {
   position: absolute;
   left: 50%;
-  top: calc(64px + var(--safe-t));
+  top: calc(84px + var(--safe-t));
   transform: translateX(-50%);
   max-width: min(560px, 86vw);
   background: rgba(255, 255, 255, 0.92);
@@ -205,6 +254,35 @@ html, body {
 @media (max-height: 430px) {
   .pill { font-size: 15px; padding: 6px 12px; }
   .pill.cash { font-size: 18px; }
-  .hint { top: calc(54px + var(--safe-t)); font-size: 14px; }
+  .hint { top: calc(74px + var(--safe-t)); font-size: 14px; }
+  .pill.level { font-size: 14px; }
   .big-btn { font-size: 19px; padding: 11px 22px; }
 }
+
+/* Stats screen (ARK-style) */
+.stats-card { padding-bottom: 22px; text-align: left; }
+.stats-card h2 { text-align: center; }
+.xp-line { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 800; margin: 6px 0; }
+.xp-line span:last-child { white-space: nowrap; }
+.points-line { text-align: center; font-weight: 900; color: #e07a1a; margin: 8px 0 10px; }
+.stat-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 2px dashed #ead9bf; }
+.stat-row .ic { font-size: 26px; width: 34px; text-align: center; }
+.stat-row .txt { flex: 1; min-width: 0; }
+.stat-row .nm { font-weight: 900; font-size: 16px; }
+.stat-row .ds { font-size: 12.5px; color: #7a6a5a; }
+.stat-row .lv { font-weight: 900; font-size: 18px; width: 30px; text-align: center; }
+.stat-row button {
+  width: 40px; height: 40px;
+  border: none; border-radius: 12px;
+  background: linear-gradient(#7df9a0, #3fd06b);
+  color: #fff; font-size: 24px; font-weight: 900;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 3px 0 #2a9a4a;
+}
+.stat-row button:disabled { background: #d8cbb8; box-shadow: none; }
+
+/* Loading screen */
+.overlay.loading { background: #7cc35a; }
+.loadbar { height: 14px; border-radius: 8px; background: #ead9bf; overflow: hidden; margin-top: 10px; }
+.loadbar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #ffad3b, #f27a1a); transition: width 0.2s; }
+.overlay.loading .card { padding-bottom: 24px; }

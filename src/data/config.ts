@@ -46,6 +46,20 @@ export const CONFIG = {
     valuePerItem: 5,       // cash per item that reaches the finish
     puddleLoss: 0.15,      // fraction lost when you splash through a puddle
   },
+  conveyor: {
+    speed: 2.4,            // belt speed (units per second)
+    spacing: 0.7,          // gap between snack packs on the belt
+  },
+  xp: {
+    pickup: 1,             // each item you pick up
+    drop: 1,               // each item you drop off at a station
+    sale: 2,               // each sale while YOU work the register
+    autoSale: 0.5,         // each sale made by the cashier
+    unlockFraction: 0.2,   // unlocking gives 20% of its cost as XP
+    runPerItem: 1,         // gate run: XP per item that reaches the finish
+    curveBase: 15,         // XP to reach level 2
+    curveExp: 1.55,        // how fast levels get harder
+  },
   unlockDrainTime: 1.4,    // seconds to pour cash into an unlock tile (minimum rate below)
   unlockMinRate: 12,       // cash per second, at least
   saveKey: 'anthill-airways-save-v1',
@@ -69,8 +83,25 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'carry1',   name: 'Bigger Backpack', icon: '🎒', cost: 75,  pos: [-3.5, 7],  requires: ['pile2'] },
   { id: 'worker1',  name: 'Worker Ant',      icon: '🐜', cost: 90,  pos: [-4, -1.5], requires: ['cashier'] },
   { id: 'oven2',    name: 'Faster Oven',     icon: '🔥', cost: 120, pos: [-5.4, -9], requires: ['worker1'] },
+  { id: 'conveyor', name: 'Conveyor Belt',   icon: '⛓️', cost: 150, pos: [6.2, -10.6], requires: ['cashier'] },
+  { id: 'runner',   name: 'Runner Ant',      icon: '🏃', cost: 150, pos: [3.6, -2.4], requires: ['cashier'] },
   { id: 'worker2',  name: 'Worker Ant',      icon: '🐜', cost: 200, pos: [-11.5, -1.5], requires: ['worker1', 'pile2'] },
   { id: 'expand',   name: 'Big Order: Tunnels', icon: '🗺️', cost: 500, pos: [11, 7], requires: ['dispatch', 'worker2', 'oven2'] },
+];
+
+/** ARK-style stats: each level-up gives 1 point to spend on one of these. */
+export interface StatDef {
+  id: 'carry' | 'speed' | 'work' | 'haggle' | 'luck';
+  name: string;
+  icon: string;
+  per: string; // what one point does (shown in the stats screen)
+}
+export const STATS: StatDef[] = [
+  { id: 'carry', name: 'Carry Weight', icon: '🎒', per: '+2 items on your back' },
+  { id: 'speed', name: 'Movement Speed', icon: '👟', per: '+5% walk speed' },
+  { id: 'work', name: 'Work Speed', icon: '⚡', per: '+8% faster pickup and drop-off' },
+  { id: 'haggle', name: 'Haggling', icon: '💰', per: '+5% cash from sales and runs' },
+  { id: 'luck', name: 'Luck', icon: '🍀', per: 'Fewer puddle losses, better ? gates' },
 ];
 
 /** Tutorial hints, shown one at a time until the player does each thing. */

@@ -29,7 +29,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,glb}'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // the 3D bug models are up to ~1.5 MB each
       },
     }),
   ],

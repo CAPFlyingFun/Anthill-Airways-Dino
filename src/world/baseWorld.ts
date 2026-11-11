@@ -11,12 +11,15 @@ import * as THREE from 'three';
 import { CONFIG, TUTORIAL, UNLOCKS } from '../data/config';
 import { Sfx } from '../core/audio';
 import { SaveData } from '../core/save';
+import { Progress } from '../core/progress';
 import { Hud } from '../ui/hud';
 import { Player } from '../actors/player';
-import { Worker } from '../actors/worker';
+import { Worker, WorkCtx } from '../actors/worker';
+import { spawnCreature, spawnProp } from '../actors/creatures';
+import { animateCreature, CreatureModel } from '../actors/models';
 import { Flyers } from './items';
 import { TextSprite } from './labels';
-import { Bakery, Blocker, CashPad, Counter, DispatchPad, ResourcePile, UnlockTile, Zone } from './stations';
+import { Bakery, Blocker, CashPad, Conveyor, Counter, DispatchPad, ResourcePile, UnlockTile } from './stations';
 
 // Size of the dirt yard you can walk around in.
 const YARD = { minX: -14, maxX: 14, minZ: -13, maxZ: 11 };
@@ -32,7 +35,11 @@ export class BaseWorld {
   cashPad: CashPad;
   dispatch: DispatchPad | null = null;
   workers: Worker[] = [];
+  conveyor: Conveyor | null = null;
   tiles: UnlockTile[] = [];
+  private backpack = false;           // "Bigger Backpack" unlock bought?
+  private blockers: Blocker[] = [];   // solid things the player bumps into
+  private idlers: CreatureModel[] = [];// decorative bugs (queen, larvae) that just breathe
 
   /** Set by main.ts: called when the player taps LAUNCH RUN. */
   onLaunch: (count: number) => void = () => {};
@@ -42,15 +49,21 @@ export class BaseWorld {
   private timers = { pile: 0, ovenIn: 0, ovenOut: 0, sell: 0, cash: 0, load: 0 };
   private bounds: Blocker = { minX: YARD.minX + 0.6, maxX: YARD.maxX - 0.6, minZ: YARD.minZ + 0.6, maxZ: YARD.maxZ - 0.6 };
 
-  constructor(private hud: Hud, private sfx: Sfx, public save: SaveData) {
+  constructor(private hud: Hud, private sfx: Sfx, public save: SaveData, private progress: Progress) {
     this.buildEnvironment();
+    this.buildDecor();
 
     this.player = new Player(this.scene);
     this.piles.push(new ResourcePile(this.scene, -8, -5, this.flyers));
     this.bakery = new Bakery(this.scene, 0, -9, this.flyers);
     this.cashPad = new CashPad(this.scene, 6.7, 0.8);
     this.counter = new Counter(this.scene, 9, -3, this.flyers, this.cashPad);
-    this.counter.onSale = () => this.tutorialDone(3);
+    this.counter.onSale = (byPlayer) => {
+      this.tutorialDone(3);
+      this.progress.addXp(byPlayer ? CONFIG.xp.sale : CONFIG.xp.autoSale);
+    };
+    this.counter.valueMult = () => this.progress.cashMult;
+    this.blockers.push(this.bakery.blocker, this.counter.blocker);
 
     for (const def of UNLOCKS) {
       this.tiles.push(new UnlockTile(this.scene, def, save.paid[def.id] ?? 0));
@@ -185,6 +198,55 @@ export class BaseWorld {
     s.add(sign.sprite);
   }
 
+  /** The Queen's corner, larvae, rocks, twigs and an earthworm (real 3D models). */
+  private buildDecor() {
+    const queen = spawnCreature('queen', 4.2);
+    if (queen) {
+      queen.root.position.set(-11, 0, -10.2);
+      queen.root.rotation.y = 0.5;
+      this.scene.add(queen.root);
+      this.idlers.push(queen);
+      const crown = new TextSprite(0.8, '#ffd166');
+      crown.setText('👑 QUEEN');
+      crown.sprite.position.set(-11, queen.height + 1.2, -10.2);
+      this.scene.add(crown.sprite);
+      this.blockers.push({ minX: -12.8, maxX: -9.2, minZ: -12, maxZ: -8.6 });
+    }
+    // Larvae sleeping near the Queen
+    for (const [x, z, r] of [[-12.6, -7.6, 0.4], [-9.3, -7.4, -0.8], [-8.6, -10.8, 2.2]]) {
+      const larva = spawnCreature('larva', 1.1);
+      if (!larva) continue;
+      larva.root.position.set(x, 0, z);
+      larva.root.rotation.y = r;
+      this.scene.add(larva.root);
+      this.idlers.push(larva);
+    }
+    // Props: inside corners and outside the fence
+    const props: [Parameters<typeof spawnProp>[0], number, number, number, number][] = [
+      ['rock-model', 2.0, 12.6, -11.6, 0.3],
+      ['rock-model', 3.2, -18, -8, 1.2],
+      ['rock-model', 2.6, 19, 7, 2.0],
+      ['twig-model', 3.0, -12.2, 9.4, 0.6],
+      ['twig-model', 4.0, 17, -14, 1.4],
+      ['dirt-clod', 1.6, 12.4, 9.6, 0.2],
+      ['dirt-clod', 2.2, -17, 12, 1.0],
+      ['dirt-clod', 1.4, 3, 14.5, 2.2],
+    ];
+    for (const [name, len, x, z, rot] of props) {
+      const p = spawnProp(name, len);
+      if (!p) continue;
+      p.position.set(x, 0, z);
+      p.rotation.y = rot;
+      this.scene.add(p);
+    }
+    const worm = spawnCreature('earthworm', 6);
+    if (worm) {
+      worm.root.position.set(-21, 0, 2);
+      worm.root.rotation.y = 1.1;
+      this.scene.add(worm.root);
+    }
+  }
+
   /** Straight run of fence posts + two rails. */
   private fence(x1: number, z1: number, x2: number, z2: number) {
     const mat = new THREE.MeshStandardMaterial({ color: 0x7a4f27, roughness: 0.9 });
@@ -226,18 +288,25 @@ export class BaseWorld {
         break;
       case 'dispatch':
         this.dispatch = new DispatchPad(this.scene, x, z);
+        this.blockers.push(this.dispatch.blocker);
         if (animate) this.flyers.grow(this.dispatch.group);
         break;
       case 'carry1':
-        this.player.carryMax += CONFIG.player.carryPerUpgrade;
+        this.backpack = true;
         break;
       case 'worker1':
-      case 'worker2': {
-        const w = new Worker(this.scene, x, z);
+      case 'worker2':
+      case 'runner': {
+        const w = new Worker(this.scene, x, z, id === 'runner' ? 'snacks' : 'crumbs');
         this.workers.push(w);
         if (animate) this.flyers.grow(w.model.root);
         break;
       }
+      case 'conveyor':
+        this.conveyor = new Conveyor(this.scene, this.bakery, this.counter, this.flyers);
+        this.blockers.push(...this.conveyor.blockers);
+        if (animate) this.flyers.grow(this.conveyor.group);
+        break;
       case 'oven2':
         this.bakery.makeFaster();
         break;
@@ -254,6 +323,7 @@ export class BaseWorld {
     delete this.save.paid[id];
     tile.mesh.visible = false;
     this.applyUnlock(id, true);
+    this.progress.addXp(tile.def.cost * CONFIG.xp.unlockFraction);
     this.sfx.unlocked();
     this.hud.floatAt(tile.mesh.position.clone().setY(1.5), this.camera, 'UNLOCKED!', 'big gold');
     this.tutorialDone(5);
@@ -297,8 +367,9 @@ export class BaseWorld {
 
   /** Called by main.ts when a gate run finishes. */
   receiveRunPayout(endCount: number) {
-    const earned = endCount * CONFIG.run.valuePerItem;
+    const earned = Math.round(endCount * CONFIG.run.valuePerItem * this.progress.cashMult);
     this.addCash(earned);
+    this.progress.addXp(endCount * CONFIG.xp.runPerItem);
     this.sfx.unlocked();
     this.hud.floatAt(this.player.pos.clone().setY(2.5), this.camera, `+$${earned}`, 'big gold');
   }
@@ -321,17 +392,22 @@ export class BaseWorld {
 
   update(dt: number, move: THREE.Vector2) {
     const p = this.player.pos;
-    const blockers: Blocker[] = [this.bakery.blocker, this.counter.blocker];
-    if (this.dispatch) blockers.push(this.dispatch.blocker);
-    this.player.update(dt, move, blockers, this.bounds);
+    const prog = this.progress;
+    const xp = CONFIG.xp;
+    this.player.carryMax = CONFIG.player.baseCarry + (this.backpack ? CONFIG.player.carryPerUpgrade : 0) + prog.carryBonus;
+    this.player.speedMult = prog.speedMult;
+    this.player.update(dt, move, this.blockers, this.bounds);
+    for (const m of this.idlers) animateCreature(m, dt, 0);
 
     for (const pile of this.piles) pile.update(dt);
     this.bakery.update(dt);
     this.counter.update(dt, this.counter.sellZone.contains(p), this.sfx);
     this.dispatch?.update(dt);
-    for (const w of this.workers) w.update(dt, this.piles, this.bakery, this.flyers);
+    const ctx: WorkCtx = { piles: this.piles, bakery: this.bakery, counter: this.counter, flyers: this.flyers };
+    for (const w of this.workers) w.update(dt, ctx);
+    this.conveyor?.update(dt);
 
-    const iv = CONFIG.player.pickupInterval;
+    const iv = CONFIG.player.pickupInterval / prog.workMult;
     const me = this.player;
 
     // 1) Crumb piles -> player
@@ -339,6 +415,7 @@ export class BaseWorld {
     this.every('pile', dt, !!pile && me.canTake('crumb'), iv, () => {
       if (pile && me.canTake('crumb') && this.flyers.transfer(pile.stack, me.stack)) {
         this.sfx.pickup();
+        prog.addXp(xp.pickup);
         this.tutorialDone(0);
       }
     });
@@ -348,6 +425,7 @@ export class BaseWorld {
     this.every('ovenIn', dt, atIn, iv, () => {
       if (me.stack.topType === 'crumb' && this.flyers.transfer(me.stack, this.bakery.input)) {
         this.sfx.drop();
+        prog.addXp(xp.drop);
         this.tutorialDone(1);
       }
     });
@@ -357,6 +435,7 @@ export class BaseWorld {
     this.every('ovenOut', dt, atOut, iv, () => {
       if (me.canTake('snack') && this.flyers.transfer(this.bakery.output, me.stack)) {
         this.sfx.pickup();
+        prog.addXp(xp.pickup);
         this.tutorialDone(2);
       }
     });
@@ -364,7 +443,10 @@ export class BaseWorld {
     // 4) Player snacks -> counter shelf
     const atSell = this.counter.sellZone.contains(p) && me.stack.topType === 'snack';
     this.every('sell', dt, atSell, iv, () => {
-      if (me.stack.topType === 'snack' && this.flyers.transfer(me.stack, this.counter.shelf)) this.sfx.drop();
+      if (me.stack.topType === 'snack' && this.flyers.transfer(me.stack, this.counter.shelf)) {
+        this.sfx.drop();
+        prog.addXp(xp.drop);
+      }
     });
 
     // 5) Cash pad -> wallet
@@ -391,7 +473,10 @@ export class BaseWorld {
     const d = this.dispatch;
     const atLoad = !!d && d.zone.contains(p);
     this.every('load', dt, atLoad && me.stack.topType === 'snack', iv, () => {
-      if (d && me.stack.topType === 'snack' && this.flyers.transfer(me.stack, d.cargo)) this.sfx.drop();
+      if (d && me.stack.topType === 'snack' && this.flyers.transfer(me.stack, d.cargo)) {
+        this.sfx.drop();
+        prog.addXp(xp.drop);
+      }
     });
     if (d && atLoad && d.cargo.count >= CONFIG.cart.minLaunch) {
       this.hud.setLaunch(d.cargo.count, () => {
@@ -439,8 +524,8 @@ export class BaseWorld {
     this.camera.aspect = w / h;
     // Portrait phones need the camera further back to see enough of the yard.
     const portrait = w < h;
-    this.camOffset.set(0, portrait ? 21 : 14.5, portrait ? 19 : 14);
-    this.camera.fov = portrait ? 58 : 42;
+    this.camOffset.set(0, portrait ? 18 : 14.5, portrait ? 16 : 14);
+    this.camera.fov = portrait ? 56 : 42;
     this.camera.updateProjectionMatrix();
   }
 }

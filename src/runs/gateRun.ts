@@ -12,6 +12,7 @@ import { CONFIG } from '../data/config';
 import { Sfx } from '../core/audio';
 import { Hud } from '../ui/hud';
 import { CreatureModel, animateCreature, makeBeetle } from '../actors/models';
+import { spawnCreature } from '../actors/creatures';
 import { makeItem } from '../world/items';
 import { TextSprite, gameText, roundRect } from '../world/labels';
 
@@ -41,14 +42,14 @@ interface Puddle {
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const isGood = (k: OpKind) => k === '+' || k === 'x';
 
-/** Apply a gate's math to the current count. */
-function applyOp(count: number, op: Op): number {
+/** Apply a gate's math to the current count. `luck` improves ? gate odds. */
+function applyOp(count: number, op: Op, luck = 0): number {
   switch (op.kind) {
     case '+': return count + op.v;
     case '-': return Math.max(0, count - op.v);
     case 'x': return count * op.v;
     case '/': return Math.floor(count / op.v);
-    case '?': return Math.random() < 0.5 ? count * 3 : Math.floor(count / 2);
+    case '?': return Math.random() < Math.min(0.8, 0.5 + luck * 0.04) ? count * 3 : Math.floor(count / 2);
   }
 }
 
@@ -62,6 +63,10 @@ export class GateRun {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(55, 1, 0.1, 400);
   active = false;
+  /** Luck stat points (set by main.ts before each run). */
+  luck = 0;
+  /** Haggling multiplier, for showing the right payout on the results card. */
+  cashMult = 1;
 
   private rows: Row[] = [];
   private puddles: Puddle[] = [];
@@ -107,7 +112,7 @@ export class GateRun {
     }
     this.cargo.position.y = 0.8;
     this.cart.add(this.cargo);
-    this.beetle = makeBeetle(0x2a9d8f);
+    this.beetle = spawnCreature('aphid', 1.9) ?? makeBeetle(0x2a9d8f);
     this.beetle.root.position.set(0, 0, -1.9);
     this.beetle.root.rotation.y = Math.PI; // faces -z, the way we're racing
     this.cart.add(this.beetle.root);
@@ -314,7 +319,7 @@ export class GateRun {
       const side = this.x < 0 ? -1 : 1;
       const gate = row.gates.find((g) => g.side === side)!;
       const before = this.count;
-      const after = applyOp(before, gate.op);
+      const after = applyOp(before, gate.op, this.luck);
       const good = after >= before;
       let text = opLabel(gate.op);
       if (gate.op.kind === '?') text = after >= before ? '? = x3!' : '? = ÷2';
@@ -331,7 +336,8 @@ export class GateRun {
     for (const p of this.puddles) {
       if (p.hit || Math.abs(this.z - p.z) > p.r || Math.abs(this.x - p.x) > p.r + 0.7) continue;
       p.hit = true;
-      const lost = Math.max(1, Math.ceil(this.count * CONFIG.run.puddleLoss));
+      const loss = CONFIG.run.puddleLoss * Math.max(0.3, 1 - this.luck * 0.06);
+      const lost = Math.max(1, Math.ceil(this.count * loss));
       this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `💦 -${lost}`, false);
       this.sfx.splash();
     }
@@ -341,7 +347,7 @@ export class GateRun {
       this.state = 'done';
       this.stateT = 0;
       this.hud.setHint(null);
-      const earned = this.count * CONFIG.run.valuePerItem;
+      const earned = Math.round(this.count * CONFIG.run.valuePerItem * this.cashMult);
       window.setTimeout(() => {
         this.hud.showResults(this.startCount, this.count, earned).then(() => {
           this.active = false;

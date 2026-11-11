@@ -4,6 +4,8 @@
 // The 3D game never touches the DOM directly; it calls these methods.
 // ============================================================================
 import * as THREE from 'three';
+import { STATS } from '../data/config';
+import { Progress } from '../core/progress';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -109,6 +111,70 @@ export class Hud {
       };
       btn.addEventListener('click', done);
     });
+  }
+
+  // ---- Loading screen ------------------------------------------------------
+  setLoading(fraction: number) {
+    $('loadFill').style.width = `${Math.round(fraction * 100)}%`;
+  }
+  hideLoading() {
+    $('loading').classList.add('hidden');
+  }
+
+  // ---- Level + stats (ARK style) ------------------------------------------
+  private progress: Progress | null = null;
+
+  /** Hook up the level pill and the stats screen. */
+  initStats(progress: Progress) {
+    this.progress = progress;
+    const panel = $('stats');
+    $('levelBtn').addEventListener('click', () => {
+      this.renderStats();
+      panel.classList.remove('hidden');
+    });
+    $('closeStats').addEventListener('click', () => panel.classList.add('hidden'));
+    // Build one row per stat; the "+" button spends a point.
+    const rows = $('statRows');
+    for (const def of STATS) {
+      const row = document.createElement('div');
+      row.className = 'stat-row';
+      row.innerHTML = `<div class="ic">${def.icon}</div>
+        <div class="txt"><div class="nm">${def.name}</div><div class="ds" id="ds-${def.id}"></div></div>
+        <div class="lv" id="lv-${def.id}">0</div>
+        <button id="add-${def.id}" aria-label="Add a point to ${def.name}">+</button>`;
+      rows.appendChild(row);
+      row.querySelector('button')!.addEventListener('click', () => {
+        if (progress.spend(def.id)) this.renderStats();
+      });
+    }
+    this.renderLevel();
+  }
+
+  /** Refresh the small level pill (call whenever XP changes). */
+  renderLevel() {
+    const p = this.progress;
+    if (!p) return;
+    const s = p.save;
+    $('lvlText').textContent = `Lv ${s.level}`;
+    $('xpFill').style.width = `${Math.min(100, (s.xp / p.xpToNext()) * 100)}%`;
+    const badge = $('ptsBadge');
+    badge.textContent = `+${s.points}`;
+    badge.classList.toggle('hidden', s.points <= 0);
+    if (!$('stats').classList.contains('hidden')) this.renderStats();
+  }
+
+  private renderStats() {
+    const p = this.progress!;
+    const s = p.save;
+    $('statsTitle').textContent = `Level ${s.level}`;
+    $('statsXpFill').style.width = `${Math.min(100, (s.xp / p.xpToNext()) * 100)}%`;
+    $('statsXpText').textContent = `${Math.floor(s.xp)} / ${p.xpToNext()} XP`;
+    $('statsPoints').textContent = s.points > 0 ? `${s.points} point${s.points > 1 ? 's' : ''} to spend!` : 'Level up to earn points';
+    for (const def of STATS) {
+      $(`lv-${def.id}`).textContent = String(p.stat(def.id));
+      $(`ds-${def.id}`).textContent = `${def.per} · now ${p.describe(def.id)}`;
+      ($(`add-${def.id}`) as HTMLButtonElement).disabled = s.points <= 0;
+    }
   }
 
   /** Settings panel: sound toggle + reset (tap reset twice to confirm). */
