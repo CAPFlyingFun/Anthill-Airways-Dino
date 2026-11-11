@@ -40,7 +40,7 @@ Both worlds keep running while you're in the other one, and the Queen keeps coll
 ## First-person view 👁️
 
 The eye button (bottom right) switches either world to **first person**: you see through the
-ant Major's eyes or Jack's, and your body is hidden. Stick left/right turns, up/down walks.
+ant Major's eyes or Jack's, and your body is hidden. The **left half** of the screen is the joystick (walk + strafe), the **right half** is drag-to-look, in portrait and landscape.
 
 ## 3D models
 
