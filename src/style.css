@@ -320,6 +320,13 @@ html, body {
 }
 .stat-row button:disabled { background: #d8cbb8; box-shadow: none; }
 
+/* 📊 Lifetime stats */
+.tot-head { margin: 12px 0 2px; font-weight: 900; color: #e07a1a; font-size: 14px; letter-spacing: 0.5px; }
+.tot-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 2px dashed #ead9bf; }
+.tot-row .ic { font-size: 22px; width: 30px; text-align: center; }
+.tot-row .nm { flex: 1; font-weight: 800; font-size: 15px; }
+.tot-row b { font-size: 16px; }
+
 .queen-section { margin-top: 16px; padding-top: 10px; border-top: 3px solid #ead9bf; }
 .queen-section h2 { color: #b8860b; }
 .queen-section.locked { opacity: 0.6; }

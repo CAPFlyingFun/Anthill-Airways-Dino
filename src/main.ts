@@ -13,6 +13,8 @@ import { GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from 
 import { erupt, shardsFor } from './core/prestige';
 import { pace } from './core/pace';
 import { income } from './core/income';
+import { best, bindTotals, bump } from './core/totals';
+import { CREW_LEVEL } from './actors/worker';
 import { weather } from './core/weather';
 import { Hud } from './ui/hud';
 import { BaseWorld } from './world/baseWorld';
@@ -45,6 +47,7 @@ if (!save.paid['rate-auto']) {
   save.rate = 0;
   save.paid['rate-auto'] = 1;
 }
+bindTotals(save); // 📊 lifetime stats (bump('sold') etc. write into save.totals)
 // How long since the last save (= since you last played), for offline earnings.
 const awayAtLaunch = save.lastSeen ? (Date.now() - save.lastSeen) / 1000 : 0;
 const hud = new Hud();
@@ -92,6 +95,15 @@ async function start() {
   // 2) Build both game modes.
   const base = new BaseWorld(hud, sfx, save, progress, queenProgress);
   const run = new GateRun(hud, sfx);
+  // 📊 Every gate run (colony, safari, heli tour, bellhop dash, bonus run) counts
+  // toward the lifetime stats: wrap start() once instead of touching each caller.
+  const startRun = run.start.bind(run);
+  run.start = (count, onDone, ...rest) =>
+    startRun(count, (end) => {
+      bump('runs');
+      best('bestRun', end);
+      onDone(end);
+    }, ...rest);
   // base = the ant colony, air = the airport (Act 2), island = Dino Island (Act 3),
   // volcano = Mount Anthill (Act 4), run = a gate run
   // hotel = the Anthill Grand Resort (Act 5)
@@ -448,6 +460,7 @@ async function start() {
   let winT = 0;
   hud.setRate(save.rate * 60);
   function trackIncome(dt: number) {
+    bump('played', dt); // 📊 time played (runs included)
     if (mode === 'run') {
       prevCash = save.cash;
       income.auto = 0;
@@ -456,6 +469,8 @@ async function start() {
     const gained = save.cash - prevCash;
     if (gained > 0) {
       save.cycleEarned += gained; // ALL cash counts toward the next eruption's shards
+      bump('earned', gained); // 📊 lifetime, and per world
+      bump(`earned_${mode}`, gained);
     }
     // The +$/min rate (and offline pay) only counts cash helpers collected on their own
     winEarned += income.auto;
@@ -483,7 +498,8 @@ async function start() {
     }
     const capped = Math.min(secs, OFFLINE.maxHours * 3600);
     // 💤 Night Shift (shard upgrade): +10% share per level
-    const share = Math.min(1, OFFLINE.share + progress.up('night') * 0.1);
+    // (+ 💤 Night Manager stat: +5% per point)
+    const share = Math.min(1, OFFLINE.share + progress.up('night') * 0.1 + progress.offlineBonus);
     const amount = Math.floor(save.rate * capped * share);
     if (amount < 1) return; // no income measured yet
     welcomeOpen = true;
@@ -623,6 +639,42 @@ async function start() {
   } catch {
     /* ignore */
   }
+  // 📊 Lifetime stats screen (Level panel -> "Lifetime stats")
+  hud.initTotals(() => {
+    const t = save.totals;
+    const n = (k: string) => t[k] ?? 0;
+    const money = (v: number) => `$${v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.round(v).toLocaleString()}`;
+    const secs = n('played');
+    const time = `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+    const worlds = [base, airport, island, volcano, hotel].filter((w) => w) as { workers: { level: number }[] }[];
+    const helpers = worlds.flatMap((w) => w.workers);
+    const topLevel = helpers.reduce((m, w) => Math.max(m, w.level), 0);
+    const upLevels = Object.values(save.upgrades).reduce((a, b) => a + b, 0);
+    const rows: ({ icon: string; label: string; value: string } | string)[] = [
+      'OVERALL',
+      { icon: '💵', label: 'Cash earned', value: money(n('earned')) },
+      { icon: '⏱️', label: 'Time played', value: time },
+      { icon: '⭐', label: 'Your level', value: String(save.level) },
+      { icon: '🛒', label: 'Sales & check-ins', value: n('sold').toLocaleString() },
+      { icon: '🍪', label: 'Items made by machines', value: n('made').toLocaleString() },
+      { icon: '🚩', label: 'Gate runs', value: n('runs').toLocaleString() },
+      { icon: '🏆', label: 'Best run (made it to the finish)', value: n('bestRun').toLocaleString() },
+      'HELPERS & UPGRADES',
+      { icon: '👷', label: 'Helpers working', value: String(helpers.length) },
+      { icon: '🎖️', label: 'Top helper level', value: topLevel ? `Lv ${topLevel} / ${CREW_LEVEL.max}` : '-' },
+      { icon: '⬆️', label: 'Upgrade levels bought', value: String(upLevels) },
+      { icon: '💤', label: 'Idle income now', value: `${money(save.rate * 60)}/min` },
+      'CASH BY WORLD',
+      { icon: '🐜', label: 'Ant Colony', value: money(n('earned_base')) },
+    ];
+    if (airport) rows.push({ icon: '✈️', label: 'Airport', value: money(n('earned_air')) });
+    if (island) rows.push({ icon: '🏝️', label: 'Dino Island', value: money(n('earned_island')) });
+    if (volcano) rows.push({ icon: '🌋', label: 'Volcano', value: money(n('earned_volcano')) });
+    if (hotel) rows.push({ icon: '🏨', label: 'Resort', value: money(n('earned_hotel')) });
+    if (save.eruptions) rows.push({ icon: '💎', label: 'Eruptions', value: String(save.eruptions) });
+    return rows;
+  });
+
   hud.initSpeed(pace.move, (v) => {
     pace.move = v;
     try {

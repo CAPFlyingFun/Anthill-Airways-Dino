@@ -18,7 +18,9 @@ On iPhone: open in Safari → Share → **Add to Home Screen** to install it as 
 - Gate runs: load 5+ snack packs on the beetle cart, tap **LAUNCH RUN**, steer through gates
 - Automation: Cashier, Worker Ants (crumbs → oven) and the **Runner Ant** (oven → counter)
 - **XP & levels (ARK style):** every task gives XP; each level = 1 point for Carry Weight,
-  Movement Speed, Work Speed, Haggling or Luck (tap your level, top left)
+  Movement Speed, Work Speed, Haggling, Luck, 😄 Charm (more customers), 📣 Leadership (faster
+  helpers), 🛡️ Toughness (less volcano heat) or 💤 Night Manager (+offline earnings)
+  (tap your level, top left)
 - Autosaves to the browser; Settings has sound + reset
 - Every helper wears a gold **role title** over its head (🐜 WORKER, 🏃 RUNNER, 💵 CASHIER,
   🏦 BANKER…), and so does every crew member and creature with a job in the later acts
@@ -118,6 +120,26 @@ airline flies in needs a bed:
   Engineer, Concierge, and your personal assistant (Sarah's model)
 - Eruptions don't touch the resort: it's yours for good
 
+## Upgrade pads ⬆️
+
+Every building has a round purple **⬆️ upgrade pad** in front of it, in every world. Stand on
+one for a moment and your cash pours in (like an unlock tile); each pad goes up to **Lv 10**,
+and each level costs ×1.85 more than the last.
+
+- ⚙️ **Machines** (oven, presses, blender, forge, washers, kitchen): +25% cook speed per level
+- 💲 **Counters & desks**: +10% prices and +8% more customers per level
+- 🌱 **Resource piles** (one pad per kind): +30% regrow speed per level
+- 👷 **CREW** (one per world): all helpers there +10% speed and +1 carry per level
+- 💼 **COLLECTORS** (one per world): Bankers, the Queen and assistants grab 15% faster and
+  bring in +6% cash per level
+
+**Helper levels:** every helper earns 1 XP per item they deliver and levels up by themselves
+(up to Lv 20, +4% speed each). Their level shows on their title (🐜 WORKER · Lv 3).
+
+**📊 Lifetime stats:** tap your level, then *Lifetime stats*: cash earned (overall and per
+world), time played, sales, items made, gate runs and your best run, helpers, upgrades and
+your idle income.
+
 ## Movement speed 🐢🐇
 
 Settings has a **Movement speed** slider: how fast everyone walks, from 0.2x (slow) to 3x
@@ -147,7 +169,8 @@ switching pauses the one you leave, so slots never stack.
 ## Idle earnings 💤
 
 While you play, the game measures your **automated** income (shown under your cash as +$/min): only cash
-that helpers collect on their own (the 👑 Queen, your assistants) counts, not bills you pick up yourself. When you
+that helpers collect on their own (💼 Banker Ants, the 👑 Queen, your assistants) counts, not bills you
+pick up yourself. The colony's first Banker Ant ($300) starts your idle income. When you
 come back after a while, the colony and airport pay **50% of that rate for the time away**
 (up to 8 hours). Collect it, or risk it on a **Bonus Run**: a tougher gate run (more ÷ gates,
 double hazards, gates that 🔀 swap sides at the last second) that multiplies it. You always keep

@@ -43,9 +43,30 @@ export function addHat(m: CreatureModel, color: number, flat = false) {
   m.bob.add(hat);
 }
 
+/**
+ * Helper levels (worker XP): every item a helper delivers is 1 XP.
+ * Each level makes that helper 4% faster (walking and loading). Max level 20.
+ */
+export const CREW_LEVEL = { max: 20, per: 0.04, xp: (lv: number) => Math.round(20 * Math.pow(lv, 1.6)) };
+/** Total XP needed to REACH `level` (level 1 = 0). */
+export function crewXpFor(level: number) {
+  let t = 0;
+  for (let l = 1; l < level; l++) t += CREW_LEVEL.xp(l);
+  return t;
+}
+
 export class Worker {
   model: CreatureModel;
   stack: Stack;
+  /** ⬆️ CREW upgrade (+ Leadership stat): x walk speed and loading speed. */
+  boost = 1;
+  /** How many items this helper carries before upgrades. */
+  baseCarry: number;
+  /** Worker XP: 1 per item delivered. */
+  xp = 0;
+  level = 1;
+  /** Called with each level gained (the world shows a little "LEVEL UP"). */
+  onLevel: (level: number) => void = () => {};
   private state: State = 'toSource';
   private route: Route | null = null;
   private target = new THREE.Vector3();
@@ -70,8 +91,42 @@ export class Worker {
     this.model.root.position.set(x, 0, z);
     scene.add(this.model.root);
     const spot = person?.spot ?? backSpot(this.model);
-    this.stack = new Stack(this.model.bob, backLayout(() => 0.6, spot.y0, spot.z0), person?.carry ?? CONFIG.worker.carry);
+    this.baseCarry = person?.carry ?? CONFIG.worker.carry;
+    this.stack = new Stack(this.model.bob, backLayout(() => 0.6, spot.y0, spot.z0), this.baseCarry);
     this.speed = person?.speed ?? CONFIG.worker.speed;
+  }
+
+  /** Load saved XP (no level-up fanfare) and refresh the title tag. */
+  setXp(xp: number) {
+    this.xp = xp;
+    this.level = 1;
+    while (this.level < CREW_LEVEL.max && this.xp >= crewXpFor(this.level + 1)) this.level++;
+    this.showLevel();
+  }
+
+  /** +1 XP per delivered item; levels up every CREW_LEVEL.xp. */
+  private gainXp(n: number) {
+    this.xp += n;
+    let up = false;
+    while (this.level < CREW_LEVEL.max && this.xp >= crewXpFor(this.level + 1)) {
+      this.level++;
+      up = true;
+    }
+    if (up) {
+      this.showLevel();
+      this.onLevel(this.level);
+    }
+  }
+
+  /** "🐜 WORKER" -> "🐜 WORKER · Lv 3" over the helper's head. */
+  private showLevel() {
+    const t = this.model.root.userData.title as { tag: { setText(s: string): void }; text: string } | undefined;
+    if (t) t.tag.setText(this.level > 1 ? `${t.text} · Lv ${this.level}` : t.text);
+  }
+
+  /** Speed multiplier from upgrades + this helper's own level. */
+  get mult() {
+    return this.boost * (1 + (this.level - 1) * CREW_LEVEL.per);
   }
 
   /** Walk toward `target`; returns true when there. */
@@ -84,7 +139,7 @@ export class Worker {
       animateCreature(this.model, dt, 0);
       return true;
     }
-    const speed = this.speed * pace.move; // (the Movement speed slider)
+    const speed = this.speed * this.mult * pace.move; // (upgrades x level x the Movement speed slider)
     const step = Math.min(d, speed * dt);
     p.x += (dx / d) * step;
     p.z += (dz / d) * step;
@@ -106,9 +161,10 @@ export class Worker {
         animateCreature(this.model, dt, 0);
         // Catch up on every item due this frame (a slow frame mustn't slow the
         // work), but don't bank up a burst while waiting.
-        this.timer = Math.min(this.timer + dt, CONFIG.worker.pickupInterval * 4);
-        while (this.timer >= CONFIG.worker.pickupInterval && this.state === 'load') {
-          this.timer -= CONFIG.worker.pickupInterval;
+        const iv = CONFIG.worker.pickupInterval / this.mult;
+        this.timer = Math.min(this.timer + dt, iv * 4);
+        while (this.timer >= iv && this.state === 'load') {
+          this.timer -= iv;
           if (!this.stack.full && r.src.canPop()) flyers.transfer(r.src, this.stack);
           else if (this.stack.full || (r.src.count === 0 && this.stack.count > 0)) this.state = 'toDest';
           else break; // waiting for the source to refill
@@ -121,14 +177,15 @@ export class Worker {
         break;
       case 'unload':
         animateCreature(this.model, dt, 0);
-        this.timer = Math.min(this.timer + dt, CONFIG.worker.pickupInterval * 4);
-        while (this.timer >= CONFIG.worker.pickupInterval && this.state === 'unload') {
-          this.timer -= CONFIG.worker.pickupInterval;
+        const iv = CONFIG.worker.pickupInterval / this.mult;
+        this.timer = Math.min(this.timer + dt, iv * 4);
+        while (this.timer >= iv && this.state === 'unload') {
+          this.timer -= iv;
           if (this.stack.count === 0) {
             this.route = null; // pick a fresh route next trip
             this.state = 'toSource';
           } else if (!r.dst.full) {
-            flyers.transfer(this.stack, r.dst);
+            if (flyers.transfer(this.stack, r.dst)) this.gainXp(1); // worker XP: 1 per item delivered
           } else break; // destination full: wait
         }
         break;
@@ -142,6 +199,8 @@ export class Worker {
 // ============================================================================
 export class Banker {
   model: CreatureModel;
+  /** ⬆️ COLLECTORS upgrade: grabs bills this many times faster. */
+  boost = 1;
   private t = 0;
 
   constructor(scene: THREE.Scene, private pad: { stack: Stack; zone: Zone }, private onCash: (amount: number) => void) {
@@ -156,7 +215,7 @@ export class Banker {
   update(dt: number, flyers: Flyers) {
     animateCreature(this.model, dt, 0);
     this.t += dt;
-    if (this.t < 0.12) return;
+    if (this.t < 0.12 / this.boost) return;
     this.t = 0;
     const bill = this.pad.stack.pop();
     if (!bill) return;

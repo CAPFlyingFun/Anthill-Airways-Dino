@@ -18,6 +18,7 @@ import type { Text } from 'troika-three-text';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
 import { CreatureKind, spawnCreature, spawnTree } from '../actors/creatures';
 import { lod } from '../core/lod';
+import { bump } from '../core/totals';
 import { BUGS, Mind, newMind, stepBug } from '../actors/brain';
 
 const mat = (color: number, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness });
@@ -73,6 +74,8 @@ export class ResourcePile {
   zone: Zone;
   /** Seconds to regrow one item (the airport's export crate speeds up as the colony grows). */
   spawnEvery: () => number = () => CONFIG.crumbPile.spawnInterval;
+  /** ⬆️ Upgrade: regrows this many times faster (1 = normal). */
+  rateMult = 1;
   private spawnT = 0;
 
   constructor(scene: THREE.Scene, x: number, z: number, private flyers: Flyers, public type: ItemType = 'crumb', style: PileStyle = 'bread') {
@@ -227,7 +230,7 @@ export class ResourcePile {
       return;
     }
     this.spawnT += dt;
-    if (this.spawnT >= this.spawnEvery()) {
+    if (this.spawnT >= this.spawnEvery() / this.rateMult) {
       this.spawnT = 0;
       this.flyers.grow(this.stack.addInstant(this.type).mesh, 0.25);
     }
@@ -254,6 +257,8 @@ export class Bakery {
   outZone: Zone;
   blocker: Blocker;
   cookTime: number;
+  /** ⬆️ Upgrade: cooks this many times faster (1 = normal). */
+  speedMult = 1;
   private cooking = false;
   private cookT = 0;
   private mouth = new THREE.Object3D();
@@ -339,8 +344,9 @@ export class Bakery {
     if (this.cooking) {
       this.cookT += dt;
       this.doorMat.emissiveIntensity = 0.6 + Math.sin(this.cookT * 18) * 0.3;
-      if (this.cookT >= this.cookTime) {
+      if (this.cookT >= this.cookTime / this.speedMult) {
         this.cooking = false;
+        bump('made'); // 📊 lifetime: items made by machines
         const it: StackItem = { mesh: makeItem(this.opts.outType), type: this.opts.outType, value: 0, flying: false };
         it.mesh.position.copy(mouthWorld);
         this.scene.add(it.mesh);
@@ -383,6 +389,9 @@ export class Counter {
   onSale: (byPlayer: boolean) => void = () => {};
   /** Multiplier on sale value (Haggling stat). */
   valueMult: () => number = () => 1;
+  /** ⬆️ Upgrade: x price per sale, and customers arrive / are served faster. */
+  priceMult = 1;
+  paceMult = 1;
   private queue: Customer[] = [];
   private leaving: Customer[] = [];
   private spawnT = 1.5;
@@ -463,7 +472,7 @@ export class Counter {
   update(dt: number, playerServing: boolean, sfx: { sale(): void }, playerPos: THREE.Vector3) {
     // New customers arrive while there's room in line.
     this.spawnT += dt;
-    if (this.spawnT >= CONFIG.counter.customerInterval && this.queue.length < CONFIG.counter.queueMax) {
+    if (this.spawnT >= CONFIG.counter.customerInterval / this.paceMult && this.queue.length < CONFIG.counter.queueMax) {
       this.spawnT = 0;
       this.spawnCustomer();
     }
@@ -480,7 +489,7 @@ export class Counter {
     const serving = playerServing || this.hasCashier;
     if (front && serving && front.ready) {
       this.saleT += dt;
-      if (this.saleT >= CONFIG.counter.saleInterval && this.shelf.canPop() && front.wants > 0) {
+      if (this.saleT >= CONFIG.counter.saleInterval / this.paceMult && this.shelf.canPop() && front.wants > 0) {
         this.saleT = 0;
         if (this.flyers.transfer(this.shelf, front.held)) {
           front.wants--;
@@ -522,7 +531,8 @@ export class Counter {
 
   /** A cash bill pops out of the register and lands on the cash pad. */
   private spawnBill() {
-    const value = Math.round(ITEM_VALUE[this.opts.itemType] * this.valueMult());
+    const value = Math.round(ITEM_VALUE[this.opts.itemType] * this.valueMult() * this.priceMult);
+    bump('sold'); // 📊 lifetime: sales
     if (this.cashPad.stack.full) {
       // Pad is full: add the value to the top bill instead.
       this.cashPad.stack.items[this.cashPad.stack.count - 1].value += value;

@@ -202,7 +202,7 @@ export const ZONES: ZoneDef[] = [
 
 /** ARK-style stats: each level-up gives 1 point to spend on one of these. */
 export interface StatDef {
-  id: 'carry' | 'speed' | 'work' | 'haggle' | 'luck';
+  id: 'carry' | 'speed' | 'work' | 'haggle' | 'luck' | 'charm' | 'lead' | 'tough' | 'manager';
   name: string;
   icon: string;
   per: string; // what one point does (shown in the stats screen)
@@ -213,6 +213,10 @@ export const STATS: StatDef[] = [
   { id: 'work', name: 'Work Speed', icon: '⚡', per: '+8% faster pickup and drop-off' },
   { id: 'haggle', name: 'Haggling', icon: '💰', per: '+5% cash from sales and runs' },
   { id: 'luck', name: 'Luck', icon: '🍀', per: 'Fewer puddle losses, better ? gates' },
+  { id: 'charm', name: 'Charm', icon: '😄', per: '+5% more customers, served faster' },
+  { id: 'lead', name: 'Leadership', icon: '📣', per: '+4% speed for all your helpers' },
+  { id: 'tough', name: 'Toughness', icon: '🛡️', per: '-8% heat at the volcano, magma lasts longer' },
+  { id: 'manager', name: 'Night Manager', icon: '💤', per: '+5% offline earnings' },
 ];
 
 /** The Queen joins the economy at this player level. */

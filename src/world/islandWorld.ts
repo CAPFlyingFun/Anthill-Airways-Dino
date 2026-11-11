@@ -15,6 +15,7 @@
 // Crew unlocks automate each job, and Sarah (your assistant) collects the money. Like the airport, the island keeps working while you're away.
 // ============================================================================
 import { autoCash } from '../core/income';
+import { Upgrades } from './upgradePad';
 import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { CONFIG, ISLAND_CFG as C, ISLAND_UNLOCKS } from '../data/config';
@@ -687,6 +688,8 @@ export class IslandWorld {
   tiles: UnlockTile[] = [];
   workers: Worker[] = [];
   active = false;
+  /** ⬆️ This world's upgrade pads. */
+  ups: Upgrades | null = null;
   /** Set by main.ts: launch a Sea Safari gate run with `count` tourists. */
   onSafari: (count: number) => void = () => {};
   /** Set by main.ts: "Big Order: Volcano" was just bought (opens Act 4). */
@@ -999,7 +1002,11 @@ export class IslandWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 SARAH'); // (the only place she goes by name)
         this.scene.add(tag.sprite);
-        this.cashDodo = new Assistant(m, new THREE.Vector3(4, 0, 12), tag, (v) => { this.addCash(v); autoCash(v); });
+        this.cashDodo = new Assistant(m, new THREE.Vector3(4, 0, 12), tag, (v) => {
+          v *= this.ups?.bonus ?? 1; // 💼 COLLECTORS upgrade bonus
+          this.addCash(v);
+          autoCash(v);
+        });
         if (animate) this.hud.banner('👩‍💼 Sarah is on the island!', 'She collects the cash from every pad for you', 3500);
         break;
       }
@@ -1063,6 +1070,15 @@ export class IslandWorld {
   private canWalk = (x: number, z: number) => (x / WALK.rx) ** 2 + (z / WALK.rz) ** 2 <= 1;
 
   update(dt: number, move: THREE.Vector2) {
+    // ⬆️ Upgrade pads (made on the first frame, once the world is built)
+    this.ups ??= new Upgrades(
+      {
+        scene: this.scene, camera: this.camera, workers: this.workers, home: new THREE.Vector3(4, 0, 12), canWalk: this.canWalk, // (home = by the assistant's spot)
+        tileSpots: ISLAND_UNLOCKS.map((d) => d.pos), collectors: () => this.cashDodo ? [this.cashDodo] : [],
+      },
+      'island', this.save, this.hud, this.sfx, this.flyers, this.progress,
+    );
+    this.ups.update(dt, this, this.player.pos, this.active);
     const me = this.player;
     // The world runs whether or not you're here
     for (const p of this.piles) p.update(dt);

@@ -23,6 +23,8 @@ import { CreatureModel, animateCreature, faceToward } from './models';
 const HUB = new THREE.Vector3(-2, 0, 2); // the middle of the nest: her crossroads between zones
 
 export class QueenCollector {
+  /** ⬆️ COLLECTORS upgrade: grabs bills this many times faster. */
+  boost = 1;
   private state: 'pick' | 'walk' | 'collect' | 'rest' = 'pick';
   private pad: CashPad | null = null;
   private path: THREE.Vector3[] = [];
@@ -89,7 +91,7 @@ export class QueenCollector {
         animateCreature(m, dt, 0);
         const pad = this.pad!;
         this.grabT += dt;
-        if (this.grabT < 0.12 / this.qp.grabMult) break;
+        if (this.grabT < 0.12 / this.qp.grabMult / this.boost) break;
         this.grabT = 0;
         const bill = pad.stack.pop();
         if (!bill) {

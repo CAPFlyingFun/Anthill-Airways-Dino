@@ -354,6 +354,30 @@ export class Hud {
     }
   }
 
+  // ---- 📊 Lifetime stats ------------------------------------------------------
+  /** `rows()` builds the list fresh each time the screen opens (null = a heading). */
+  initTotals(rows: () => ({ icon: string; label: string; value: string } | string)[]) {
+    const panel = $('totals');
+    const render = () => {
+      $('totalRows').innerHTML = rows()
+        .map((r) => (typeof r === 'string'
+          ? `<div class="tot-head">${r}</div>`
+          : `<div class="tot-row"><div class="ic">${r.icon}</div><div class="nm">${r.label}</div><b>${r.value}</b></div>`))
+        .join('');
+    };
+    $('totalsBtn').addEventListener('click', () => {
+      render();
+      $('stats').classList.add('hidden');
+      panel.classList.remove('hidden');
+    });
+    $('totalsBack').addEventListener('click', () => {
+      panel.classList.add('hidden');
+      this.renderStats();
+      $('stats').classList.remove('hidden');
+    });
+    $('closeTotals').addEventListener('click', () => panel.classList.add('hidden'));
+  }
+
   /** Version line + "Check for updates" button in Settings. */
   initVersion(label: string, onCheck: () => void) {
     $('versionText').textContent = label;

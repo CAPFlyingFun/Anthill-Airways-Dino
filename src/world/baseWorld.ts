@@ -15,6 +15,7 @@
 // between stacks one at a time on a timer.
 // ============================================================================
 import { autoCash } from '../core/income';
+import { Upgrades } from './upgradePad';
 import * as THREE from 'three';
 import { CONFIG, QUEEN_UNLOCK_LEVEL, TUTORIAL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
 import { Sfx } from '../core/audio';
@@ -69,6 +70,8 @@ export class BaseWorld {
    * itself (workers, cashiers, bankers, the Queen) but the Major waits.
    */
   active = true;
+  /** ⬆️ This world's upgrade pads. */
+  ups: Upgrades | null = null;
 
   /** Set by main.ts: called when the player taps LAUNCH RUN. */
   onLaunch: (count: number, from: DispatchPad) => void = () => {};
@@ -527,7 +530,9 @@ export class BaseWorld {
     if (!pad) return;
     const b = new Banker(this.scene, pad, (amount) => {
       const tribute = this.save.queen.active ? this.queenProgress.tributeMult : 1;
-      this.addCash(amount * tribute);
+      const v = amount * tribute * (this.ups?.bonus ?? 1); // (+ 💼 COLLECTORS upgrade bonus)
+      this.addCash(v);
+      autoCash(v); // automated income: counts toward +$/min and offline pay
     });
     titleTag(b.model, '🏦 BANKER', TITLE.ant);
     this.bankers.push(b);
@@ -747,6 +752,16 @@ export class BaseWorld {
   }
 
   update(dt: number, move: THREE.Vector2) {
+    // ⬆️ Upgrade pads (made on the first frame, once the world is built)
+    this.ups ??= new Upgrades(
+      {
+        scene: this.scene, camera: this.camera, workers: this.workers, home: this.player.pos.clone(), canWalk: this.canWalk,
+        tileSpots: UNLOCKS.map((d) => d.pos), collectors: () => [...this.bankers, ...(this.queenCollector ? [this.queenCollector] : [])],
+        ready: () => this.save.unlocked.includes('worker1'), // (keeps a brand-new game simple)
+      },
+      'ant', this.save, this.hud, this.sfx, this.flyers, this.progress,
+    );
+    this.ups.update(dt, this, this.player.pos, this.active);
     const p = this.player.pos;
     const prog = this.progress;
     const xp = CONFIG.xp;
@@ -935,6 +950,7 @@ export class BaseWorld {
     this.blockers = this.blockers.filter((b) => b !== this.queenBlocker); // her corner is open now
     this.queenCrown.setText('👑 QUEEN · Lv ' + this.save.queen.level);
     this.queenCollector = new QueenCollector(this.queenModel, this.queenCrown, new THREE.Vector3(-11, 0, -9), this.queenProgress, (amount) => {
+      amount *= this.ups?.bonus ?? 1; // 💼 COLLECTORS upgrade bonus
       this.addCash(amount);
       autoCash(amount); // automated income: counts toward +$/min and offline pay
     });

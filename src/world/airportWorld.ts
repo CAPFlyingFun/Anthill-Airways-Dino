@@ -19,6 +19,8 @@
 // it all runs by itself, and your personal assistant (Sarah's model) collects cash.
 // ============================================================================
 import { autoCash } from '../core/income';
+import { bump } from '../core/totals';
+import { Upgrades } from './upgradePad';
 import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { AIR, AIR_UNLOCKS, AircraftKind, CONFIG, UNLOCKS } from '../data/config';
@@ -118,6 +120,9 @@ export class Desk {
   /** Rush hour: people arrive ~3x as fast and the line gets longer. */
   rush = false;
   valueMult: () => number = () => 1;
+  /** ⬆️ Upgrade: x price per sale, and people arrive / are served faster. */
+  priceMult = 1;
+  paceMult = 1;
   private queue: Guest[] = [];
   private leaving: Guest[] = [];
   private spawnT = 1;
@@ -211,7 +216,7 @@ export class Desk {
 
   update(dt: number, playerServing: boolean, sfx: Sfx) {
     this.spawnT += dt;
-    const interval = this.rush ? this.opts.interval * 0.35 : this.opts.interval;
+    const interval = (this.rush ? this.opts.interval * 0.35 : this.opts.interval) / this.paceMult;
     const queueMax = this.rush ? this.opts.queueMax + 3 : this.opts.queueMax;
     if (this.spawnT >= interval && this.queue.length < queueMax) {
       this.spawnT = 0;
@@ -258,9 +263,10 @@ export class Desk {
     // Serve the front of the line.
     const g = this.queue[0];
     if (g && frontReady && (playerServing || this.hasStaff)) {
-      this.serveT = Math.min(this.serveT + dt, this.opts.serve * 4);
-      while (this.serveT >= this.opts.serve && this.queue[0] === g) {
-        this.serveT -= this.opts.serve;
+      const serve = this.opts.serve / this.paceMult;
+      this.serveT = Math.min(this.serveT + dt, serve * 4);
+      while (this.serveT >= serve && this.queue[0] === g) {
+        this.serveT -= serve;
         if (this.opts.mode === 'checkin') this.serveCheckin(g, playerServing, sfx);
         else this.serveCafe(g, playerServing, sfx);
       }
@@ -324,7 +330,8 @@ export class Desk {
 
   /** A bill pops out of the register onto the cash pad. */
   private spawnBill(base: number) {
-    const value = Math.round(base * this.valueMult());
+    const value = Math.round(base * this.valueMult() * this.priceMult);
+    bump('sold'); // 📊 lifetime: sales / check-ins
     payBill(this.scene, this.flyers, this.cashPad, this.register, value);
   }
 }
@@ -347,6 +354,8 @@ export function payBill(scene: THREE.Scene, flyers: Flyers, pad: CashPad, from: 
 // ----------------------------------------------------------------------------
 export class Assistant {
   speed = 4.2;
+  /** ⬆️ COLLECTORS upgrade: walks and grabs this many times faster. */
+  boost = 1;
   private pad: CashPad | null = null;
   private state: 'pick' | 'walk' | 'collect' | 'rest' = 'pick';
   private t = 0;
@@ -362,14 +371,14 @@ export class Assistant {
       this.state = 'walk';
     } else if (this.state === 'walk') {
       const to = this.pad ? this.tmp.set(this.pad.zone.x, 0, this.pad.zone.z + 1.3) : this.home;
-      if (stepTo(m, to, this.speed, dt)) {
+      if (stepTo(m, to, this.speed * this.boost, dt)) {
         this.state = this.pad ? 'collect' : 'rest';
         this.t = 2.5;
       }
     } else if (this.state === 'collect') {
       animateCreature(m, dt, 0);
       this.t += dt;
-      if (this.t >= 0.1) {
+      if (this.t >= 0.1 / this.boost) {
         this.t = 0;
         const bill = this.pad!.stack.pop();
         if (!bill) this.state = 'pick';
@@ -582,6 +591,8 @@ export class AirportWorld {
 
   /** True while this is the world on screen (set by main.ts). */
   active = false;
+  /** ⬆️ This world's upgrade pads. */
+  ups: Upgrades | null = null;
   /** Set by main.ts: "Big Order: Island" bought -> open Dino Island (Act 3). */
   onAct3: () => void = () => {};
 
@@ -846,7 +857,11 @@ export class AirportWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 ASSISTANT'); // (Sarah's model; she's only named on the island)
         this.scene.add(tag.sprite);
-        this.sarah = new Assistant(m, new THREE.Vector3(3, 0, 7.5), tag, (v) => { this.addCash(v); autoCash(v); });
+        this.sarah = new Assistant(m, new THREE.Vector3(3, 0, 7.5), tag, (v) => {
+          v *= this.ups?.bonus ?? 1; // 💼 COLLECTORS upgrade bonus
+          this.addCash(v);
+          autoCash(v);
+        });
         if (animate) this.hud.banner('👩‍💼 You hired a personal assistant!', 'She collects the cash from every pad for you', 3500);
         break;
       }
@@ -907,6 +922,15 @@ export class AirportWorld {
    *               (crew, plane, café...) but Jack stands still and no HUD.
    */
   update(dt: number, move: THREE.Vector2) {
+    // ⬆️ Upgrade pads (made on the first frame, once the world is built)
+    this.ups ??= new Upgrades(
+      {
+        scene: this.scene, camera: this.camera, workers: this.workers, home: new THREE.Vector3(3, 0, 7.5), canWalk: this.canWalk, // (home = by the assistant's spot)
+        tileSpots: AIR_UNLOCKS.map((d) => d.pos), collectors: () => this.sarah ? [this.sarah] : [],
+      },
+      'air', this.save, this.hud, this.sfx, this.flyers, this.progress,
+    );
+    this.ups.update(dt, this, this.player.pos, this.active);
     const me = this.player;
     const p = me.pos;
     const prog = this.progress;

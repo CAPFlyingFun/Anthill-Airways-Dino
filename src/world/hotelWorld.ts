@@ -20,6 +20,7 @@
 // run down the hallways for tips.
 // ============================================================================
 import { autoCash } from '../core/income';
+import { Upgrades } from './upgradePad';
 import * as THREE from 'three';
 import { CONFIG, HOTEL_CFG as C, HOTEL_UNLOCKS } from '../data/config';
 import { Sfx } from '../core/audio';
@@ -75,6 +76,8 @@ export class HotelWorld {
   tiles: UnlockTile[] = [];
   workers: Worker[] = [];
   active = false;
+  /** ⬆️ This world's upgrade pads. */
+  ups: Upgrades | null = null;
   /** Set by main.ts: launch a Bellhop Dash gate run with `count` bags. */
   onDash: (count: number) => void = () => {};
 
@@ -598,7 +601,11 @@ export class HotelWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 ASSISTANT');
         this.scene.add(tag.sprite);
-        this.assistant = new Assistant(m, new THREE.Vector3(-6, 0, 6), tag, (v) => { this.addCash(v); autoCash(v); });
+        this.assistant = new Assistant(m, new THREE.Vector3(-6, 0, 6), tag, (v) => {
+          v *= this.ups?.bonus ?? 1; // 💼 COLLECTORS upgrade bonus
+          this.addCash(v);
+          autoCash(v);
+        });
         this.assistant.speed = 5.5;
         if (animate) this.hud.banner('👩‍💼 Personal Assistant', 'She collects the cash from every pad for you', 3500);
         break;
@@ -688,6 +695,15 @@ export class HotelWorld {
   private canWalk = (x: number, z: number) => x >= WALK.minX && x <= WALK.maxX && z >= WALK.minZ && z <= WALK.maxZ;
 
   update(dt: number, move: THREE.Vector2) {
+    // ⬆️ Upgrade pads (made on the first frame, once the world is built)
+    this.ups ??= new Upgrades(
+      {
+        scene: this.scene, camera: this.camera, workers: this.workers, home: new THREE.Vector3(-6, 0, 6), canWalk: this.canWalk, // (home = by the assistant's spot)
+        tileSpots: HOTEL_UNLOCKS.map((d) => d.pos), collectors: () => this.assistant ? [this.assistant] : [],
+      },
+      'hotel', this.save, this.hud, this.sfx, this.flyers, this.progress,
+    );
+    this.ups.update(dt, this, this.player.pos, this.active);
     const me = this.player;
     this.desk.update(dt, this.active && this.desk.staffZone.contains(me.pos), this.sfx);
     this.buffet?.update(dt, this.active && this.buffet.staffZone.contains(me.pos), this.sfx);

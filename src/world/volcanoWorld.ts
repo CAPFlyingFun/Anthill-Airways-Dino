@@ -21,6 +21,7 @@
 // paths, tourists must be evacuated) and MAGMA that burns through your stack.
 // ============================================================================
 import { autoCash } from '../core/income';
+import { Upgrades } from './upgradePad';
 import * as THREE from 'three';
 import { CONFIG, VOLCANO_CFG as C, VOLCANO_UNLOCKS } from '../data/config';
 import { Sfx } from '../core/audio';
@@ -667,6 +668,8 @@ export class VolcanoWorld {
   tiles: UnlockTile[] = [];
   workers: Worker[] = [];
   active = false;
+  /** ⬆️ This world's upgrade pads. */
+  ups: Upgrades | null = null;
   /** Set by main.ts: launch a heli tour gate run with `count` tourists. */
   onTour: (count: number) => void = () => {};
   /** Set by main.ts: you stepped on the ERUPT altar (prestige). */
@@ -1161,7 +1164,11 @@ export class VolcanoWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 ASSISTANT');
         this.scene.add(tag.sprite);
-        this.treasurer = new Assistant(m, new THREE.Vector3(-2, 0, 8), tag, (v) => { this.addCash(v); autoCash(v); });
+        this.treasurer = new Assistant(m, new THREE.Vector3(-2, 0, 8), tag, (v) => {
+          v *= this.ups?.bonus ?? 1; // 💼 COLLECTORS upgrade bonus
+          this.addCash(v);
+          autoCash(v);
+        });
         this.treasurer.speed = 5.5;
         if (animate) this.hud.banner('👩‍💼 Personal Assistant', 'She collects the cash from every pad for you', 3500);
         break;
@@ -1255,6 +1262,15 @@ export class VolcanoWorld {
   private canWalk = (x: number, z: number) => (x / WALK.rx) ** 2 + (z / WALK.rz) ** 2 <= 1;
 
   update(dt: number, move: THREE.Vector2) {
+    // ⬆️ Upgrade pads (made on the first frame, once the world is built)
+    this.ups ??= new Upgrades(
+      {
+        scene: this.scene, camera: this.camera, workers: this.workers, home: new THREE.Vector3(-2, 0, 8), canWalk: this.canWalk, // (home = by the assistant's spot)
+        tileSpots: VOLCANO_UNLOCKS.map((d) => d.pos), collectors: () => this.treasurer ? [this.treasurer] : [],
+      },
+      'volcano', this.save, this.hud, this.sfx, this.flyers, this.progress,
+    );
+    this.ups.update(dt, this, this.player.pos, this.active);
     const me = this.player;
     // The world runs whether or not you're here
     for (const p of this.piles) p.update(dt);
@@ -1415,6 +1431,7 @@ export class VolcanoWorld {
     const nearLake = distRect(p, LAKE) < C.heatRange;
     let rate = atMist ? -C.mistCool : onFlow ? C.flowHeat : nearLake ? C.heatRise : -C.heatCool;
     if (rate > 0 && this.suit) rate *= 0.5;
+    if (rate > 0) rate *= this.progress.heatMult; // 🛡️ Toughness stat
     this.heat = THREE.MathUtils.clamp(this.heat + rate * dt, 0, 1);
     if (this.heat >= 1) {
       this.scatter('🥵 OVERHEATED! Dropped everything');
@@ -1426,7 +1443,7 @@ export class VolcanoWorld {
     const me = this.player.stack;
     if (me.has('magma')) {
       this.burnT += dt;
-      if (this.burnT >= C.magmaBurn) {
+      if (this.burnT >= C.magmaBurn / this.progress.heatMult) {
         this.burnT = 0;
         const it = me.popType('magma');
         if (it) {

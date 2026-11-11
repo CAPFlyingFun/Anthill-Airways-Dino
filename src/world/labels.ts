@@ -175,6 +175,8 @@ export function titleTag(model: { root: THREE.Object3D; height: number }, text: 
   tag.sprite.scale.divideScalar(s);
   tag.sprite.position.set(0, (model.height + size * 0.65) / s, 0);
   model.root.add(tag.sprite);
+  // Remember it, so a helper's level can be added later ("🐜 WORKER · Lv 3")
+  model.root.userData.title = { tag, text };
   return tag;
 }
 

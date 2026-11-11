@@ -88,6 +88,22 @@ export class Progress {
   get luck() {
     return this.stat('luck') + this.up('fortune') * 2;
   }
+  /** 😄 Charm: customers arrive and get served faster everywhere. */
+  get charmMult() {
+    return 1 + this.stat('charm') * 0.05;
+  }
+  /** 📣 Leadership: every helper is faster. */
+  get leadMult() {
+    return 1 + this.stat('lead') * 0.04;
+  }
+  /** 🛡️ Toughness: heat builds up slower (and magma burns away slower). */
+  get heatMult() {
+    return Math.max(0.2, 1 - this.stat('tough') * 0.08);
+  }
+  /** 💤 Night Manager: extra share of offline earnings (+5% per point). */
+  get offlineBonus() {
+    return this.stat('manager') * 0.05;
+  }
 
   /** One-line description of a stat's current total bonus. */
   describe(id: StatDef['id']) {
@@ -98,6 +114,10 @@ export class Progress {
       case 'work': return `+${n * 8}% work speed`;
       case 'haggle': return `+${n * 5}% cash`;
       case 'luck': return n ? `-${Math.min(70, n * 6)}% puddle loss, ${Math.round(Math.min(80, 50 + n * 4))}% ? win` : 'No bonus yet';
+      case 'charm': return `+${n * 5}% customers`;
+      case 'lead': return `+${n * 4}% helper speed`;
+      case 'tough': return `-${Math.round((1 - this.heatMult) * 100)}% heat`;
+      case 'manager': return `+${n * 5}% offline`;
     }
   }
 }

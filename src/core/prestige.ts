@@ -23,6 +23,11 @@ export function erupt(save: SaveData, gain: number) {
   save.eruptions += 1;
   save.unlocked = save.unlocked.filter((id) => !wiped(id));
   for (const k of Object.keys(save.paid)) if (wiped(k)) delete save.paid[k];
+  // Their ⬆️ upgrade pads and helpers' levels go too
+  for (const k of Object.keys(save.upgrades)) if (wiped(k)) delete save.upgrades[k];
+  for (const k of Object.keys(save.upPaid)) if (wiped(k)) delete save.upPaid[k];
+  delete save.crewXp.island;
+  delete save.crewXp.volcano;
   // 🚀 Head Start: $100k per level to get the island going again
   save.cash = 100000 * (save.shardUps.head ?? 0);
   save.cycleEarned = 0;
