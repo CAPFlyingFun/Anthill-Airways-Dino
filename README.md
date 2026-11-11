@@ -16,7 +16,7 @@ On iPhone: open in Safari → Share → **Add to Home Screen** to install it as 
 - Glowing tiles: pour cash in to unlock (crumb pile, cashier, gate runs, backpack,
   worker ants, faster oven, Big Order)
 - Gate runs: load 5+ snack packs on the beetle cart, tap **LAUNCH RUN**, steer through gates
-- Automation: Cashier, Worker Ants (crumbs → oven), **Runner Ant** and **Conveyor Belt** (oven → counter)
+- Automation: Cashier, Worker Ants (crumbs → oven) and the **Runner Ant** (oven → counter)
 - **XP & levels (ARK style):** every task gives XP; each level = 1 point for Carry Weight,
   Movement Speed, Work Speed, Haggling or Luck (tap your level, top left)
 - Autosaves to the browser; Settings has sound + reset

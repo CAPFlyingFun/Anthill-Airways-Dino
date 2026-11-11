@@ -31,6 +31,12 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
 const save = loadSave();
+// The colony's Conveyor Belt was removed (it starved the Runner Ant): refund it on old saves
+if (save.unlocked.includes('conveyor')) {
+  save.unlocked = save.unlocked.filter((id) => id !== 'conveyor');
+  save.cash += 150;
+}
+delete save.paid['conveyor'];
 // How long since the last save (= since you last played), for offline earnings.
 const awayAtLaunch = save.lastSeen ? (Date.now() - save.lastSeen) / 1000 : 0;
 const hud = new Hud();

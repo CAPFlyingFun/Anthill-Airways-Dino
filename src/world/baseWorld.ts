@@ -29,7 +29,7 @@ import { animateCreature, CreatureModel } from '../actors/models';
 import { Flyers, ITEM_VALUE, ItemType } from './items';
 import { TextSprite, TITLE, titleTag } from './labels';
 import {
-  Bakery, Blocker, CashPad, Conveyor, Counter, DispatchPad, Hatchery, ProcessorOpts, ResourcePile, TrashBin, UnlockTile,
+  Bakery, Blocker, CashPad, Counter, DispatchPad, Hatchery, ProcessorOpts, ResourcePile, TrashBin, UnlockTile,
 } from './stations';
 
 type Rect = { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -53,7 +53,6 @@ export class BaseWorld {
   bankers: Banker[] = [];
   tiles: UnlockTile[] = [];
   hatchery: Hatchery | null = null;
-  conveyor: Conveyor | null = null;
   trash: TrashBin[] = [];
 
   // Named stations (workers' routes point at these)
@@ -580,11 +579,7 @@ export class BaseWorld {
       case 'runner':
         this.hire('🏃 RUNNER', x, z, this.deliverRoute(this.bakery, this.counter), { color: 0xe63946, flat: true }, animate);
         break;
-      case 'conveyor':
-        this.conveyor = new Conveyor(this.scene, this.bakery, this.counter, this.flyers);
-        this.blockers.push(...this.conveyor.blockers);
-        grow(this.conveyor.group);
-        break;
+      // (case 'conveyor' is gone: the Runner Ant does that job now)
       case 'oven2':
         this.bakery.makeFaster();
         break;
@@ -767,7 +762,6 @@ export class BaseWorld {
     for (const w of this.workers) w.update(dt, this.flyers);
     for (const b of this.bankers) b.update(dt, this.flyers);
     this.hatchery?.update(dt);
-    this.conveyor?.update(dt);
 
     if (!this.active) {
       // In the background: no player, no HUD, no impostor. The Queen still works.

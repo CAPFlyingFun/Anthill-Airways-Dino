@@ -83,7 +83,8 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'carry1',   name: 'Bigger Backpack', icon: '🎒', cost: 75,  pos: [-3.5, 7],  requires: ['pile2'] },
   { id: 'worker1',  name: 'Worker Ant',      icon: '🐜', cost: 90,  pos: [-4, -1.5], requires: ['cashier'] },
   { id: 'oven2',    name: 'Faster Oven',     icon: '🔥', cost: 120, pos: [-5.4, -9], requires: ['worker1'] },
-  { id: 'conveyor', name: 'Conveyor Belt',   icon: '⛓️', cost: 150, pos: [6.2, -10.6], requires: ['cashier'] },
+  // (The Conveyor Belt is gone: it grabbed every snack pack before the Runner Ant
+  // could. main.ts refunds it on old saves. The belt is saved for a human-scale act.)
   { id: 'runner',   name: 'Runner Ant',      icon: '🏃', cost: 150, pos: [3.6, -2.4], requires: ['cashier'] },
   { id: 'worker2',  name: 'Worker Ant',      icon: '🐜', cost: 200, pos: [-11.5, -1.5], requires: ['worker1', 'pile2'] },
   { id: 'banker',   name: 'Banker Ant',      icon: '💼', cost: 300, pos: [4.2, 2.4], requires: ['cashier', 'runner'] },
