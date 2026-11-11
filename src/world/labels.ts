@@ -49,13 +49,31 @@ export class TextSprite {
     this.sprite.renderOrder = 10;
   }
 
+  /** World width of the label (it grows with longer text). */
+  get width() {
+    return this.size * (this.canvas.width / 128);
+  }
+
   setText(text: string, color = this.color) {
     if (text === this.text) return;
     this.text = text;
     const c = this.ctx;
-    c.clearRect(0, 0, 256, 128);
-    if (text) gameText(c, text, 128, 66, 72, color);
+    // Measure first, and widen the canvas so long labels ("GATE RUNS") never get cut off.
+    c.font = `900 72px ${GAME_FONT}`;
+    const needed = Math.max(256, Math.ceil(c.measureText(text).width + 40));
+    if (needed !== this.canvas.width) {
+      this.canvas.width = needed;
+      // A texture can't change size once uploaded, so swap in a fresh one.
+      this.tex.dispose();
+      this.tex = new THREE.CanvasTexture(this.canvas);
+      this.tex.colorSpace = THREE.SRGBColorSpace;
+      (this.sprite.material as THREE.SpriteMaterial).map = this.tex;
+      (this.sprite.material as THREE.SpriteMaterial).needsUpdate = true;
+    }
+    c.clearRect(0, 0, this.canvas.width, 128);
+    if (text) gameText(c, text, this.canvas.width / 2, 66, 72, color);
     this.tex.needsUpdate = true;
+    this.sprite.scale.set(this.width, this.size, 1);
   }
 }
 

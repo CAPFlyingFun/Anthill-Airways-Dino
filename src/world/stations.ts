@@ -12,7 +12,8 @@ import { CONFIG, UnlockDef } from '../data/config';
 import { Flyers, ITEM_H, Layout, Stack, StackItem, makeItem } from './items';
 import { GAME_FONT, TextSprite, gameText, makePad, roundRect } from './labels';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
-import { CreatureKind, spawnCreature } from '../actors/creatures';
+import { spawnCreature } from '../actors/creatures';
+import { BUGS, Mind, newMind, stepBug } from '../actors/brain';
 
 /** Axis-aligned box the player can't walk through. */
 export interface Blocker {
@@ -210,20 +211,16 @@ export class Bakery {
 
 // ----------------------------------------------------------------------------
 const BEETLE_COLORS = [0xe63946, 0x2a9d8f, 0xf4a261, 0x6a4c93, 0x1d70a2, 0xffb703];
-// Customers are the other bugs of the backyard (length in world units).
-const CUSTOMER_KINDS: [CreatureKind, number][] = [
-  ['black-widow', 2.4],
-  ['jumping-spider', 2.2],
-  ['housefly', 1.9],
-  ['aphid', 1.7],
-];
+// Customers are the other bugs of the backyard; their brains live in actors/brain.ts.
+const CUSTOMER_KINDS = ['black-widow', 'jumping-spider', 'housefly', 'aphid'] as const;
 
 interface Customer {
   model: CreatureModel;
+  mind: Mind;
   held: Stack;
   wants: number;
-  path: THREE.Vector3[]; // waypoints still to walk (used when leaving)
-  leaving: boolean;
+  ready: boolean;        // in its spot and calm this frame (can be served)
+  path: THREE.Vector3[]; // waypoints still to go (used when leaving)
 }
 
 export class Counter {
@@ -290,34 +287,17 @@ export class Counter {
   }
 
   private spawnCustomer() {
-    const [kind, len] = CUSTOMER_KINDS[Math.floor(Math.random() * CUSTOMER_KINDS.length)];
-    const model = spawnCreature(kind, len) ?? makeBeetle(BEETLE_COLORS[Math.floor(Math.random() * BEETLE_COLORS.length)]);
+    const kind = CUSTOMER_KINDS[Math.floor(Math.random() * CUSTOMER_KINDS.length)];
+    const species = BUGS[kind];
+    const model = spawnCreature(kind, species.length) ?? makeBeetle(BEETLE_COLORS[Math.floor(Math.random() * BEETLE_COLORS.length)]);
     model.root.position.set(this.x + 15, 0, this.z - 0.4);
     this.scene.add(model.root);
     const top = model.height * 0.9;
     const held = new Stack(model.bob, (i, type, out) => out.set(0, top + i * ITEM_H[type] + ITEM_H[type] / 2, -model.length * 0.1), 4);
-    this.queue.push({ model, held, wants: 1 + Math.floor(Math.random() * 3), path: [], leaving: false });
+    this.queue.push({ model, mind: newMind(species), held, wants: 1 + Math.floor(Math.random() * 3), ready: false, path: [] });
   }
 
-  /** Walk a customer toward a point. Returns true when they've arrived. */
-  private walk(c: Customer, target: THREE.Vector3, dt: number, speed = 3.2) {
-    const p = c.model.root.position;
-    const dx = target.x - p.x;
-    const dz = target.z - p.z;
-    const d = Math.hypot(dx, dz);
-    if (d < 0.05) {
-      animateCreature(c.model, dt, 0);
-      return true;
-    }
-    const step = Math.min(d, speed * dt);
-    p.x += (dx / d) * step;
-    p.z += (dz / d) * step;
-    faceToward(c.model, dx, dz, dt);
-    animateCreature(c.model, dt, speed);
-    return false;
-  }
-
-  update(dt: number, playerServing: boolean, sfx: { sale(): void }) {
+  update(dt: number, playerServing: boolean, sfx: { sale(): void }, playerPos: THREE.Vector3) {
     // New customers arrive while there's room in line.
     this.spawnT += dt;
     if (this.spawnT >= CONFIG.counter.customerInterval && this.queue.length < CONFIG.counter.queueMax) {
@@ -325,16 +305,18 @@ export class Counter {
       this.spawnCustomer();
     }
 
-    // Everyone in line walks to their spot.
+    // Everyone in line heads for their spot, using their own brain:
+    // spiders hop or rear up at you, flies hover in line, aphids just plod.
     this.queue.forEach((c, i) => {
-      const arrived = this.walk(c, this.slot(i, this.tmp), dt);
-      if (arrived) faceToward(c.model, -1, 0, dt); // look at the counter
+      c.ready = stepBug(c.model, c.mind, this.slot(i, this.tmp), playerPos, dt);
+      if (c.ready && c.mind.species.medium !== 'air') faceToward(c.model, -1, 0, dt); // look at the counter
+      if (c.ready && c.mind.species.medium === 'air') faceToward(c.model, -1, 0, dt, 4);
     });
 
     // The front customer buys if someone is at the register.
     const front = this.queue[0];
     const serving = playerServing || this.hasCashier;
-    if (front && serving && this.walk(front, this.slot(0, this.tmp), 0)) {
+    if (front && serving && front.ready) {
       this.saleT += dt;
       if (this.saleT >= CONFIG.counter.saleInterval && this.shelf.canPop() && front.wants > 0) {
         this.saleT = 0;
@@ -345,19 +327,22 @@ export class Counter {
           this.onSale(playerServing);
         }
       }
-      if (front.wants <= 0) {
-        // Happy customer leaves: step down, then walk out to the right.
-        this.queue.shift();
-        front.leaving = true;
-        const p = front.model.root.position;
-        front.path = [new THREE.Vector3(p.x, 0, this.z + 2.3), new THREE.Vector3(this.x + 16, 0, this.z + 2.3)];
-        this.leaving.push(front);
-      }
+    }
+    if (front && front.wants <= 0 && front.held.canPop()) {
+      // Happy customer leaves. Fliers literally fly away with their snacks!
+      this.queue.shift();
+      const p = front.model.root.position;
+      front.path = front.mind.species.medium === 'air'
+        ? [new THREE.Vector3(this.x + 20, 0, this.z - 8)]
+        : [new THREE.Vector3(p.x, 0, this.z + 2.3), new THREE.Vector3(this.x + 16, 0, this.z + 2.3)];
+      this.leaving.push(front);
     }
 
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const c = this.leaving[i];
-      if (this.walk(c, c.path[0], dt, 3.8)) {
+      const arrived = stepBug(c.model, c.mind, c.path[0], playerPos, dt, true);
+      const near = Math.hypot(c.path[0].x - c.model.root.position.x, c.path[0].z - c.model.root.position.z) < 0.3;
+      if (arrived || near) {
         c.path.shift();
         if (!c.path.length) {
           c.model.root.removeFromParent();

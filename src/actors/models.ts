@@ -20,13 +20,25 @@ export interface CreatureModel {
   walkBlend: number;          // 0 = standing, 1 = full walk cycle
   height: number;             // world height of the body (for stacking things on top)
   length: number;             // nose-to-tail length
+  wings: Wing[];              // wing root bones (only the housefly has them for now)
+  flying: boolean;            // true = wings open and buzzing
+  wingOpen: number;           // 0 folded .. 1 spread (eases between)
+}
+
+/** One wing bone, with the axes it opens and flaps around (in its own space). */
+export interface Wing {
+  bone: THREE.Object3D;
+  base: THREE.Quaternion;
+  up: THREE.Vector3;   // the body's vertical: opening the wing swings around this
+  fwd: THREE.Vector3;  // the body's forward: the up/down beat swings around this
+  side: number;        // -1 left, +1 right
 }
 
 /** Empty model shell; the builders below fill it in. */
 export function newModel(height: number, length: number): CreatureModel {
   const m: CreatureModel = {
     root: new THREE.Group(), bob: new THREE.Group(), legs: [], legBase: [], legAxis: [], legPhase: [],
-    legAmp: 0.5, walkT: Math.random() * 10, walkBlend: 0, height, length,
+    legAmp: 0.5, walkT: Math.random() * 10, walkBlend: 0, height, length, wings: [], flying: false, wingOpen: 0,
   };
   m.root.add(m.bob);
   return m;
@@ -153,13 +165,37 @@ export function makeBeetle(color: number): CreatureModel {
 }
 
 const swingQ = new THREE.Quaternion();
+const openQ = new THREE.Quaternion();
 
-/** Call every frame. `speed` is 0 when standing still. */
+/**
+ * Stride length in body lengths, from TRADDOMIUM's fauna/gait.ts: insects
+ * take SHORTER strides when they walk slower (Mendes et al. 2013), so slow
+ * walkers step more often instead of looking like slow motion.
+ * Full stride 0.4 bodies at 2.5 body-lengths/s, never under 35% of that.
+ */
+function strideLengths(bodyLengthsPerS: number) {
+  return 0.4 * THREE.MathUtils.clamp(bodyLengthsPerS / 2.5, 0.35, 1);
+}
+
+/** Call every frame. `speed` is 0 when standing still (world units / s). */
 export function animateCreature(m: CreatureModel, dt: number, speed: number) {
-  const moving = speed > 0.1;
+  const moving = speed > 0.1 && !m.flying;
   // Blend smoothly in/out of the walk so legs don't snap.
   m.walkBlend += ((moving ? 1 : 0) - m.walkBlend) * Math.min(1, dt * 10);
-  m.walkT += dt * (moving ? 9 + speed * 1.2 : 2);
+  // The gait runs on DISTANCE walked (TRADDOMIUM's rule): stop walking = feet stop.
+  const bl = speed / m.length;
+  if (moving) m.walkT += dt * ((Math.PI * 2 * bl) / strideLengths(bl));
+
+  // Wings: open + buzz while flying, fold back down when landed.
+  m.wingOpen += ((m.flying ? 1 : 0) - m.wingOpen) * Math.min(1, dt * 12);
+  if (m.wings.length) {
+    const beat = Math.sin(performance.now() * 0.06) * 0.55 * m.wingOpen;
+    for (const w of m.wings) {
+      openQ.setFromAxisAngle(w.up, -w.side * 1.0 * m.wingOpen);
+      swingQ.setFromAxisAngle(w.fwd, w.side * beat);
+      w.bone.quaternion.copy(w.base).multiply(openQ).multiply(swingQ);
+    }
+  }
   m.legs.forEach((leg, i) => {
     const angle = Math.sin(m.walkT + m.legPhase[i]) * m.legAmp * m.walkBlend;
     swingQ.setFromAxisAngle(m.legAxis[i], angle);

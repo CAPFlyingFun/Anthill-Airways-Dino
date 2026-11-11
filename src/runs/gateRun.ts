@@ -359,7 +359,7 @@ export class GateRun {
     // Label pop animation
     this.labelPop = Math.max(0, this.labelPop - dt * 3);
     const s = 1 + this.labelPop * 0.5;
-    this.countLabel.sprite.scale.set(2.2 * s, 1.1 * s, 1);
+    this.countLabel.sprite.scale.set(this.countLabel.width * s, 1.1 * s, 1);
 
     // Camera: behind and above the cart, looking down the lane
     const want = new THREE.Vector3(this.x * 0.5, 7.5, this.z + 10);

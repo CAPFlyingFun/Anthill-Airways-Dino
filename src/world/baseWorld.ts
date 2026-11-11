@@ -401,7 +401,7 @@ export class BaseWorld {
 
     for (const pile of this.piles) pile.update(dt);
     this.bakery.update(dt);
-    this.counter.update(dt, this.counter.sellZone.contains(p), this.sfx);
+    this.counter.update(dt, this.counter.sellZone.contains(p), this.sfx, p);
     this.dispatch?.update(dt);
     const ctx: WorkCtx = { piles: this.piles, bakery: this.bakery, counter: this.counter, flyers: this.flyers };
     for (const w of this.workers) w.update(dt, ctx);

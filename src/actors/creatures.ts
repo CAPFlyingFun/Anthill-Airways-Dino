@@ -26,7 +26,11 @@ export type CreatureKind = (typeof CREATURES)[number];
 export type PropKind = (typeof PROPS)[number];
 
 // Models that face backward in their file get turned around.
-const FLIP: Record<string, boolean> = { aphid: true };
+const FLIP: Record<string, boolean> = {};
+
+// Wing root bones, from TRADDOMIUM's docs/research/creature-lab/rigs.md
+// (the housefly's pair rests folded back along the abdomen).
+const WING_BONES: Record<string, string[]> = { housefly: ['Bone_022', 'Bone_024'] };
 
 const templates = new Map<string, THREE.Group>();
 
@@ -100,7 +104,31 @@ export function spawnCreature(name: CreatureKind, length: number): CreatureModel
   model.legAmp = 0.32;
   model.bob.add(inst);
   findLegs(model);
+  findWings(model, name);
   return model;
+}
+
+/** Hook up the named wing bones so they can open and buzz in flight. */
+function findWings(model: CreatureModel, name: string) {
+  const names = WING_BONES[name];
+  if (!names) return;
+  model.root.updateMatrixWorld(true);
+  const wq = new THREE.Quaternion();
+  const pos = new THREE.Vector3();
+  for (const n of names) {
+    const bone = model.root.getObjectByName(n);
+    if (!bone) continue;
+    bone.getWorldQuaternion(wq);
+    bone.getWorldPosition(pos);
+    const inv = wq.clone().invert();
+    model.wings.push({
+      bone,
+      base: bone.quaternion.clone(),
+      up: new THREE.Vector3(0, 1, 0).applyQuaternion(inv).normalize(),
+      fwd: new THREE.Vector3(0, 0, 1).applyQuaternion(inv).normalize(),
+      side: pos.x < 0 ? -1 : 1,
+    });
+  }
 }
 
 /** Find the leg bones in a model's skeleton (see the notes at the top). */
