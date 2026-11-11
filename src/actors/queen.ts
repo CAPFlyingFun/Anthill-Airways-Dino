@@ -11,6 +11,7 @@
 // every bill. She keeps working whatever you're doing, which is what makes
 // the colony an idle game while you're busy elsewhere.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { ZONES } from '../data/config';
 import { QueenProgress } from '../core/progress';
@@ -50,7 +51,7 @@ export class QueenCollector {
   update(dt: number, pads: CashPad[], flyers: Flyers) {
     const m = this.model;
     const p = m.root.position;
-    const speed = 2.4 * this.qp.speedMult;
+    const speed = 2.4 * this.qp.speedMult * pace.move; // (Movement speed slider)
 
     switch (this.state) {
       case 'pick': {

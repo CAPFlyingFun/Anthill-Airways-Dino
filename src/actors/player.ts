@@ -1,6 +1,7 @@
 // ============================================================================
 // player.ts — you! A fire ant Major (the big-headed one) in a blue pilot cap.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { CONFIG } from '../data/config';
 import { ITEM_H, ItemType, Layout, Stack } from '../world/items';
@@ -178,7 +179,7 @@ export class Player {
   /** `canWalk(x, z)` says whether a spot is inside an open zone. */
   update(dt: number, move: THREE.Vector2, blockers: Blocker[], canWalk: (x: number, z: number) => boolean) {
     this.stack.max = this.carryMax;
-    const speed = CONFIG.player.speed * this.speedMult;
+    const speed = CONFIG.player.speed * this.speedMult * pace.move; // (Movement speed slider)
     let vx: number;
     let vz: number;
     if (this.firstPerson) {

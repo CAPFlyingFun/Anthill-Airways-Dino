@@ -411,7 +411,7 @@ export const shardCost = (level: number) => 3 + level * 2;
 // Trouble: complaints, power outages, ants raiding the kitchen, an escaped Dodo.
 // Bellhop Dash: a luggage-cart gate run down the hallways for tips.
 // ============================================================================
-/** Game speed slider (Settings): 1 = normal. */
+/** Movement speed slider (Settings): how fast everyone walks. 1 = normal. */
 export const GAME_SPEED = { min: 0.2, max: 3, step: 0.1, key: 'anthill-airways-speed' };
 
 export const HOTEL_CFG = {

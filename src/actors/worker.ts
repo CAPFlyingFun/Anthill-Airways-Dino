@@ -12,6 +12,7 @@
 // A fresh route is picked at the start of every trip, so a worker always
 // heads for the fullest pile.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { CONFIG } from '../data/config';
 import { Flyers, Stack } from '../world/items';
@@ -83,11 +84,12 @@ export class Worker {
       animateCreature(this.model, dt, 0);
       return true;
     }
-    const step = Math.min(d, this.speed * dt);
+    const speed = this.speed * pace.move; // (the Movement speed slider)
+    const step = Math.min(d, speed * dt);
     p.x += (dx / d) * step;
     p.z += (dz / d) * step;
     faceToward(this.model, dx, dz, dt);
-    animateCreature(this.model, dt, this.speed);
+    animateCreature(this.model, dt, speed);
     return false;
   }
 

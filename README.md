@@ -118,11 +118,12 @@ airline flies in needs a bed:
   Engineer, Concierge, and your personal assistant (Sarah's model)
 - Eruptions don't touch the resort: it's yours for good
 
-## Game speed 🐢🐇
+## Movement speed 🐢🐇
 
-Settings has a **Game speed** slider: slow motion from 0.2x up to fast forward at 3x (1x is
-normal, and there's a button to snap back). Everyone and everything moves at that speed. It's
-saved on your device, and offline earnings work the same at any speed.
+Settings has a **Movement speed** slider: how fast everyone walks, from 0.2x (slow) to 3x
+(1x is normal, and there's a button to snap back). It affects you, the ants, people, dinos and
+other creatures. Machines, cooking, flying items and food keep their normal pace. It's saved on
+your device.
 
 ## Challenges ⚠️
 

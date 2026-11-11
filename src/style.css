@@ -502,7 +502,8 @@ html, body {
 .shrine-btn { background: linear-gradient(#cdb8ff, #8f6ae6) !important; color: #fff !important; }
 .shard-buy { min-width: 58px; font-size: 13px !important; }
 
-/* ---- Game speed slider (Settings) ---- */
+/* ---- Movement speed slider (Settings) ---- */
+.speed-note { font-size: 12px; opacity: 0.75; margin: 0 0 2px; }
 .speed-row { margin: 6px 0 10px; }
 .speed-label { font-weight: 800; font-size: 15px; margin-bottom: 4px; }
 .speed-row input[type='range'] { width: 100%; accent-color: #2d6cdf; height: 28px; }

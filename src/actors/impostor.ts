@@ -10,6 +10,7 @@
 // Walk into it before it gets away and it drops the loot and you get a
 // reward. If it escapes, the stolen items are gone.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { Flyers, Stack } from '../world/items';
 import { ResourcePile } from '../world/stations';
@@ -50,6 +51,7 @@ export class Impostor {
       animateCreature(this.model, dt, 0);
       return true;
     }
+    speed *= pace.move; // (Movement speed slider)
     const step = Math.min(d, speed * dt);
     p.x += (dx / d) * step;
     p.z += (dz / d) * step;

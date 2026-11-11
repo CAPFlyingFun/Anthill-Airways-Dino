@@ -14,6 +14,7 @@
 //
 // Crew unlocks automate each job, and Sarah (your assistant) collects the money. Like the airport, the island keeps working while you're away.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { CONFIG, ISLAND_CFG as C, ISLAND_UNLOCKS } from '../data/config';
 import { Sfx } from '../core/audio';
@@ -1141,7 +1142,7 @@ export class IslandWorld {
     });
     // Swimmers: laps around the island, now and then diving + surfacing
     for (const s of this.sea) {
-      s.a += (dt * s.speed) / s.r;
+      s.a += (dt * s.speed * pace.move) / s.r;
       const x = Math.cos(s.a) * s.r;
       const z = Math.sin(s.a) * s.r * 0.92;
       s.dive += dt;

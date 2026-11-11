@@ -403,7 +403,7 @@ export class Hud {
     }
   }
 
-  /** 🐢 / 🐇 Game speed slider in Settings (0.2x - 3x, 1x = normal). */
+  /** 🐢 / 🐇 Movement speed slider in Settings (0.2x - 3x, 1x = normal): how fast everyone walks. */
   initSpeed(value: number, onChange: (v: number) => void) {
     const slider = $('speedSlider') as HTMLInputElement;
     const label = $('speedLabel');
@@ -411,7 +411,7 @@ export class Hud {
     slider.max = String(GAME_SPEED.max);
     slider.step = String(GAME_SPEED.step);
     const show = (v: number) => {
-      label.textContent = `${v < 1 ? '🐢' : v > 1 ? '🐇' : '🐜'} Game speed: ${v.toFixed(1)}x${v === 1 ? ' (normal)' : ''}`;
+      label.textContent = `${v < 1 ? '🐢' : v > 1 ? '🐇' : '🐜'} Movement speed: ${v.toFixed(1)}x${v === 1 ? ' (normal)' : ''}`;
     };
     slider.value = String(value);
     show(value);

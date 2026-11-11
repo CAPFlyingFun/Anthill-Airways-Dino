@@ -18,6 +18,7 @@
 // Unlock tiles hire crew (people from the Anthill Airways flight crew) until
 // it all runs by itself, and your personal assistant (Sarah's model) collects cash.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { AIR, AIR_UNLOCKS, AircraftKind, CONFIG, UNLOCKS } from '../data/config';
 import { Aircraft } from './aircraft';
@@ -52,6 +53,7 @@ export function person(kind: HumanKind, height = H): CreatureModel {
 
 /** Walk a model toward `t`. Returns true once it's there. */
 export function stepTo(m: CreatureModel, t: THREE.Vector3, speed: number, dt: number) {
+  speed *= pace.move; // everyone who walks follows the Movement speed slider
   const p = m.root.position;
   const dx = t.x - p.x;
   const dz = t.z - p.z;

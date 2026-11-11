@@ -11,6 +11,7 @@ import { SLOTS, Slot, activeSlot, clearSave, eraseSlot, loadSave, slotSummary, s
 import { Progress, QueenProgress } from './core/progress';
 import { GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
 import { erupt, shardsFor } from './core/prestige';
+import { pace } from './core/pace';
 import { weather } from './core/weather';
 import { Hud } from './ui/hud';
 import { BaseWorld } from './world/baseWorld';
@@ -603,15 +604,16 @@ async function start() {
 
   // 7) Main loop. `?speed=4` in the URL fast-forwards (handy for testing).
   const testSpeed = Math.min(10, Number(new URLSearchParams(location.search).get('speed')) || 1);
-  // 🐢 / 🐇 Game speed (Settings slider, saved on this device): 0.2x - 3x
-  let gameSpeed = 1;
+  // 🐢 / 🐇 Movement speed (Settings slider, saved on this device): 0.2x - 3x.
+  // Only things that walk use it (see core/pace.ts); machines, timers and
+  // flying items always run at normal speed.
   try {
-    gameSpeed = THREE.MathUtils.clamp(Number(localStorage.getItem(GAME_SPEED.key)) || 1, GAME_SPEED.min, GAME_SPEED.max);
+    pace.move = THREE.MathUtils.clamp(Number(localStorage.getItem(GAME_SPEED.key)) || 1, GAME_SPEED.min, GAME_SPEED.max);
   } catch {
     /* ignore */
   }
-  hud.initSpeed(gameSpeed, (v) => {
-    gameSpeed = v;
+  hud.initSpeed(pace.move, (v) => {
+    pace.move = v;
     try {
       localStorage.setItem(GAME_SPEED.key, String(v));
     } catch {
@@ -638,7 +640,7 @@ async function start() {
     else hotel?.update(step, still);
   }
 
-  /** Split a big time step (fast game speeds) into small ones so nothing tunnels through walls. */
+  /** Split a big time step (?speed= testing) into small ones so nothing tunnels through walls. */
   function steps(dt: number) {
     const n = Math.max(1, Math.ceil(dt / 0.05 - 1e-6));
     return Array.from({ length: n }, () => dt / n);
@@ -647,12 +649,10 @@ async function start() {
   let last = performance.now();
   function frame(now: number) {
     const rawMs = now - last;
-    const timeScale = testSpeed * gameSpeed;
-    const dt = Math.min(0.05, rawMs / 1000) * timeScale; // cap dt so a lag spike can't teleport things
+    const dt = Math.min(0.05, rawMs / 1000) * testSpeed; // cap dt so a lag spike can't teleport things
     last = now;
     watchQuality(rawMs);
-    // Income per GAME second, so offline earnings stay the same at any game speed
-    trackIncome(Math.min(1, rawMs / 1000) * gameSpeed);
+    trackIncome(Math.min(1, rawMs / 1000)); // real seconds (income per real second)
     weather.update(dt);
     stormEl.classList.toggle('on', weather.storm && humanWorld());
     ashEl.classList.toggle('on', mode === 'volcano' && !!volcano?.erupting);

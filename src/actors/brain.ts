@@ -18,6 +18,7 @@
 //   • TRADDOMIUM has no spiders yet, so the Black Widow and Jumping Spider
 //     are written in the same format here.
 // ============================================================================
+import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { CreatureModel, animateCreature, faceToward } from './models';
 import { CreatureKind } from './creatures';
@@ -159,7 +160,7 @@ function walkStep(m: CreatureModel, mind: Mind, goal: THREE.Vector3, dt: number,
   const dx = goal.x - p.x;
   const dz = goal.z - p.z;
   const d = Math.hypot(dx, dz);
-  const speed = (alarmed ? sp.fleeBLs : sp.walkBLs) * sp.length;
+  const speed = (alarmed ? sp.fleeBLs : sp.walkBLs) * sp.length * pace.move; // (Movement speed slider)
   if (d < 0.06) {
     idleLook(m, mind, dt);
     animateCreature(m, dt, 0);
@@ -222,7 +223,7 @@ function flyStep(m: CreatureModel, mind: Mind, goal: THREE.Vector3, dt: number, 
   // Altitude: hover height in line; higher when startled; climb away when leaving.
   const wantAlt = leaving ? 9 : alarmed ? f.hoverHeight + 1.6 : f.hoverHeight + (d > 1 ? 0.6 : 0);
   mind.alt += (wantAlt - mind.alt) * Math.min(1, dt * (leaving ? 1.2 : 4));
-  const speed = alarmed ? f.cruise * 1.4 : f.cruise;
+  const speed = (alarmed ? f.cruise * 1.4 : f.cruise) * pace.move;
   if (d > 0.05) {
     const step = Math.min(d, speed * dt);
     p.x += (dx / d) * step;
