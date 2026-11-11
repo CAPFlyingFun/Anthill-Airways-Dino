@@ -16,6 +16,7 @@ import { Flyers, ITEM_H, ITEM_VALUE, ItemType, Layout, Stack, StackItem, makeIte
 import { GAME_FONT, TextSprite, gameText, makePad, roundRect } from './labels';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
 import { CreatureKind, spawnCreature } from '../actors/creatures';
+import { lod } from '../core/lod';
 import { BUGS, Mind, newMind, stepBug } from '../actors/brain';
 
 const mat = (color: number, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness });
@@ -72,6 +73,7 @@ export class ResourcePile {
   constructor(scene: THREE.Scene, x: number, z: number, private flyers: Flyers, public type: ItemType = 'crumb', style: PileStyle = 'bread') {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    lod.add(this.group, 3.5); // culled when off-screen
 
     const mound = new THREE.Mesh(
       new THREE.CylinderGeometry(1.25, 1.55, 0.22, 20),
@@ -165,6 +167,7 @@ export class Bakery {
     this.cookTime = opts.cookTime;
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    lod.add(this.group, 5); // culled when off-screen
 
     const brick = new THREE.MeshStandardMaterial({ color: opts.body, roughness: 0.85 });
     const trim = new THREE.MeshStandardMaterial({ color: opts.trim, roughness: 0.85 });
@@ -297,6 +300,7 @@ export class Counter {
   ) {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    lod.add(this.group, 3); // culled when off-screen
     const f = opts.facing;
 
     const blue = new THREE.MeshStandardMaterial({ color: opts.color, roughness: 0.6 });
@@ -442,6 +446,7 @@ export class CashPad {
   constructor(scene: THREE.Scene, x: number, z: number) {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    lod.add(this.group, 1.8); // culled when off-screen
     const base = box(2.0, 0.08, 2.0, new THREE.MeshStandardMaterial({ color: 0x2d3a40, roughness: 0.7 }), 0, 0.04, 0);
     this.group.add(base);
     const pad = makePad(2.4, 2.4, '', '#5dff8f');
@@ -492,6 +497,7 @@ export class DispatchPad {
   constructor(scene: THREE.Scene, x: number, z: number, public itemType: ItemType = 'snack', public theme: RunTheme = 'grass') {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    lod.add(this.group, 5.5); // culled when off-screen
 
     const pad = makePad(2.4, 2.4, 'LOAD', '#ffb347');
     this.group.add(pad);
@@ -565,6 +571,7 @@ export class Hatchery {
   constructor(private scene: THREE.Scene, x: number, z: number, private flyers: Flyers, public hatched: number, public maxHatch: number) {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    lod.add(this.group, 3.5); // culled when off-screen
     const mound = new THREE.Mesh(new THREE.SphereGeometry(1.7, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.55, 1), mat(0x6b4a2f, 1));
     mound.position.z = -2.9;
     mound.receiveShadow = true;
@@ -625,6 +632,7 @@ export class TrashBin {
   constructor(scene: THREE.Scene, x: number, z: number) {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    lod.add(this.group, 2.2); // culled when off-screen
     const can = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.6, 1.6, 18, 1, true), new THREE.MeshStandardMaterial({ color: 0x8a949e, roughness: 0.4, metalness: 0.5, side: THREE.DoubleSide }));
     can.position.set(0, 0.8, -1.7);
     can.castShadow = true;

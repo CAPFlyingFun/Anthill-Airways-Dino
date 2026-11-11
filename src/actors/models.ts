@@ -7,6 +7,7 @@
 // legs A (front-left, middle-right, back-left) swing while B rest, then swap.
 // ============================================================================
 import * as THREE from 'three';
+import { lod } from '../core/lod';
 
 export interface CreatureModel {
   root: THREE.Group;          // move/rotate this
@@ -41,6 +42,7 @@ export function newModel(height: number, length: number): CreatureModel {
     legAmp: 0.5, walkT: Math.random() * 10, walkBlend: 0, height, length, wings: [], flying: false, wingOpen: 0,
   };
   m.root.add(m.bob);
+  lod.add(m.root, Math.max(length, height)); // hide it when the camera can't see it
   return m;
 }
 
@@ -179,6 +181,16 @@ function strideLengths(bodyLengthsPerS: number) {
 
 /** Call every frame. `speed` is 0 when standing still (world units / s). */
 export function animateCreature(m: CreatureModel, dt: number, speed: number) {
+  // LOD: off-screen bugs skip their leg math entirely; far ones update every
+  // third frame (with 3x the time step, so they still move at the right pace).
+  if (!m.root.visible) return;
+  if (m.root.userData.lodFar) {
+    m.root.userData.lodDt = (m.root.userData.lodDt ?? 0) + dt;
+    m.root.userData.lodN = ((m.root.userData.lodN ?? 0) + 1) % 3;
+    if (m.root.userData.lodN !== 0) return;
+    dt = m.root.userData.lodDt;
+    m.root.userData.lodDt = 0;
+  }
   const moving = speed > 0.1 && !m.flying;
   // Blend smoothly in/out of the walk so legs don't snap.
   m.walkBlend += ((moving ? 1 : 0) - m.walkBlend) * Math.min(1, dt * 10);

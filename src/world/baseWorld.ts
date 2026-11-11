@@ -317,7 +317,11 @@ export class BaseWorld {
 
   /** Rebuild every fence and the walkable area from the open zones. */
   private rebuildFences() {
+    // Old fences go away (free their GPU memory), then we rebuild every run.
+    this.fences.children.forEach((c) => (c as THREE.InstancedMesh).dispose?.());
     this.fences.clear();
+    this.postMats = [];
+    this.railMats = [];
     this.walkable = [];
     for (const zd of ZONES) {
       if (!this.open.has(zd.id)) continue;
@@ -353,7 +357,22 @@ export class BaseWorld {
       }
       this.walkable.push(walk);
     }
+    // PERFORMANCE: every post (and every rail) is drawn in ONE draw call with
+    // an InstancedMesh, instead of hundreds of separate meshes.
+    const mat = new THREE.MeshStandardMaterial({ color: 0x7a4f27, roughness: 0.9 });
+    const posts = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.14, 1.3, 6), mat, this.postMats.length);
+    this.postMats.forEach((m, i) => posts.setMatrixAt(i, m));
+    const rails = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, this.railMats.length);
+    this.railMats.forEach((m, i) => rails.setMatrixAt(i, m));
+    for (const im of [posts, rails]) {
+      im.castShadow = true;
+      im.computeBoundingSphere();
+      this.fences.add(im);
+    }
   }
+
+  private postMats: THREE.Matrix4[] = [];
+  private railMats: THREE.Matrix4[] = [];
 
   /** A straight fence from a to b along x (along=true, at z=fixed) or along z. */
   private fenceRun(along: boolean, a: number, b: number, fixed: number) {
@@ -363,23 +382,16 @@ export class BaseWorld {
 
   /** Straight run of fence posts + two rails. */
   private fence(x1: number, z1: number, x2: number, z2: number) {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x7a4f27, roughness: 0.9 });
+    // Records where each post and rail goes; rebuildFences() draws them all at once.
     const len = Math.hypot(x2 - x1, z2 - z1);
     const posts = Math.max(2, Math.round(len / 1.6) + 1);
-    const postGeo = new THREE.CylinderGeometry(0.12, 0.14, 1.3, 6);
     for (let i = 0; i < posts; i++) {
       const t = i / (posts - 1);
-      const p = new THREE.Mesh(postGeo, mat);
-      p.position.set(x1 + (x2 - x1) * t, 0.65, z1 + (z2 - z1) * t);
-      p.castShadow = true;
-      this.fences.add(p);
+      this.postMats.push(new THREE.Matrix4().makeTranslation(x1 + (x2 - x1) * t, 0.65, z1 + (z2 - z1) * t));
     }
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(x2 - x1, z2 - z1));
     for (const y of [0.45, 0.95]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, len), mat);
-      rail.position.set((x1 + x2) / 2, y, (z1 + z2) / 2);
-      rail.rotation.y = Math.atan2(x2 - x1, z2 - z1);
-      rail.castShadow = true;
-      this.fences.add(rail);
+      this.railMats.push(new THREE.Matrix4().compose(new THREE.Vector3((x1 + x2) / 2, y, (z1 + z2) / 2), q, new THREE.Vector3(0.1, 0.1, len)));
     }
   }
 
@@ -881,6 +893,13 @@ export class BaseWorld {
       this.hud.floatAt(this.player.pos.clone().setY(2.5), this.camera, 'The impostor got away! 😤', 'bad');
     }
     if (imp.done) this.impostor = null;
+  }
+
+  /** Change the shadow map resolution (auto quality). */
+  setShadowSize(size: number) {
+    this.sun.shadow.mapSize.set(size, size);
+    this.sun.shadow.map?.dispose();
+    (this.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null; // rebuilt at the new size next frame
   }
 
   private updateCamera(dt: number) {

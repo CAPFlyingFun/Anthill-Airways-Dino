@@ -20,6 +20,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { CreatureModel, newModel } from './models';
+import { lod } from '../core/lod';
 
 export const CREATURES = [
   'worker', 'major', 'queen', 'larva', 'aphid', 'housefly', 'earthworm',
@@ -100,6 +101,7 @@ export function spawnProp(name: PropKind, length: number): THREE.Object3D | null
   if (!t) return null;
   const p = t.clone();
   p.scale.setScalar(length);
+  lod.add(p, length);
   return p;
 }
 
