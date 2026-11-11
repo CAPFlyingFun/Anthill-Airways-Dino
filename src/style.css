@@ -320,6 +320,16 @@ html, body {
 }
 .stat-row button:disabled { background: #d8cbb8; box-shadow: none; }
 
+/* ✨ New version popup */
+.card.update-card { text-align: center; padding-bottom: 18px; }
+.up-version { display: inline-block; margin: 2px 0 6px; padding: 4px 12px; border-radius: 999px; background: #ffe7b0; font-weight: 900; color: #b8650b; }
+.up-count { font-size: 18px; font-weight: 800; margin: 6px 0 12px; }
+.up-count b { font-size: 26px; color: #e07a1a; }
+#update { z-index: 60; }
+/* (In this card the big button sits in the normal flow, full width, above "Later") */
+.update-card .big-btn { position: static; transform: none; width: 100%; margin: 0 0 12px; font-size: 20px; white-space: nowrap; }
+.update-card .big-btn:active { transform: translateY(3px); }
+
 /* 📊 Lifetime stats */
 .tot-head { margin: 12px 0 2px; font-weight: 900; color: #e07a1a; font-size: 14px; letter-spacing: 0.5px; }
 .tot-row { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 2px dashed #ead9bf; }

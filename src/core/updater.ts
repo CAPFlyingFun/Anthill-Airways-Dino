@@ -6,8 +6,11 @@
 //   • Every build bakes its BUILD ID into the code AND writes version.json.
 //   • We fetch version.json (never cached) on launch, every 2 minutes, and
 //     whenever the app comes back to the foreground.
-//   • If its build id differs from ours: save the game, tell the service
-//     worker to fetch the new files, then reload into the new version.
+//   • If its build id differs from ours: a popup says a new version is ready
+//     and counts down 10 s. "Update now" (or the countdown) saves the game,
+//     tells the service worker to fetch the new files and reloads.
+//     "Later" waits: no more popups until the next launch, unless you tap
+//     "Check for updates" in Settings.
 //   • `canReload()` lets the game say "not right now" (e.g. mid gate run).
 // ============================================================================
 declare const __APP_VERSION__: string;
@@ -28,11 +31,16 @@ interface UpdaterOpts {
   canReload: () => boolean;      // false while it would be rude to reload (gate run)
   beforeReload: () => void;      // save the game
   onStatus?: (text: string) => void;
+  /** Show the "new version" popup. Resolves true = update now, false = later. */
+  confirm: (version: string) => Promise<boolean>;
 }
 
 export class Updater {
   private pending: string | null = null; // newer build id we've seen
+  private pendingVersion = '';
   private checking = false;
+  /** Tapped "Later": no more popups this session (Settings can still update). */
+  private snoozed = false;
 
   constructor(private opts: UpdaterOpts) {
     window.setTimeout(() => this.check(), 4000);
@@ -55,7 +63,9 @@ export class Updater {
       const live = (await res.json()) as { version: string; build: string };
       if (live.build && live.build !== BUILD_ID) {
         this.pending = live.build;
-        this.opts.onStatus?.(`Updating to v${live.version}…`);
+        this.pendingVersion = live.version;
+        if (manual) this.snoozed = false; // asked for it: show the popup again
+        this.opts.onStatus?.(`New version v${live.version} is ready`);
         this.apply();
         return true;
       }
@@ -71,10 +81,20 @@ export class Updater {
 
   private applying = false;
 
-  /** Download the new build through the service worker, then reload. */
+  /** Ask first (the popup), then download the new build and reload. */
   private async apply() {
-    if (this.applying || !this.opts.canReload()) return;
+    if (this.applying || this.snoozed || !this.opts.canReload()) return;
     this.applying = true;
+    const go = await this.opts.confirm(this.pendingVersion);
+    if (!go) {
+      // "Later": the new files still install in the background, so the next
+      // time the game opens it starts on the new version.
+      this.snoozed = true;
+      this.applying = false;
+      this.opts.onStatus?.(`v${this.pendingVersion} will load next time you open the game`);
+      return;
+    }
+    this.opts.onStatus?.(`Updating to v${this.pendingVersion}…`);
     this.opts.beforeReload();
     try {
       const reg = await navigator.serviceWorker?.getRegistration();

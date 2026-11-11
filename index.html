@@ -157,6 +157,18 @@
         </div>
       </div>
 
+      <!-- ✨ A new version is live: counts down, then refreshes (or Later) -->
+      <div id="update" class="overlay hidden">
+        <div class="card update-card">
+          <h2>✨ New version ready!</h2>
+          <div id="upVersion" class="up-version">v0.0.0</div>
+          <p>Your game is saved. It will refresh automatically to get the update.</p>
+          <div id="upCountLine" class="up-count">Refreshing in <b id="upCount">10</b>s…</div>
+          <button id="upNow" class="big-btn">🚀 Update now</button>
+          <button id="upLater" class="menu-btn">Later (next time I open the game)</button>
+        </div>
+      </div>
+
       <!-- 📊 Lifetime stats: totals across every world -->
       <div id="totals" class="overlay hidden">
         <div class="card stats-card">

@@ -378,6 +378,36 @@ export class Hud {
     $('closeTotals').addEventListener('click', () => panel.classList.add('hidden'));
   }
 
+  /**
+   * ✨ "New version ready" popup with a countdown. Resolves true when it should
+   * update (Update now, or the countdown ran out) and false for Later.
+   */
+  showUpdate(version: string, seconds: number): Promise<boolean> {
+    const overlay = $('update');
+    $('upVersion').textContent = version ? `v${version}` : 'A new version';
+    let left = seconds;
+    const tick = () => ($('upCount').textContent = String(left));
+    tick();
+    overlay.classList.remove('hidden');
+    return new Promise((resolve) => {
+      let timer = 0;
+      const done = (go: boolean) => () => {
+        window.clearInterval(timer);
+        $('upNow').onclick = $('upLater').onclick = null;
+        if (!go) overlay.classList.add('hidden');
+        else $('upCountLine').textContent = 'Updating… 🚀';
+        resolve(go);
+      };
+      $('upNow').onclick = done(true);
+      $('upLater').onclick = done(false);
+      timer = window.setInterval(() => {
+        left--;
+        tick();
+        if (left <= 0) done(true)(); // countdown over: update
+      }, 1000);
+    });
+  }
+
   /** Version line + "Check for updates" button in Settings. */
   initVersion(label: string, onCheck: () => void) {
     $('versionText').textContent = label;

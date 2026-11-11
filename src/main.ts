@@ -546,9 +546,10 @@ async function start() {
 
   // Auto-update: checks for a newer build and reloads into it (never mid gate run).
   const updater = new Updater({
-    canReload: () => mode !== 'run' && !switching,
+    canReload: () => mode !== 'run' && !switching && !welcomeOpen,
     beforeReload: () => writeSave(save),
     onStatus: (t) => hud.setUpdateStatus(t),
+    confirm: (version) => hud.showUpdate(version, 10), // "New version! Refreshing in 10s" popup
   });
   hud.initVersion(versionLabel(), () => updater.check(true));
 
