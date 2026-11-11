@@ -33,6 +33,8 @@ export const PROPS = ['dirt-clod', 'rock-model', 'twig-model'] as const;
  */
 export const HUMANS = ['h-jack', 'h-sarah', 'h-director', 'h-exec', 'h-balance', 'h-ember', 'h-crew1', 'h-crew2', 'h-crew3', 'h-crew4'] as const;
 export type HumanKind = (typeof HUMANS)[number];
+/** Bump this whenever the people .glb files are replaced (busts phone caches). */
+const HUMAN_REV = 2;
 export type CreatureKind = (typeof CREATURES)[number];
 export type PropKind = (typeof PROPS)[number];
 
@@ -72,7 +74,9 @@ async function loadList(names: string[], onProgress: (done: number, total: numbe
   await Promise.all(
     names.map(async (name) => {
       try {
-        const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${name}.glb`);
+        // People get a revision tag so phones re-download them when the files change.
+        const rev = name.startsWith('h-') ? `?rev=${HUMAN_REV}` : '';
+        const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${name}.glb${rev}`);
         templates.set(name, normalize(gltf.scene, name));
       } catch (e) {
         console.warn(`Model "${name}" failed to load, using fallback`, e);

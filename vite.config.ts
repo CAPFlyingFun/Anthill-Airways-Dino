@@ -66,7 +66,7 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // the 3D bug models are up to ~1.5 MB each
         runtimeCaching: [
           {
-            urlPattern: /\/models\/h-[\w-]+\.glb$/,
+            urlPattern: /\/models\/h-[\w-]+\.glb(\?.*)?$/,
             handler: 'CacheFirst',
             options: { cacheName: 'human-models', expiration: { maxEntries: 20 } },
           },
