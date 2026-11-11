@@ -14,6 +14,7 @@
 //
 // Crew unlocks automate each job, and Sarah (your assistant) collects the money. Like the airport, the island keeps working while you're away.
 // ============================================================================
+import { clock } from '../core/clock';
 import { autoCash } from '../core/income';
 import { Upgrades } from './upgradePad';
 import { pace } from '../core/pace';
@@ -1237,7 +1238,7 @@ export class IslandWorld {
       t.update(dt, affordable && this.save.cash >= t.remaining);
       if (affordable && t.zone.contains(p)) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);
-        const pay = Math.min(this.save.cash, rate * dt, t.def.cost - t.paid);
+        const pay = Math.min(this.save.cash, rate * dt * clock.scale, t.def.cost - t.paid);
         t.paid += pay;
         this.save.cash -= pay;
         this.save.paid[t.def.id] = t.paid;

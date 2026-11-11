@@ -20,6 +20,7 @@
 // drop everything), ERUPTIONS (lava bombs land near you, lava flows cross the
 // paths, tourists must be evacuated) and MAGMA that burns through your stack.
 // ============================================================================
+import { clock } from '../core/clock';
 import { autoCash } from '../core/income';
 import { Upgrades } from './upgradePad';
 import * as THREE from 'three';
@@ -1570,7 +1571,7 @@ export class VolcanoWorld {
       t.update(dt, affordable && this.save.cash >= t.remaining);
       if (affordable && t.zone.contains(p)) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);
-        const pay = Math.min(this.save.cash, rate * dt, t.def.cost - t.paid);
+        const pay = Math.min(this.save.cash, rate * dt * clock.scale, t.def.cost - t.paid);
         t.paid += pay;
         this.save.cash -= pay;
         this.save.paid[t.def.id] = t.paid;

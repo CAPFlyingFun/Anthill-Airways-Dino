@@ -19,6 +19,7 @@
 // escaped 🦤 Dodo running round the lobby. 🛒 Bellhop Dash: a luggage-cart gate
 // run down the hallways for tips.
 // ============================================================================
+import { clock } from '../core/clock';
 import { autoCash } from '../core/income';
 import { Upgrades } from './upgradePad';
 import * as THREE from 'three';
@@ -1114,7 +1115,7 @@ export class HotelWorld {
       t.update(dt, affordable && this.save.cash >= t.remaining);
       if (affordable && t.zone.contains(p)) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);
-        const pay = Math.min(this.save.cash, rate * dt, t.def.cost - t.paid);
+        const pay = Math.min(this.save.cash, rate * dt * clock.scale, t.def.cost - t.paid);
         t.paid += pay;
         this.save.cash -= pay;
         this.save.paid[t.def.id] = t.paid;

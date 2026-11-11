@@ -14,6 +14,7 @@
 // Pad ids are stable ("i3-up-blender@-12,6"), so levels load back onto the
 // same building, and island / volcano ones (i3- / v4-) reset on an eruption.
 // ============================================================================
+import { clock } from '../core/clock';
 import * as THREE from 'three';
 import type { Text } from 'troika-three-text';
 import { SaveData } from '../core/save';
@@ -157,6 +158,9 @@ export class Upgrades {
   private seen = new Set<object>();
   private buildings: THREE.Object3D[] = []; // every building's 3D group (for footprints)
   private box = new THREE.Box3();
+  /** Seconds until pads recheck for anything built on top of them (-1 = no). */
+  private recheckT = 1;
+  private unlockedSeen = -1;
   private piles = new Map<string, PileLike[]>(); // one pad per pile TYPE
   private scanT = 0;
   private crewLoaded = 0; // helpers whose saved XP has been loaded
@@ -208,7 +212,7 @@ export class Upgrades {
       added = true;
       this.register(o, root);
     }
-    if (added) this.unblock(root);
+    if (added) this.recheckT = 1; // (after the new building's grow-in animation)
   }
 
   /** A building's footprint on the ground (from its real 3D shape, labels ignored). */
@@ -233,12 +237,10 @@ export class Upgrades {
   private unblock(root: any) {
     const size = SIZES[this.world];
     const h = size / 2;
+    const obs = this.obstacles(root, false);
     for (const t of this.targets) {
       const p = t.pad.mesh.position;
-      const hit = this.buildings.some((g) => {
-        const f = this.footprint(g);
-        return p.x + h > f.minX && p.x - h < f.maxX && p.z + h > f.minZ && p.z - h < f.maxZ;
-      });
+      const hit = obs.some((f) => p.x + h > f.minX && p.x - h < f.maxX && p.z + h > f.minZ && p.z - h < f.maxZ);
       if (!hit) continue;
       const others = this.targets.filter((o) => o !== t);
       const keep = this.targets;
@@ -292,7 +294,7 @@ export class Upgrades {
 
   // ---- Placing pads -----------------------------------------------------------
   /** Everything a pad mustn't sit on: blockers, stand-here zones, unlock tiles, other pads. */
-  private obstacles(root: any): Blocker[] {
+  private obstacles(root: any, withPads = true): Blocker[] {
     const SIZE = SIZES[this.world];
     const out: Blocker[] = [];
     const seen = new Set<object>();
@@ -302,6 +304,12 @@ export class Upgrades {
       if (o instanceof Zone) {
         out.push({ minX: o.x - o.halfW, maxX: o.x + o.halfW, minZ: o.z - o.halfD, maxZ: o.z + o.halfD });
         return;
+      }
+      // Anything with a 3D group (carts, bins, the hatchery, piles, machines…):
+      // its real footprint, so no pad ever ends up under an object
+      if (o.group instanceof THREE.Object3D && o !== root.player) {
+        const f = this.footprint(o.group);
+        if (isFinite(f.minX) && (f.maxX - f.minX) * (f.maxZ - f.minZ) < 300) out.push(f);
       }
       if (typeof o.minX === 'number' && typeof o.maxZ === 'number' && typeof o.maxX === 'number') {
         // (Huge rects are walkable floors / zone outlines, not obstacles)
@@ -318,9 +326,11 @@ export class Upgrades {
     for (const [x, z] of this.host.tileSpots) out.push({ minX: x - 1.4, maxX: x + 1.4, minZ: z - 1.4, maxZ: z + 1.4 });
     // Every building's real footprint (a pile's bread loaf, a machine's body...)
     for (const g of this.buildings) out.push(this.footprint(g));
-    for (const t of this.targets) {
-      const p = t.pad.mesh.position;
-      out.push({ minX: p.x - SIZE / 2, maxX: p.x + SIZE / 2, minZ: p.z - SIZE / 2, maxZ: p.z + SIZE / 2 });
+    if (withPads) {
+      for (const t of this.targets) {
+        const p = t.pad.mesh.position;
+        out.push({ minX: p.x - SIZE / 2, maxX: p.x + SIZE / 2, minZ: p.z - SIZE / 2, maxZ: p.z + SIZE / 2 });
+      }
     }
     return out;
   }
@@ -369,6 +379,16 @@ export class Upgrades {
       }
     }
 
+    // Something new was bought (a cart, a bin...): recheck the pads once it has grown in
+    if (this.save.unlocked.length !== this.unlockedSeen) {
+      this.unlockedSeen = this.save.unlocked.length;
+      this.recheckT = 1;
+    }
+    if (this.recheckT >= 0) {
+      this.recheckT -= dt;
+      if (this.recheckT < 0) this.unblock(root);
+    }
+
     // Effects (every frame: stats like Charm / Leadership can change any time)
     for (const t of this.targets) t.apply(this.level(t.pad.id));
     this.applyCrew();
@@ -394,7 +414,7 @@ export class Upgrades {
       pad.dwell = on ? pad.dwell + dt : 0;
       if (!on || !canBuy || pad.dwell < DWELL || this.save.cash < 1) continue;
       const rate = Math.max(cost / 1.4, 12);
-      const pay = Math.min(this.save.cash, rate * dt, cost - paid);
+      const pay = Math.min(this.save.cash, rate * dt * clock.scale, cost - paid);
       this.save.upPaid[pad.id] = paid + pay;
       this.save.cash -= pay;
       this.hud.setCash(this.save.cash);

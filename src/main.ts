@@ -12,6 +12,7 @@ import { Progress, QueenProgress } from './core/progress';
 import { GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
 import { erupt, shardsFor } from './core/prestige';
 import { pace } from './core/pace';
+import { tickClock } from './core/clock';
 import { income } from './core/income';
 import { best, bindTotals, bump } from './core/totals';
 import { CREW_LEVEL } from './actors/worker';
@@ -714,6 +715,7 @@ async function start() {
   function frame(now: number) {
     const rawMs = now - last;
     const dt = Math.min(0.05, rawMs / 1000) * testSpeed; // cap dt so a lag spike can't teleport things
+    tickClock(rawMs / 1000, Math.min(0.05, rawMs / 1000)); // (paying for things runs on real time)
     last = now;
     watchQuality(rawMs);
     trackIncome(Math.min(1, rawMs / 1000)); // real seconds (income per real second)
