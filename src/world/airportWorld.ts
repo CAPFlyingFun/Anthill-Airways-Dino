@@ -46,12 +46,12 @@ function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y
 }
 
 /** A person of `kind`, or a stand-in shape if the model didn't load. */
-function person(kind: HumanKind, height = H): CreatureModel {
+export function person(kind: HumanKind, height = H): CreatureModel {
   return spawnHuman(kind, height * (0.94 + Math.random() * 0.1)) ?? makeAnt(0x6688aa, true);
 }
 
 /** Walk a model toward `t`. Returns true once it's there. */
-function stepTo(m: CreatureModel, t: THREE.Vector3, speed: number, dt: number) {
+export function stepTo(m: CreatureModel, t: THREE.Vector3, speed: number, dt: number) {
   const p = m.root.position;
   const dx = t.x - p.x;
   const dz = t.z - p.z;
@@ -83,8 +83,10 @@ interface Guest {
   path: THREE.Vector3[]; // waypoints still to walk (arriving or leaving)
 }
 
-interface DeskOpts {
+export interface DeskOpts {
   mode: 'checkin' | 'cafe';
+  sells?: ItemType;          // café-style desks: what's on the shelf (default snack boxes)
+  awning?: number;           // café awning stripe color (default red)
   label: string;
   color: number;
   kinds: HumanKind[];        // who shows up
@@ -95,7 +97,7 @@ interface DeskOpts {
   exit: (from: THREE.Vector3) => THREE.Vector3[]; // where they go when done
 }
 
-class Desk {
+export class Desk {
   group = new THREE.Group();
   staffZone: Zone;           // stand here to serve (or hire staff)
   shelf: Stack | null = null; // café only: snack boxes for sale
@@ -131,7 +133,7 @@ class Desk {
       this.group.add(box(0.6, 0.8, 0.6, mat(0x3a3f45, 0.3, 0.6), -0.2, 2.06, 1.3));
       this.group.add(box(0.2, 0.2, 0.2, mat(0xffffff, 0.3), 0.15, 1.75, 1.3));
       for (let i = 0; i < 6; i++) {
-        this.group.add(box(1.9, 0.08, 0.66, mat(i % 2 ? 0xffffff : 0xc0392b, 0.6), -0.2, 3.3, -1.65 + i * 0.66));
+        this.group.add(box(1.9, 0.08, 0.66, mat(i % 2 ? 0xffffff : opts.awning ?? 0xc0392b, 0.6), -0.2, 3.3, -1.65 + i * 0.66));
       }
       for (const zz of [-1.75, 1.75]) this.group.add(box(0.1, 3.3, 0.1, mat(0x5a3a22), -1.0, 1.65, zz));
       this.shelf = new Stack(this.group, gridLayout(2, 4, 0.66, 0.5, 1.66, 0, -0.3), 30);
@@ -249,7 +251,7 @@ class Desk {
     if (g.wants > 0) {
       if (this.shelf && this.flyers.transfer(this.shelf, g.held)) {
         g.wants--;
-        this.spawnBill(ITEM_VALUE.snackbox);
+        this.spawnBill(ITEM_VALUE[this.opts.sells ?? 'snackbox']);
         sfx.sale();
         this.onServe(byPlayer);
       }
@@ -272,7 +274,7 @@ class Desk {
 }
 
 /** Put one cash bill on a pad (or add it to the top bill if the pad is full). */
-function payBill(scene: THREE.Scene, flyers: Flyers, pad: CashPad, from: THREE.Object3D, value: number) {
+export function payBill(scene: THREE.Scene, flyers: Flyers, pad: CashPad, from: THREE.Object3D, value: number) {
   if (pad.stack.full) {
     pad.stack.items[pad.stack.count - 1].value += value;
     return;
@@ -287,7 +289,8 @@ function payBill(scene: THREE.Scene, flyers: Flyers, pad: CashPad, from: THREE.O
 // Sarah, your personal assistant: walks to whichever cash pad has the most
 // bills and brings it all to your wallet (like the Queen does for the colony).
 // ----------------------------------------------------------------------------
-class Assistant {
+export class Assistant {
+  speed = 4.2;
   private pad: CashPad | null = null;
   private state: 'pick' | 'walk' | 'collect' | 'rest' = 'pick';
   private t = 0;
@@ -303,7 +306,7 @@ class Assistant {
       this.state = 'walk';
     } else if (this.state === 'walk') {
       const to = this.pad ? this.tmp.set(this.pad.zone.x, 0, this.pad.zone.z + 1.3) : this.home;
-      if (stepTo(m, to, 4.2, dt)) {
+      if (stepTo(m, to, this.speed, dt)) {
         this.state = this.pad ? 'collect' : 'rest';
         this.t = 2.5;
       }
@@ -517,6 +520,8 @@ export class AirportWorld {
 
   /** True while this is the world on screen (set by main.ts). */
   active = false;
+  /** Set by main.ts: "Big Order: Island" bought -> open Dino Island (Act 3). */
+  onAct3: () => void = () => {};
 
   // --------------------------------------------------------------------------
   // Building
@@ -783,7 +788,7 @@ export class AirportWorld {
         break;
       }
       case 'a2-island':
-        if (animate) this.hud.banner('🏝️ Island route chartered!', 'Act 3: Dino Island is coming next 🦖', 6000);
+        if (animate) this.onAct3(); // main.ts opens Dino Island
         break;
     }
   }

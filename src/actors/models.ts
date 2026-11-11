@@ -27,6 +27,11 @@ export interface CreatureModel {
   flying: boolean;            // true = wings open and buzzing
   wingOpen: number;           // 0 folded .. 1 spread (eases between)
   biped?: Biped;              // people only: legs with knees, arms with elbows
+  anim?: {                    // models with their own animations (the Dodo)
+    mixer: THREE.AnimationMixer;
+    walk: THREE.AnimationAction;
+    run: THREE.AnimationAction;
+  };
   holding?: boolean;          // people: carrying something (arms go out front)
 }
 
@@ -228,6 +233,19 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
 
   if (m.biped) {
     animateBiped(m, m.biped, dt);
+    return;
+  }
+  if (m.anim) {
+    // Built-in clips: walk, or run when fast; nearly still when idle (the
+    // file has no idle clip, and its rest pose has the wings stuck out).
+    const a = m.anim;
+    const running = speed > m.length * 2.2;
+    const w = running ? 0 : 1;
+    a.walk.setEffectiveWeight(a.walk.getEffectiveWeight() + (w - a.walk.getEffectiveWeight()) * Math.min(1, dt * 8));
+    a.run.setEffectiveWeight(1 - a.walk.getEffectiveWeight());
+    const pace = THREE.MathUtils.clamp(speed / (m.length * 1.1), 0.5, 2.2);
+    a.walk.timeScale = a.run.timeScale = moving ? pace : 0.15;
+    a.mixer.update(dt);
     return;
   }
 

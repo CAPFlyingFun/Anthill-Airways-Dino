@@ -16,7 +16,7 @@ import { Flyers, ITEM_H, ITEM_VALUE, ItemType, Layout, Stack, StackItem, makeIte
 import { GAME_FONT, TEXT_RES, TextSprite, groundText, makePad, roundRect, setGroundText, sharpTexture } from './labels';
 import type { Text } from 'troika-three-text';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
-import { CreatureKind, spawnCreature } from '../actors/creatures';
+import { CreatureKind, spawnCreature, spawnTree } from '../actors/creatures';
 import { lod } from '../core/lod';
 import { BUGS, Mind, newMind, stepBug } from '../actors/brain';
 
@@ -63,7 +63,7 @@ function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y
 }
 
 // ----------------------------------------------------------------------------
-export type PileStyle = 'bread' | 'plant' | 'vending' | 'crate';
+export type PileStyle = 'bread' | 'plant' | 'vending' | 'crate' | 'fruit' | 'supply' | 'nest';
 
 export class ResourcePile {
   group = new THREE.Group();
@@ -106,6 +106,39 @@ export class ResourcePile {
         leaf.castShadow = true;
         source.add(leaf);
       }
+    } else if (style === 'fruit') {
+      // Act 3: a palm (real model when loaded) heavy with big orange fruit
+      const palm = spawnTree('t-palm', 7.5);
+      if (palm) source.add(palm);
+      else source.add(box(0.4, 6, 0.4, mat(0x8a5a33), 0, 3, 0));
+      const fruitMat = mat(0xffb02e, 0.55);
+      for (let i = 0; i < 7; i++) {
+        const f = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), fruitMat);
+        const a = (i / 7) * Math.PI * 2;
+        f.position.set(Math.cos(a) * 0.55, 5.4 + (i % 2) * 0.35, Math.sin(a) * 0.55);
+        f.castShadow = true;
+        source.add(f);
+      }
+    } else if (style === 'supply') {
+      // Act 3: a supply drop flown in by Anthill Airways (dino food)
+      source.add(box(2.4, 1.6, 1.6, mat(0x5f7a3a, 0.8), 0, 0.8, 0));
+      for (const y of [0.3, 1.3]) source.add(box(2.5, 0.12, 1.66, mat(0x3d4f24, 0.8), 0, y, 0));
+      const chute = new THREE.Mesh(new THREE.SphereGeometry(1.3, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xffffff, 0.7));
+      chute.scale.y = 0.45;
+      chute.position.set(-0.9, 1.65, 0.4);
+      chute.rotation.z = 0.9; // the parachute flopped over the side
+      source.add(chute);
+      const stamp = new TextSprite(0.42, '#ffd166');
+      stamp.setText('🍖 DINO FOOD');
+      stamp.sprite.position.set(0, 2.2, 0.2);
+      source.add(stamp.sprite);
+    } else if (style === 'nest') {
+      // Act 3: a big straw nest (the Dodos lay their eggs here)
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.32, 8, 20), mat(0xd9b56a, 1));
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.3;
+      ring.castShadow = true;
+      source.add(ring);
     } else if (style === 'crate') {
       // Act 2: the colony's shipping crate (stenciled, with a little ant flag)
       source.add(box(2.4, 1.3, 1.3, mat(0xc89b5e, 0.9), 0, 0.65, 0));
@@ -473,11 +506,23 @@ export class CashPad {
 }
 
 // ----------------------------------------------------------------------------
-export type RunTheme = 'grass' | 'gutter';
+export type RunTheme = 'grass' | 'gutter' | 'ocean';
 
-/** The vehicle a gate run uses: a wheeled cart (grass) or a leaf raft (gutter). */
+/** The vehicle a gate run uses: a wheeled cart (grass), a leaf raft (gutter) or a safari boat (ocean). */
 export function makeVehicle(theme: RunTheme): { group: THREE.Group; deckY: number } {
   const g = new THREE.Group();
+  if (theme === 'ocean') {
+    // Act 3: the Sea Safari boat (bow toward -z, the way we race)
+    const hull = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), mat(0xf4f6f8, 0.4));
+    hull.scale.set(1.25, 0.7, 2.4); // the lower half of a sphere = a bowl-shaped hull
+    hull.position.y = 0.55;
+    hull.castShadow = true;
+    g.add(hull);
+    g.add(box(2.4, 0.2, 4.6, mat(0x2a9d8f, 0.5), 0, 0.45, 0));
+    g.add(box(2.2, 0.1, 4.2, mat(0xc8a26a, 0.8), 0, 0.6, 0));
+    g.add(box(0.5, 0.7, 0.5, mat(0x333a44, 0.5), 0, 0.75, 2.1)); // outboard motor
+    return { group: g, deckY: 0.66 };
+  }
   if (theme === 'gutter') {
     const raft = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 10).scale(1.1, 0.12, 1.6), mat(0x4caf3a, 0.6));
     raft.position.y = 0.2;

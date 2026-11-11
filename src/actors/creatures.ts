@@ -33,8 +33,26 @@ export const PROPS = ['dirt-clod', 'rock-model', 'twig-model'] as const;
  */
 export const HUMANS = ['h-jack', 'h-sarah', 'h-director', 'h-exec', 'h-balance', 'h-ember', 'h-crew1', 'h-crew2', 'h-crew3', 'h-crew4'] as const;
 export type HumanKind = (typeof HUMANS)[number];
+/**
+ * Act 3 (Dino Island), from the Beyond-Extinction repo's models folder,
+ * shrunk to phone size: the Dodo (with its own Walking/Running animations),
+ * the Dilophosaurus, 5 sea creatures, and 5 kinds of island trees.
+ */
+export const ISLAND = [
+  'd-dodo', 'd-dilo',
+  's-mosasaurus', 's-megalodon', 's-ichthyo', 's-sarco', 's-deino',
+  't-palm', 't-fern', 't-banyan', 't-monkeypuzzle', 't-conifer',
+] as const;
+export type IslandKind = (typeof ISLAND)[number];
+export type DinoKind = 'd-dodo' | 'd-dilo';
+export type SeaKind = 's-mosasaurus' | 's-megalodon' | 's-ichthyo' | 's-sarco' | 's-deino';
+export type TreeKind = 't-palm' | 't-fern' | 't-banyan' | 't-monkeypuzzle' | 't-conifer';
+/** Built-in animations of models that have them (the Dodo). */
+const clips = new Map<string, THREE.AnimationClip[]>();
 /** Bump this whenever the people .glb files are replaced (busts phone caches). */
 const HUMAN_REV = 2;
+/** Same, for the island models. */
+const ISLAND_REV = 1;
 export type CreatureKind = (typeof CREATURES)[number];
 export type PropKind = (typeof PROPS)[number];
 
@@ -67,6 +85,13 @@ export function loadHumans(onProgress: (done: number, total: number) => void = (
   return humansLoading;
 }
 
+let islandLoading: Promise<void> | null = null;
+/** The island's dinos, sea creatures and trees (~5 MB): only when you go there. */
+export function loadIsland(onProgress: (done: number, total: number) => void = () => {}) {
+  islandLoading ??= loadList([...ISLAND], onProgress);
+  return islandLoading;
+}
+
 async function loadList(names: string[], onProgress: (done: number, total: number) => void) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
@@ -75,9 +100,10 @@ async function loadList(names: string[], onProgress: (done: number, total: numbe
     names.map(async (name) => {
       try {
         // People get a revision tag so phones re-download them when the files change.
-        const rev = name.startsWith('h-') ? `?rev=${HUMAN_REV}` : '';
+        const rev = name.startsWith('h-') ? `?rev=${HUMAN_REV}` : (ISLAND as readonly string[]).includes(name) ? `?rev=${ISLAND_REV}` : '';
         const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}models/${name}.glb${rev}`);
         templates.set(name, normalize(gltf.scene, name));
+        if (gltf.animations.length) clips.set(name, gltf.animations);
       } catch (e) {
         console.warn(`Model "${name}" failed to load, using fallback`, e);
       }
@@ -114,13 +140,38 @@ function normalize(scene: THREE.Object3D, name: string): THREE.Group {
       }
     }
   });
+  // Trees never move, but they come rigged: swap each skinned mesh for a plain
+  // one (no per-vertex bone math every frame = much cheaper on phones).
+  if (name.startsWith('t-')) {
+    scene.updateMatrixWorld(true);
+    const swaps: THREE.SkinnedMesh[] = [];
+    scene.traverse((o) => {
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) swaps.push(o as THREE.SkinnedMesh);
+    });
+    for (const sk of swaps) {
+      // In its rest pose a skinned mesh draws its vertices exactly where a
+      // plain mesh would, so the plain one simply takes its place.
+      const geo = sk.geometry.clone();
+      geo.deleteAttribute('skinIndex');
+      geo.deleteAttribute('skinWeight');
+      const plain = new THREE.Mesh(geo, sk.material);
+      plain.castShadow = true;
+      plain.receiveShadow = true;
+      plain.position.copy(sk.position);
+      plain.quaternion.copy(sk.quaternion);
+      plain.scale.copy(sk.scale);
+      sk.parent!.add(plain);
+      sk.removeFromParent();
+    }
+  }
   if (FLIP[name]) scene.rotation.y = Math.PI;
   const wrap = new THREE.Group();
   wrap.add(scene);
   wrap.updateMatrixWorld(true);
   const size = new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3());
-  // Bugs: 1 unit long. Humans: 1 unit TALL (their T-pose arms make them wide).
-  scene.scale.multiplyScalar(1 / (name.startsWith('h-') ? size.y : Math.max(size.x, size.z)));
+  // Bugs, dinos, sea creatures: 1 unit long. Humans + trees: 1 unit TALL.
+  const tall = name.startsWith('h-') || name.startsWith('t-');
+  scene.scale.multiplyScalar(1 / (tall ? size.y : Math.max(size.x, size.z)));
   wrap.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(scene);
   const center = box.getCenter(new THREE.Vector3());
@@ -256,6 +307,57 @@ export function spawnHuman(name: HumanKind, height: number): CreatureModel | nul
   model.bob.add(inst);
   findHumanLimbs(model);
   return model;
+}
+
+/**
+ * A dinosaur, `length` nose to tail.
+ *  • Dodo: plays its own Walking clip (faster/slower with its speed).
+ *  • Dilophosaurus: no animations in the file, so it walks with the same
+ *    two-legged gait as the people (planted feet, bending knees).
+ */
+export function spawnDino(name: DinoKind, length: number): CreatureModel | null {
+  const t = templates.get(name);
+  if (!t) return null;
+  const inst = cloneSkinned(t) as THREE.Group;
+  inst.scale.setScalar(length);
+  const model = newModel((t.userData.height as number) * length, length);
+  model.bob.add(inst);
+  const list = clips.get(name);
+  if (list?.length) {
+    const mixer = new THREE.AnimationMixer(inst);
+    const walk = mixer.clipAction(list.find((c) => /walk/i.test(c.name)) ?? list[0]);
+    const run = mixer.clipAction(list.find((c) => /run/i.test(c.name)) ?? list[0]);
+    walk.play();
+    run.play();
+    run.setEffectiveWeight(0);
+    walk.time = Math.random() * walk.getClip().duration; // don't all step in sync
+    model.anim = { mixer, walk, run };
+  } else {
+    findHumanLimbs(model);
+  }
+  return model;
+}
+
+/** A sea creature (swims in code: no legs to animate). */
+export function spawnSea(name: SeaKind, length: number): CreatureModel | null {
+  const t = templates.get(name);
+  if (!t) return null;
+  const inst = cloneSkinned(t) as THREE.Group;
+  inst.scale.setScalar(length);
+  const model = newModel((t.userData.height as number) * length, length);
+  model.bob.add(inst);
+  return model;
+}
+
+/** A tree, `height` tall (scenery: no animation). */
+export function spawnTree(name: TreeKind, height: number): THREE.Object3D | null {
+  const t = templates.get(name);
+  if (!t) return null;
+  const tree = t.clone(); // plain meshes now: a cheap clone sharing the geometry
+  tree.scale.setScalar(height);
+  tree.rotation.y = Math.random() * Math.PI * 2;
+  lod.add(tree, height * 0.6);
+  return tree;
 }
 
 function findHumanLimbs(model: CreatureModel) {

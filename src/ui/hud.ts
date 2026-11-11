@@ -61,13 +61,13 @@ export class Hud {
   }
 
   /** Show the launch button with the cargo count, or hide it with null. */
-  setLaunch(count: number | null, onClick?: () => void) {
+  setLaunch(count: number | null, onClick?: () => void, label = '🚀 LAUNCH RUN') {
     if (count === null) {
       this.launchBtn.classList.add('hidden');
       this.launchHandler = null;
       return;
     }
-    this.launchBtn.textContent = `🚀 LAUNCH RUN · ${count}`;
+    this.launchBtn.textContent = `${label} · ${count}`;
     this.launchBtn.classList.remove('hidden');
     this.launchHandler = onClick ?? null;
   }
@@ -152,7 +152,7 @@ export class Hud {
 
   // ---- Inventory (ARK style) ----------------------------------------------
   private invKey = '';
-  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱' };
+  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱', fruit: '🍈', smoothie: '🥤', meat: '🍖', egg: '🥚', ticket: '🎟️' };
 
   /** Show what you're carrying: one slot per item type + a weight bar. */
   setInventory(counts: Map<string, number>, used: number, max: number) {

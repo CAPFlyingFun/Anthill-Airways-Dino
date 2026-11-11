@@ -212,6 +212,15 @@ function buildHeli(): Built {
 
 const BUILDERS: Record<AircraftKind, () => Built> = { cessna: buildCessna, twin: buildTwin, jet: buildJet, liner: buildLiner, heli: buildHeli };
 
+/** Just the 3D model of an aircraft (nose toward -x), e.g. for the island's arrivals. */
+export function buildAircraftModel(kind: AircraftKind) {
+  const b = BUILDERS[kind]();
+  b.group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+  });
+  return { group: b.group, spinners: b.spinners, rotor: b.rotor };
+}
+
 // ----------------------------------------------------------------------------
 export class Aircraft {
   group = new THREE.Group();   // moves (taxi / fly); the model sits inside

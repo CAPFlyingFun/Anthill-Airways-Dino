@@ -37,6 +37,22 @@ Both worlds keep running while you're in the other one, and the Queen keeps coll
   flight crew), and **Sarah**, your personal assistant, who collects the cash
 - The people (~11 MB) only download once you reach Act 2
 
+## Act 3 — Dino Island 🏝️🦖
+
+Buy **Big Order: Island** at the airport and the 🌍 button lets you fly between the
+Colony, the Airport and Dino Island (all three keep earning in the background).
+
+- 🥤 **Juice Bar**: pick 🍈 fruit → the BLENDER → sell 🥤 smoothies to tourists
+- 🦖 **Dilo Show**: carry 🍖 from the supply drop to FEED. While the Dilophosaurus has a
+  full belly, the crowd in the stands pays; a hungry dino means no show
+- 🦤 **Dodo Ranch**: the Dodos (with their own walk animation) lay 🥚 in the nests →
+  sell them at the Dodo Shop
+- 🚤 **Sea Safari**: tourists fly in and wait on the pier → a gate run on the open sea,
+  where the Mosasaurus and Megalodon surface as hazards
+- Crew for every job, a Boat Captain who runs safaris by himself, and a 💰 Cash Dodo
+- The island's models (Dodo, Dilophosaurus, 5 sea creatures, 5 trees) come from the
+  Beyond-Extinction repo and only download the first time you fly there
+
 ## Idle earnings 💤
 
 While you play, the game measures your income (shown under your cash as +$/min). When you

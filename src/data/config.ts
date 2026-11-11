@@ -239,3 +239,51 @@ export const TUTORIAL = [
   'Walk over your cash 💵 to collect it',
   'Stand on a glowing tile to unlock it',
 ];
+
+// ============================================================================
+// ACT 3: DINO ISLAND (human scale, like the airport). Anthill Airways flies
+// tourists in to the island airstrip. Attractions:
+//   🥤 JUICE BAR   fruit trees -> blender -> smoothies -> tourists buy
+//   🦖 DILO SHOW   carry dino food to the feeding platform; while the
+//                  Dilophosaurus is fed, the crowd in the stands pays
+//   🥚 DODO RANCH  Dodos lay eggs in nests -> sell them at the Dodo Shop
+//   🚤 SEA SAFARI  tourists wait on the dock -> a gate run on the open sea
+//                  (Mosasaurus + Megalodon surface as hazards)
+// ============================================================================
+export const ISLAND_CFG = {
+  arrivalEvery: 22,     // seconds between tourist flights landing
+  arrivalTourists: [3, 6] as [number, number],
+  juiceInterval: 1.8,   // seconds between juice bar customers
+  shopInterval: 2.2,    // ... and Dodo Shop customers
+  queueMax: 4,
+  serve: 0.4,
+  blendTime: 0.9,       // seconds per smoothie
+  fruitEvery: 1.1,      // a fruit tree grows one fruit every ... seconds
+  eggEvery: 1.6,        // a nest gets a new egg every ... seconds
+  meatEvery: 0.9,       // the supply crate refills one dino food every ... seconds
+  dinoHunger: 40,       // seconds for a full Dilophosaurus to get hungry again
+  biteFill: 0.34,       // one dino food = this much of a full belly
+  showPayEvery: 2.0,    // while fed, the stands pay every ... seconds
+  showPay: 55,          // ... this much
+  safariMin: 5,         // tourists needed to launch a Sea Safari
+  safariMax: 40,
+  captainEvery: 30,     // the Boat Captain runs a safari (at 1x) every ... seconds
+  crewCarry: 12,
+  crewSpeed: 5.2,
+};
+
+/** Act 3 unlock tiles. Same shape as UNLOCKS. */
+export const ISLAND_UNLOCKS: UnlockDef[] = [
+  { id: 'i3-cashier',  name: 'Juice Cashier',    icon: '🧃', cost: 6000,   pos: [-2, 21],   requires: [] },
+  { id: 'i3-picker',   name: 'Fruit Picker',     icon: '🍈', cost: 9000,   pos: [-20, 3],   requires: [] },
+  { id: 'i3-runner',   name: 'Smoothie Runner',  icon: '🥤', cost: 12000,  pos: [-9, 2],    requires: ['i3-picker'] },
+  { id: 'i3-dilo',     name: 'Dilo Show',        icon: '🦖', cost: 20000,  pos: [-8, -8],   requires: ['i3-cashier'] },
+  { id: 'i3-keeper',   name: 'Dino Keeper',      icon: '🍖', cost: 26000,  pos: [-2, -4],   requires: ['i3-dilo'] },
+  { id: 'i3-dodo',     name: 'Dodo Ranch',       icon: '🦤', cost: 34000,  pos: [10, -6],   requires: ['i3-dilo'] },
+  { id: 'i3-eggs',     name: 'Egg Collector',    icon: '🥚', cost: 42000,  pos: [6, 6],     requires: ['i3-dodo'] },
+  { id: 'i3-clerk',    name: 'Shop Clerk',       icon: '🛍️', cost: 48000,  pos: [12, 10.5], requires: ['i3-dodo'] },
+  { id: 'i3-dock',     name: 'Sea Safari Dock',  icon: '🚤', cost: 60000,  pos: [27, 13],   requires: ['i3-dodo'] },
+  { id: 'i3-captain',  name: 'Boat Captain',     icon: '🧑‍✈️', cost: 75000, pos: [25, 25],   requires: ['i3-dock'] },
+  { id: 'i3-cashdodo', name: 'Cash Dodo',        icon: '💰', cost: 90000,  pos: [4, 14],    requires: ['i3-cashier', 'i3-keeper', 'i3-clerk'] },
+  { id: 'i3-volcano',  name: 'Big Order: Volcano', icon: '🌋', cost: 250000, pos: [0, -20], requires: ['i3-cashdodo', 'i3-captain'] },
+];

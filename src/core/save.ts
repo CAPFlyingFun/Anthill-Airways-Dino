@@ -17,7 +17,7 @@ export interface SaveData {
   stats: Record<string, number>;      // points spent per stat id
   hatched: number;                    // worker ants born in the Hatchery
   queen: QueenSave;                   // the Queen's own level + stats (she collects cash from Lv 20)
-  world: 'ant' | 'air';               // which world you're playing (Act 2 adds the airport)
+  world: 'ant' | 'air' | 'island';    // which world you're playing (Act 2: airport, Act 3: island)
   airSeen: boolean;                   // seen the airport intro?
   view: 'third' | 'first';            // camera: behind you, or through your eyes
   lastSeen: number;                   // when the game last saved (ms) -> offline earnings

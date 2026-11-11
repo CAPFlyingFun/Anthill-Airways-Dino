@@ -12,7 +12,7 @@ import { CONFIG } from '../data/config';
 import { Sfx } from '../core/audio';
 import { Hud } from '../ui/hud';
 import { CreatureModel, animateCreature, makeBeetle } from '../actors/models';
-import { spawnCreature } from '../actors/creatures';
+import { SeaKind, spawnCreature, spawnSea } from '../actors/creatures';
 import { ITEM_VALUE, ItemType, makeItem } from '../world/items';
 import { RunTheme, makeVehicle } from '../world/stations';
 import { TEXT_RES, TextSprite, gameText, roundRect, sharpTexture } from '../world/labels';
@@ -48,6 +48,7 @@ interface Puddle {
   z: number;
   r: number;
   hit: boolean;
+  monster?: THREE.Object3D; // ocean: a sea creature lurking under the surface
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -113,8 +114,8 @@ export class GateRun {
     s.add(this.dynamic);
 
     // Both vehicles live on the cart; start() shows the one for the theme.
-    this.vehicles = { grass: makeVehicle('grass'), gutter: makeVehicle('gutter') };
-    this.cart.add(this.vehicles.grass.group, this.vehicles.gutter.group);
+    this.vehicles = { grass: makeVehicle('grass'), gutter: makeVehicle('gutter'), ocean: makeVehicle('ocean') };
+    this.cart.add(this.vehicles.grass.group, this.vehicles.gutter.group, this.vehicles.ocean.group);
     this.cart.add(this.cargo);
     this.beetle = spawnCreature('aphid', 1.9) ?? makeBeetle(0x2a9d8f);
     this.beetle.root.position.set(0, 0, -1.9);
@@ -134,6 +135,9 @@ export class GateRun {
     this.itemType = itemType;
     this.vehicles.grass.group.visible = theme === 'grass';
     this.vehicles.gutter.group.visible = theme === 'gutter';
+    this.vehicles.ocean.group.visible = theme === 'ocean';
+    this.beetle.root.visible = theme !== 'ocean'; // the safari boat has a motor
+    this.scene.background = new THREE.Color(theme === 'ocean' ? 0x8fd3ff : 0x9fdcff);
     const deck = this.vehicles[theme].deckY;
     this.cargo.position.y = deck - 0.1;
     // Grass: the aphid pulls the cart. Gutter: it rides at the front of the raft.
@@ -150,7 +154,7 @@ export class GateRun {
     this.cart.position.set(0, 0, 0);
     this.updateLabel();
     this.hud.setHint('Drag left / right to steer through the best gates!');
-    const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles' };
+    const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles', ticket: 'tourists' };
     this.hud.banner(opts.title ?? 'Ready…', `${count} ${names[itemType] ?? 'items'} loaded`, opts.title ? 1800 : 1100);
   }
 
@@ -163,14 +167,15 @@ export class GateRun {
     const length = -this.finishZ + 60;
 
     const gutter = this.theme === 'gutter';
-    // Ground: a dirt lane (grass theme) or a rain gutter full of water (gutter theme)
+    const ocean = this.theme === 'ocean';
+    // Ground: a dirt lane (grass), a rain gutter full of water (gutter), or the open sea (ocean)
     const lane = new THREE.Mesh(
       new THREE.PlaneGeometry(laneHalfWidth * 2 + 0.6, length),
-      new THREE.MeshStandardMaterial(gutter ? { color: 0x4aa8ff, roughness: 0.1, metalness: 0.2 } : { color: 0xc99561 }),
+      new THREE.MeshStandardMaterial(gutter ? { color: 0x4aa8ff, roughness: 0.1, metalness: 0.2 } : ocean ? { color: 0x2f9be0, roughness: 0.15, metalness: 0.15 } : { color: 0xc99561 }),
     );
     lane.rotation.x = -Math.PI / 2;
     lane.position.set(0, 0.01, -length / 2 + 20);
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(120, length + 80), new THREE.MeshStandardMaterial({ color: 0x79c257 }));
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(ocean ? 600 : 120, length + 80), new THREE.MeshStandardMaterial({ color: ocean ? 0x1f7fc4 : 0x79c257, roughness: ocean ? 0.2 : 1 }));
     grass.rotation.x = -Math.PI / 2;
     grass.position.set(0, 0, -length / 2 + 20);
     this.dynamic.add(grass, lane);
@@ -181,6 +186,23 @@ export class GateRun {
         const wall = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, length), wallMat);
         wall.position.set(sx * (laneHalfWidth + 0.6), 0.7, -length / 2 + 20);
         this.dynamic.add(wall);
+      }
+    }
+
+    if (ocean) {
+      // Buoy lines mark the safari lane; far-off islands on the horizon
+      const buoyMat = new THREE.MeshStandardMaterial({ color: 0xff7a1a, roughness: 0.5 });
+      for (let z = 18; z > -length + 20; z -= 4) {
+        for (const sx of [-1, 1]) {
+          const b = new THREE.Mesh(new THREE.SphereGeometry(0.28, 10, 8), buoyMat);
+          b.position.set(sx * (laneHalfWidth + 0.5), 0.15, z);
+          this.dynamic.add(b);
+        }
+      }
+      for (let i = 0; i < 8; i++) {
+        const isle = new THREE.Mesh(new THREE.ConeGeometry(rand(6, 14), rand(4, 9), 10), new THREE.MeshStandardMaterial({ color: 0x5f9e45 }));
+        isle.position.set((i % 2 ? 1 : -1) * rand(30, 70), 0, rand(-length + 20, 0));
+        this.dynamic.add(isle);
       }
     }
 
@@ -198,7 +220,7 @@ export class GateRun {
       m.makeScale(rand(0.8, 1.6), h, rand(0.8, 1.6)).setPosition(x, 0, z);
       blades.setMatrixAt(i, m);
     }
-    this.dynamic.add(blades);
+    if (!ocean) this.dynamic.add(blades);
 
     // Which rows get the special gates
     const xRow = 1 + Math.floor(Math.random() * 3);
@@ -238,7 +260,18 @@ export class GateRun {
       for (let h = 0; h < hazards; h++) {
         const p: Puddle = { x: rand(-laneHalfWidth + 1, laneHalfWidth - 1), z: z - rowSpacing * (hazards === 2 ? (h ? 0.68 : 0.36) : 0.5), r: 1.1, hit: false };
         this.puddles.push(p);
-        if (gutter) {
+        if (ocean) {
+          // A sea creature lurking: its fin cuts the water, then it lunges
+          // out as you pass. Steer around it!
+          const kinds: SeaKind[] = ['s-megalodon', 's-mosasaurus'];
+          const beast = spawnSea(kinds[Math.floor(Math.random() * 2)], 7)?.root;
+          const fin = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.0, 8), new THREE.MeshStandardMaterial({ color: 0x3a4a5a }));
+          const m = beast ?? fin;
+          m.position.set(p.x, beast ? -1.6 : 0.3, p.z);
+          m.rotation.y = rand(0, Math.PI * 2);
+          p.monster = m;
+          this.dynamic.add(m);
+        } else if (gutter) {
           // A floating twig to steer around
           const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, p.r * 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x6b4a2f }));
           twig.rotation.z = Math.PI / 2;
@@ -393,13 +426,22 @@ export class GateRun {
       }
     }
 
+    // Ocean: lurking sea creatures surge up as you get close, then sink back
+    for (const p of this.puddles) {
+      if (!p.monster) continue;
+      const near = this.z - p.z; // > 0 = still ahead of us
+      const surge = near < 9 && near > -6 ? Math.sin(((9 - near) / 15) * Math.PI) : 0;
+      p.monster.position.y = -1.6 + surge * 1.9;
+      p.monster.rotation.x = -surge * 0.35;
+    }
+
     // Puddles
     for (const p of this.puddles) {
       if (p.hit || Math.abs(this.z - p.z) > p.r || Math.abs(this.x - p.x) > p.r + 0.7) continue;
       p.hit = true;
       const loss = CONFIG.run.puddleLoss * Math.max(0.3, 1 - this.luck * 0.06);
       const lost = Math.max(1, Math.ceil(this.count * loss));
-      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : '💦'} -${lost}`, false);
+      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : this.theme === 'ocean' ? '🦈' : '💦'} -${lost}`, false);
       this.sfx.splash();
     }
 

@@ -62,13 +62,19 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,glb,woff}'], // woff = the ground-text font
         // The people (models/h-*.glb, ~11 MB) aren't pre-downloaded: they load
         // when you reach Act 2 and are cached then (see runtimeCaching).
-        globIgnores: ['**/models/h-*.glb'],
+        // Same for the island (d-, s-, t- models): loaded when you first fly there.
+        globIgnores: ['**/models/h-*.glb', '**/models/d-*.glb', '**/models/s-*.glb', '**/models/t-*.glb'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // the 3D bug models are up to ~1.5 MB each
         runtimeCaching: [
           {
             urlPattern: /\/models\/h-[\w-]+\.glb(\?.*)?$/,
             handler: 'CacheFirst',
             options: { cacheName: 'human-models', expiration: { maxEntries: 20 } },
+          },
+          {
+            urlPattern: /\/models\/[dst]-[\w-]+\.glb(\?.*)?$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'island-models', expiration: { maxEntries: 30 } },
           },
         ],
       },

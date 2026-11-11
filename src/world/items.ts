@@ -11,10 +11,12 @@
 // ============================================================================
 import * as THREE from 'three';
 
-export type ItemType = 'crumb' | 'snack' | 'leaf' | 'wrap' | 'sugar' | 'candy' | 'cash' | 'bag' | 'snackbox';
+export type ItemType = 'crumb' | 'snack' | 'leaf' | 'wrap' | 'sugar' | 'candy' | 'cash' | 'bag' | 'snackbox'
+  // Act 3 (Dino Island)
+  | 'fruit' | 'smoothie' | 'meat' | 'egg' | 'ticket';
 
 /** Height of one item when stacked. */
-export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, leaf: 0.14, wrap: 0.32, sugar: 0.4, candy: 0.3, cash: 0.11, bag: 0.48, snackbox: 0.36 };
+export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, leaf: 0.14, wrap: 0.32, sugar: 0.4, candy: 0.3, cash: 0.11, bag: 0.48, snackbox: 0.36, fruit: 0.4, smoothie: 0.5, meat: 0.32, egg: 0.42, ticket: 0.1 };
 
 // Shared geometry + materials: every crumb reuses the same ones (fast).
 const geo = {
@@ -31,6 +33,15 @@ const geo = {
   bag: new THREE.BoxGeometry(0.7, 0.46, 0.32),
   bagHandle: new THREE.TorusGeometry(0.1, 0.025, 6, 12, Math.PI),
   snackbox: new THREE.BoxGeometry(0.6, 0.34, 0.46),
+  // Act 3 (Dino Island)
+  fruit: new THREE.SphereGeometry(0.22, 12, 8).scale(1, 0.9, 1.25),     // a big tropical fruit
+  leafTop: new THREE.ConeGeometry(0.1, 0.18, 6),
+  cup: new THREE.CylinderGeometry(0.2, 0.15, 0.42, 14),                  // smoothie cup
+  straw: new THREE.CylinderGeometry(0.025, 0.025, 0.34, 6),
+  meat: new THREE.CylinderGeometry(0.17, 0.2, 0.42, 10),                 // a big drumstick
+  bone: new THREE.CylinderGeometry(0.05, 0.05, 0.3, 6),
+  egg: new THREE.SphereGeometry(0.17, 14, 10).scale(1, 1.3, 1),
+  ticket: new THREE.BoxGeometry(0.5, 0.08, 0.3),
 };
 const mat = {
   crumb: new THREE.MeshStandardMaterial({ color: 0xdca44a, roughness: 0.9 }),
@@ -48,10 +59,17 @@ const mat = {
   handle: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 }),
   boxSide: new THREE.MeshStandardMaterial({ color: 0xf28c28, roughness: 0.6 }),
   boxTop: new THREE.MeshStandardMaterial({ color: 0xb8321e, roughness: 0.6 }),
+  fruit: new THREE.MeshStandardMaterial({ color: 0xffb02e, roughness: 0.55 }),
+  cup: new THREE.MeshStandardMaterial({ color: 0xff6fa8, roughness: 0.35 }),
+  straw: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }),
+  meat: new THREE.MeshStandardMaterial({ color: 0xa0412d, roughness: 0.7 }),
+  bone: new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.6 }),
+  egg: new THREE.MeshStandardMaterial({ color: 0xf3e3c3, roughness: 0.5 }),
+  ticket: new THREE.MeshStandardMaterial({ color: 0x2ec4b6, roughness: 0.5 }),
 };
 
 /** Cash value of each sellable item (counter price; gate runs pay the same per item). */
-export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25 };
+export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25, fruit: 0, smoothie: 45, meat: 0, egg: 60, ticket: 40 };
 
 /** Build the 3D mesh for one item. Box faces order: +x, -x, +y(top), -y, +z, -z */
 export function makeItem(type: ItemType): THREE.Mesh {
@@ -78,6 +96,27 @@ export function makeItem(type: ItemType): THREE.Mesh {
     const handle = new THREE.Mesh(geo.bagHandle, mat.handle);
     handle.position.y = 0.23;
     m.add(handle);
+  } else if (type === 'fruit') {
+    m = new THREE.Mesh(geo.fruit, mat.fruit);
+    const top = new THREE.Mesh(geo.leafTop, mat.leaf); // reuses the leaf green
+    top.position.y = 0.2;
+    m.add(top);
+  } else if (type === 'smoothie') {
+    m = new THREE.Mesh(geo.cup, mat.cup);
+    const straw = new THREE.Mesh(geo.straw, mat.straw);
+    straw.position.set(0.06, 0.28, 0);
+    straw.rotation.z = -0.25;
+    m.add(straw);
+  } else if (type === 'meat') {
+    m = new THREE.Mesh(geo.meat, mat.meat);
+    m.rotation.z = Math.PI / 2; // lies on its side
+    const bone = new THREE.Mesh(geo.bone, mat.bone);
+    bone.position.y = 0.32;
+    m.add(bone);
+  } else if (type === 'egg') {
+    m = new THREE.Mesh(geo.egg, mat.egg);
+  } else if (type === 'ticket') {
+    m = new THREE.Mesh(geo.ticket, mat.ticket);
   } else if (type === 'snackbox') {
     const s = mat.boxSide;
     m = new THREE.Mesh(geo.snackbox, [s, s, mat.boxTop, s, s, s]);
