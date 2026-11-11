@@ -32,6 +32,11 @@ const FLIP: Record<string, boolean> = {};
 // (the housefly's pair rests folded back along the abdomen).
 const WING_BONES: Record<string, string[]> = { housefly: ['Bone_022', 'Bone_024'] };
 
+// Leg bones to ignore. TMB-Story's fix-jumping-spider-legs.mjs hides the
+// Meshy spider's extra hind leg (Bone_058's chain); its bones are still in
+// the file, so don't count it as a leg.
+const SKIP_LEGS: Record<string, string[]> = { 'jumping-spider': ['Bone_058'] };
+
 const templates = new Map<string, THREE.Group>();
 
 /** Load every model once. `onProgress` drives the loading bar. */
@@ -103,7 +108,7 @@ export function spawnCreature(name: CreatureKind, length: number): CreatureModel
   const model = newModel((t.userData.height as number) * length, length);
   model.legAmp = 0.32;
   model.bob.add(inst);
-  findLegs(model);
+  findLegs(model, SKIP_LEGS[name] ?? []);
   findWings(model, name);
   return model;
 }
@@ -132,7 +137,7 @@ function findWings(model: CreatureModel, name: string) {
 }
 
 /** Find the leg bones in a model's skeleton (see the notes at the top). */
-function findLegs(model: CreatureModel) {
+function findLegs(model: CreatureModel, skip: string[] = []) {
   model.root.updateMatrixWorld(true);
   let skinned: THREE.SkinnedMesh | null = null;
   model.root.traverse((o) => {
@@ -161,6 +166,7 @@ function findLegs(model: CreatureModel) {
   const legs: Leg[] = [];
   for (const b of bones) {
     const parent = b.parent;
+    if (skip.includes(b.name)) continue;
     if (!parent || !(parent as THREE.Bone).isBone || boneKids(parent).length < 2) continue;
     const chain = chainFrom(b);
     if (!chain || chain.length < 3) continue;
