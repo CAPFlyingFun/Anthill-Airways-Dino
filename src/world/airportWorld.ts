@@ -89,6 +89,8 @@ interface DeskOpts {
   color: number;
   kinds: HumanKind[];        // who shows up
   interval: number;          // seconds between new arrivals
+  queueMax: number;          // most people in line (or on their way to it)
+  serve: number;             // seconds between each sale / check-in step
   entry: THREE.Vector3[];    // waypoints from outside to the back of the line
   exit: (from: THREE.Vector3) => THREE.Vector3[]; // where they go when done
 }
@@ -176,7 +178,7 @@ class Desk {
       const bags = Math.random() < 0.35 ? 2 : 1;
       for (let i = 0; i < bags; i++) held.addInstant('bag');
     }
-    this.queue.push({ model, held, wants: 1 + Math.floor(Math.random() * 2), path: rest.map((v) => v.clone()) });
+    this.queue.push({ model, held, wants: 1 + Math.floor(Math.random() * 3), path: rest.map((v) => v.clone()) });
   }
 
   /** How many are waiting (for hints). */
@@ -186,7 +188,7 @@ class Desk {
 
   update(dt: number, playerServing: boolean, sfx: Sfx) {
     this.spawnT += dt;
-    if (this.spawnT >= this.opts.interval && this.queue.length < AIR.queueMax) {
+    if (this.spawnT >= this.opts.interval && this.queue.length < this.opts.queueMax) {
       this.spawnT = 0;
       this.spawnGuest();
     }
@@ -194,11 +196,12 @@ class Desk {
     // Walk in (entry waypoints first), then shuffle up the line.
     let frontReady = false;
     this.queue.forEach((g, i) => {
+      g.model.holding = g.held.count > 0;
       if (g.path.length) {
-        if (stepTo(g.model, g.path[0], 3.4, dt)) g.path.shift();
+        if (stepTo(g.model, g.path[0], 4.2, dt)) g.path.shift();
         return;
       }
-      const at = stepTo(g.model, this.slot(i, this.tmp), 3.0, dt);
+      const at = stepTo(g.model, this.slot(i, this.tmp), 3.6, dt);
       if (at) faceToward(g.model, -1, 0, dt, 8);
       if (i === 0) frontReady = at;
     });
@@ -206,9 +209,9 @@ class Desk {
     // Serve the front of the line.
     const g = this.queue[0];
     if (g && frontReady && (playerServing || this.hasStaff)) {
-      this.serveT += dt;
-      if (this.serveT >= AIR.serveInterval) {
-        this.serveT = 0;
+      this.serveT = Math.min(this.serveT + dt, this.opts.serve * 4);
+      while (this.serveT >= this.opts.serve && this.queue[0] === g) {
+        this.serveT -= this.opts.serve;
         if (this.opts.mode === 'checkin') this.serveCheckin(g, playerServing, sfx);
         else this.serveCafe(g, playerServing, sfx);
       }
@@ -217,7 +220,8 @@ class Desk {
     // Done: leave along the exit path, then vanish (boarded / gone home).
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const l = this.leaving[i];
-      if (stepTo(l.model, l.path[0], 3.6, dt)) {
+      l.model.holding = l.held.count > 0;
+      if (stepTo(l.model, l.path[0], 4.2, dt)) {
         l.path.shift();
         if (!l.path.length) {
           l.model.root.removeFromParent();
@@ -459,7 +463,7 @@ export class AirportWorld {
     const bags = new THREE.Group();
     bags.position.set(5, 0, -8.5);
     this.scene.add(bags);
-    bags.add(box(2.6, 0.25, 1.8, mat(0x5b6670, 0.5, 0.4), 0, 0.35, -0.2));
+    bags.add(box(2.6, 0.25, 1.9, mat(0x5b6670, 0.5, 0.4), 0, 0.35, -0.2));
     for (const [wx, wz] of [[-1, -0.9], [1, -0.9], [-1, 0.5], [1, 0.5]]) {
       const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.12, 12), mat(0x222222));
       wheel.rotation.z = Math.PI / 2;
@@ -468,7 +472,7 @@ export class AirportWorld {
     }
     const bagsPad = makePad(3.2, 3.2, 'BAGS', '#ffe07a');
     bags.add(bagsPad);
-    this.bagPile = new Stack(bags, gridLayout(3, 2, 0.8, 0.55, 0.48, 0, -0.2), 36);
+    this.bagPile = new Stack(bags, gridLayout(3, 4, 0.76, 0.38, 0.48, 0, -0.2), 36);
     this.bagZone = new Zone(5, -8.5, 1.6, 1.6);
     lod.add(bags, 2.5);
 
@@ -476,6 +480,7 @@ export class AirportWorld {
     this.cashPads.push(ticketPad);
     this.checkin = new Desk(this.scene, 9, -3, this.flyers, ticketPad, this.bagPile, {
       mode: 'checkin', label: '✈️ CHECK-IN', color: 0x2d6cdf, kinds: ['h-exec', 'h-balance', 'h-ember'], interval: AIR.passengerInterval,
+      queueMax: AIR.queueMax, serve: AIR.serveInterval,
       entry: [new THREE.Vector3(34, 0, 0), new THREE.Vector3(21, 0, -1)],
       // After check-in: around the desk, then out through the boarding gate
       exit: (from) => [new THREE.Vector3(from.x, 0, 1.0), new THREE.Vector3(2.5, 0, -1.5), new THREE.Vector3(1.5, 0, -11.2), new THREE.Vector3(1.5, 0, -14)],
@@ -585,11 +590,14 @@ export class AirportWorld {
     floor.receiveShadow = true;
     s.add(floor);
     // Red carpet from the doors
-    const carpet = new THREE.Mesh(new THREE.PlaneGeometry(10, 3), mat(0xa8323a, 0.9));
+    const trim = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2.6), mat(0xd4a017, 0.6));
+    trim.rotation.x = -Math.PI / 2;
+    trim.position.set(14.6, 0.015, 1);
+    const carpet = new THREE.Mesh(new THREE.PlaneGeometry(6.1, 2.3), mat(0x7d1f2a, 0.95));
     carpet.rotation.x = -Math.PI / 2;
-    carpet.position.set(13, 0.02, 1);
-    carpet.receiveShadow = true;
-    s.add(carpet);
+    carpet.position.set(14.6, 0.02, 1);
+    carpet.receiveShadow = trim.receiveShadow = true;
+    s.add(trim, carpet);
 
     // Walls: low on the camera sides (so they never hide you), a tall glass
     // window wall on the runway side.
@@ -693,7 +701,7 @@ export class AirportWorld {
   // --------------------------------------------------------------------------
   private crew(kind: HumanKind, x: number, z: number, route: () => Route, animate: boolean) {
     const m = person(kind);
-    const w = new Worker(this.scene, x, z, route, { color: 0 }, H, { model: m, spot: handsSpot(m) });
+    const w = new Worker(this.scene, x, z, route, { color: 0 }, H, { model: m, spot: handsSpot(m), carry: AIR.crewCarry, speed: AIR.crewSpeed });
     this.workers.push(w);
     if (animate) this.flyers.grow(m.root);
   }
@@ -714,15 +722,18 @@ export class AirportWorld {
         this.cashPads.push(pad);
         this.cafe = new Desk(this.scene, -9, 4, this.flyers, pad, null, {
           mode: 'cafe', label: '☕ ANT CAFÉ', color: 0x8a5a33, kinds: ['h-exec', 'h-balance', 'h-ember'], interval: AIR.cafeInterval,
-          entry: [new THREE.Vector3(34, 0, 3), new THREE.Vector3(21, 0, 5), new THREE.Vector3(10, 0, 6.2)],
+          queueMax: AIR.cafeQueueMax, serve: AIR.cafeServe,
+          // Arriving passengers: off the plane through Gate 1, grab a snack on the way out
+          entry: [new THREE.Vector3(1.5, 0, -14), new THREE.Vector3(1.5, 0, -10.5), new THREE.Vector3(-1, 0, 1.4)],
           exit: (from) => [new THREE.Vector3(from.x, 0, 7.4), new THREE.Vector3(16, 0, 7.4), new THREE.Vector3(21, 0, 5), new THREE.Vector3(34, 0, 4)],
         });
         this.addDesk(this.cafe);
         this.blockers.push(this.cafe.blocker);
-        this.crate = new ResourcePile(this.scene, -8.5, -6.4, this.flyers, 'snackbox', 'crate');
+        // The colony's export crate sits right next to the café (short trips)
+        this.crate = new ResourcePile(this.scene, -12.8, -0.9, this.flyers, 'snackbox', 'crate');
         const built = () => this.colonyBuilt();
         this.crate.spawnEvery = () => AIR.crateSlowest - (AIR.crateSlowest - AIR.crateFastest) * built();
-        this.blockers.push({ minX: -9.8, maxX: -7.2, minZ: -9.3, maxZ: -7.8 });
+        this.blockers.push({ minX: -14.1, maxX: -11.5, minZ: -3.6, maxZ: -2.2 });
         [this.cafe.group, pad.group, this.crate.group].forEach(grow);
         if (animate) this.hud.banner('☕ The Ant Café is open!', 'The colony ships snack boxes to the ANT EXPORTS crate', 3500);
         break;
@@ -739,7 +750,7 @@ export class AirportWorld {
         if (this.cafe) this.cafe.hireStaff(person('h-crew3'), animate);
         break;
       case 'a2-host':
-        this.crew('h-crew2', -6, -4, () => ({ src: this.crate!.stack, srcZone: this.crate!.zone, dst: this.cafe!.shelf!, dstZone: this.cafe!.staffZone }), animate);
+        this.crew('h-crew2', -9, 0, () => ({ src: this.crate!.stack, srcZone: this.crate!.zone, dst: this.cafe!.shelf!, dstZone: this.cafe!.staffZone }), animate);
         break;
       // Fleet upgrades: the plane is swapped for the next one up.
       case 'a2-twin':
@@ -852,7 +863,7 @@ export class AirportWorld {
       me.update(dt, move, this.blockers, this.canWalk);
       this.interact(dt);
       this.hud.setInventory(me.stack.counts(), me.stack.count, me.carryMax);
-      const name = 'Airport Terminal · Act 2';
+      const name = '✈️ Airport Terminal';
       if (name !== this.zoneName) {
         this.zoneName = name;
         this.hud.setZone(name);
@@ -985,6 +996,28 @@ export class AirportWorld {
   private updateCamera(dt: number) {
     const target = this.player.pos;
     const want = new THREE.Vector3().copy(target).add(this.camOffset);
+    this.setFov(this.player.firstPerson && this.intro >= 1 ? 72 : this.thirdFov);
+    if (this.player.firstPerson && this.intro >= 1) {
+      this.player.placeEyeCamera(this.camera);
+      this.sun.position.set(target.x + 10, 26, target.z + 12);
+      this.sun.target.position.copy(target);
+      return;
+    }
+    if (this.intro < 1 && this.player.firstPerson) {
+      // Zooming out of the colony straight into Jack's eyes
+      this.intro = Math.min(1, this.intro + dt / 2.6);
+      const k = this.intro * this.intro * (3 - 2 * this.intro);
+      const eye = this.planter.eye;
+      const from = new THREE.Vector3(eye.x, eye.y + 0.5, eye.z + 0.9);
+      this.player.placeEyeCamera(this.camera);
+      const to = this.camera.position.clone();
+      const toQ = this.camera.quaternion.clone();
+      this.camera.position.copy(from);
+      this.camera.lookAt(eye);
+      this.camera.position.lerp(to, k);
+      this.camera.quaternion.slerp(toQ, k);
+      return;
+    }
     if (this.intro < 1) {
       // Zoom out from the tiny colony to human scale (a slow ease).
       this.intro = Math.min(1, this.intro + dt / 2.6);
@@ -1008,12 +1041,21 @@ export class AirportWorld {
     (this.sun.shadow as { map: THREE.WebGLRenderTarget | null }).map = null;
   }
 
+  /** Third-person field of view (set in resize); first person is wider. */
+  private thirdFov = 42;
+  private setFov(fov: number) {
+    if (this.camera.fov === fov) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   resize(w: number, h: number) {
     this.camera.aspect = w / h;
     // A little further back than the colony: people and planes are bigger.
     const portrait = w < h;
     this.camOffset.set(0, portrait ? 20 : 16, portrait ? 17.5 : 15.5);
-    this.camera.fov = portrait ? 56 : 42;
+    this.thirdFov = portrait ? 56 : 42;
+    this.camera.fov = this.player.firstPerson ? 72 : this.thirdFov;
     this.camera.updateProjectionMatrix();
   }
 }

@@ -49,6 +49,7 @@ export class Worker {
   private route: Route | null = null;
   private target = new THREE.Vector3();
   private timer = 0;
+  private speed: number;
   private offset = new THREE.Vector3((Math.random() - 0.5) * 1.0, 0, (Math.random() - 0.5) * 1.0);
 
   /**
@@ -61,14 +62,15 @@ export class Worker {
    */
   constructor(
     scene: THREE.Scene, x: number, z: number, private pickRoute: () => Route, hat: { color: number; flat?: boolean }, length = 2.1,
-    person?: { model: CreatureModel; spot: { y0: number; z0: number } },
+    person?: { model: CreatureModel; spot: { y0: number; z0: number }; carry?: number; speed?: number },
   ) {
     this.model = person?.model ?? spawnCreature('worker', length) ?? makeAnt(0x5a3a22);
     if (!person) addHat(this.model, hat.color, hat.flat);
     this.model.root.position.set(x, 0, z);
     scene.add(this.model.root);
     const spot = person?.spot ?? backSpot(this.model);
-    this.stack = new Stack(this.model.bob, backLayout(() => 0.6, spot.y0, spot.z0), CONFIG.worker.carry);
+    this.stack = new Stack(this.model.bob, backLayout(() => 0.6, spot.y0, spot.z0), person?.carry ?? CONFIG.worker.carry);
+    this.speed = person?.speed ?? CONFIG.worker.speed;
   }
 
   /** Walk toward `target`; returns true when there. */
@@ -81,15 +83,16 @@ export class Worker {
       animateCreature(this.model, dt, 0);
       return true;
     }
-    const step = Math.min(d, CONFIG.worker.speed * dt);
+    const step = Math.min(d, this.speed * dt);
     p.x += (dx / d) * step;
     p.z += (dz / d) * step;
     faceToward(this.model, dx, dz, dt);
-    animateCreature(this.model, dt, CONFIG.worker.speed);
+    animateCreature(this.model, dt, this.speed);
     return false;
   }
 
   update(dt: number, flyers: Flyers) {
+    this.model.holding = this.stack.count > 0;
     if (!this.route) this.route = this.pickRoute();
     const r = this.route;
     switch (this.state) {
@@ -99,11 +102,15 @@ export class Worker {
         break;
       case 'load': {
         animateCreature(this.model, dt, 0);
-        this.timer += dt;
-        if (this.timer < CONFIG.worker.pickupInterval) break;
-        this.timer = 0;
-        if (!this.stack.full && r.src.canPop()) flyers.transfer(r.src, this.stack);
-        else if (this.stack.full || (r.src.count === 0 && this.stack.count > 0)) this.state = 'toDest';
+        // Catch up on every item due this frame (a slow frame mustn't slow the
+        // work), but don't bank up a burst while waiting.
+        this.timer = Math.min(this.timer + dt, CONFIG.worker.pickupInterval * 4);
+        while (this.timer >= CONFIG.worker.pickupInterval && this.state === 'load') {
+          this.timer -= CONFIG.worker.pickupInterval;
+          if (!this.stack.full && r.src.canPop()) flyers.transfer(r.src, this.stack);
+          else if (this.stack.full || (r.src.count === 0 && this.stack.count > 0)) this.state = 'toDest';
+          else break; // waiting for the source to refill
+        }
         break;
       }
       case 'toDest':
@@ -112,14 +119,15 @@ export class Worker {
         break;
       case 'unload':
         animateCreature(this.model, dt, 0);
-        this.timer += dt;
-        if (this.timer < CONFIG.worker.pickupInterval) break;
-        this.timer = 0;
-        if (this.stack.count === 0) {
-          this.route = null; // pick a fresh route next trip
-          this.state = 'toSource';
-        } else if (!r.dst.full) {
-          flyers.transfer(this.stack, r.dst);
+        this.timer = Math.min(this.timer + dt, CONFIG.worker.pickupInterval * 4);
+        while (this.timer >= CONFIG.worker.pickupInterval && this.state === 'unload') {
+          this.timer -= CONFIG.worker.pickupInterval;
+          if (this.stack.count === 0) {
+            this.route = null; // pick a fresh route next trip
+            this.state = 'toSource';
+          } else if (!r.dst.full) {
+            flyers.transfer(this.stack, r.dst);
+          } else break; // destination full: wait
         }
         break;
     }

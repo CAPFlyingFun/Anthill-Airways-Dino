@@ -37,6 +37,11 @@ Both worlds keep running while you're in the other one, and the Queen keeps coll
   flight crew), and **Sarah**, your personal assistant, who collects the cash
 - The people (~11 MB) only download once you reach Act 2
 
+## First-person view 👁️
+
+The eye button (bottom right) switches either world to **first person**: you see through the
+ant Major's eyes or Jack's, and your body is hidden. Stick left/right turns, up/down walks.
+
 ## 3D models
 
 Real rigged bug models, compressed for phones (`public/models`), legs animated in code:

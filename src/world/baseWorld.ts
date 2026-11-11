@@ -912,7 +912,7 @@ export class BaseWorld {
 
     // Zone name in the HUD follows where you're standing
     const here = ZONES.find((zd) => this.open.has(zd.id) && p.x >= zd.rect.minX - 0.7 && p.x <= zd.rect.maxX + 0.7 && p.z >= zd.rect.minZ - 0.7 && p.z <= zd.rect.maxZ + 0.7);
-    const name = this.save.unlocked.includes('expand3') ? `${here?.name ?? ''} · Act 1 done!` : here?.name ?? '';
+    const name = this.save.unlocked.includes('expand3') ? `🏆 ${here?.name ?? ''}` : here?.name ?? '';
     if (name !== this.zoneName) {
       this.zoneName = name;
       this.hud.setZone(name);
@@ -993,6 +993,13 @@ export class BaseWorld {
 
   private updateCamera(dt: number) {
     const target = this.player.pos;
+    this.setFov(this.player.firstPerson ? 72 : this.thirdFov);
+    if (this.player.firstPerson) {
+      this.player.placeEyeCamera(this.camera);
+      this.sun.position.set(target.x + 8, 20, target.z + 9);
+      this.sun.target.position.copy(target);
+      return;
+    }
     const want = new THREE.Vector3().copy(target).add(this.camOffset);
     this.camera.position.lerp(want, Math.min(1, dt * 5));
     this.camera.lookAt(this.camera.position.x - this.camOffset.x, 0, this.camera.position.z - this.camOffset.z);
@@ -1001,12 +1008,21 @@ export class BaseWorld {
     this.sun.target.position.copy(target);
   }
 
+  /** Third-person field of view (set in resize); first person is wider. */
+  private thirdFov = 42;
+  private setFov(fov: number) {
+    if (this.camera.fov === fov) return;
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+  }
+
   resize(w: number, h: number) {
     this.camera.aspect = w / h;
     // Portrait phones need the camera further back to see enough of the yard.
     const portrait = w < h;
     this.camOffset.set(0, portrait ? 18 : 14.5, portrait ? 16 : 14);
-    this.camera.fov = portrait ? 56 : 42;
+    this.thirdFov = portrait ? 56 : 42;
+    this.camera.fov = this.player.firstPerson ? 72 : this.thirdFov;
     this.camera.updateProjectionMatrix();
   }
 }

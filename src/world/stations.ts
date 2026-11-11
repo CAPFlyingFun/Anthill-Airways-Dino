@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { CONFIG, UnlockDef } from '../data/config';
 import { Flyers, ITEM_H, ITEM_VALUE, ItemType, Layout, Stack, StackItem, makeItem } from './items';
-import { GAME_FONT, TEXT_RES, TextSprite, gameText, makePad, roundRect, sharpTexture } from './labels';
+import { GAME_FONT, TEXT_RES, TextSprite, fitFont, gameText, makePad, roundRect, sharpTexture } from './labels';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
 import { CreatureKind, spawnCreature } from '../actors/creatures';
 import { lod } from '../core/lod';
@@ -662,6 +662,8 @@ export class TrashBin {
 }
 
 // ----------------------------------------------------------------------------
+const TILE_RES = TEXT_RES * 1.5;
+
 export class UnlockTile {
   mesh: THREE.Mesh;
   zone: Zone;
@@ -674,8 +676,9 @@ export class UnlockTile {
 
   constructor(scene: THREE.Scene, public def: UnlockDef, paid: number) {
     this.paid = paid;
-    this.canvas.width = 256 * TEXT_RES;
-    this.canvas.height = 256 * TEXT_RES;
+    // Extra sharp: the tile is seen at a low angle, and its name is small.
+    this.canvas.width = 256 * TILE_RES;
+    this.canvas.height = 256 * TILE_RES;
     this.ctx = this.canvas.getContext('2d')!;
     this.tex = sharpTexture(this.canvas);
     this.mesh = new THREE.Mesh(
@@ -699,7 +702,7 @@ export class UnlockTile {
     if (key === this.shown) return;
     this.shown = key;
     const c = this.ctx;
-    c.setTransform(TEXT_RES, 0, 0, TEXT_RES, 0, 0); // draw in 256x256 "units", sharp at TEXT_RES
+    c.setTransform(TILE_RES, 0, 0, TILE_RES, 0, 0); // draw in 256x256 "units", sharp at TILE_RES
     c.clearRect(0, 0, 256, 256);
     roundRect(c, 10, 10, 236, 236, 34);
     c.fillStyle = 'rgba(30, 40, 50, 0.5)';
@@ -713,7 +716,7 @@ export class UnlockTile {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText(this.def.icon, 128, 78);
-    gameText(c, this.def.name, 128, 146, this.def.name.length > 13 ? 22 : 28);
+    gameText(c, this.def.name, 128, 146, fitFont(c, this.def.name, 216, 30));
     gameText(c, `$${this.remaining}`, 128, 202, 50, affordable ? '#ffe066' : '#ffffff');
     this.tex.needsUpdate = true;
   }

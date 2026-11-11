@@ -19,7 +19,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { CreatureModel, newModel } from './models';
+import { BipedLimb, CreatureModel, Joint, LEG_SWING, newModel } from './models';
 import { lod } from '../core/lod';
 
 export const CREATURES = [
@@ -236,8 +236,9 @@ function findLegs(model: CreatureModel, skip: string[] = []) {
 // HUMANS: the models come in a T-pose (arms straight out). We find the leg
 // and arm bones the same way as the bugs' legs, then:
 //   • lower each arm to the side (a fixed rotation added to its rest pose)
-//   • swing legs forward/back around the body's side-to-side axis
-//   • swing each arm opposite to the leg on its side, like a real walk
+//   • remember hip + knee and shoulder + elbow of each limb
+// models.ts (animateBiped) then walks them: planted feet that don't slide,
+// knees that lift the foot, arms that swing (or hold what they carry).
 // ============================================================================
 
 /** A walking human `height` units tall. Null if the model is missing. */
@@ -248,7 +249,6 @@ export function spawnHuman(name: HumanKind, height: number): CreatureModel | nul
   inst.scale.setScalar(height);
   const model = newModel(height, height * 0.3);
   model.length = height; // gait math uses body length; for people that's height
-  model.stride = 0.75;   // people cover ~3/4 of their height per stride
   model.bob.add(inst);
   findHumanLimbs(model);
   return model;
@@ -318,32 +318,43 @@ function findHumanLimbs(model: CreatureModel) {
   }
   const legs = limbs.filter((l) => !l.arm);
 
+  // 1) Lower each arm from the T-pose to hang at the side.
   const wq = new THREE.Quaternion();
-  const side = new THREE.Vector3(1, 0, 0);
   const fwd = new THREE.Vector3(0, 0, 1);
   const lower = new THREE.Quaternion();
-  for (const l of [...legs, ...topArms]) {
-    l.bone.getWorldQuaternion(wq);
-    const inv = wq.clone().invert();
-    let base = l.bone.quaternion.clone();
-    let worldAfter = wq.clone();
-    if (l.arm) {
-      // Lower the arm to ~76° below horizontal (relaxed at the side),
-      // minus however much it already slopes in the T-pose.
-      const fwdLocal = fwd.clone().applyQuaternion(inv).normalize();
-      lower.setFromAxisAngle(fwdLocal, -l.side * (ARM_DOWN - (l.drop ?? 0)));
-      base = base.multiply(lower);
-      worldAfter = wq.clone().multiply(lower);
-      l.bone.quaternion.copy(base);
-    }
-    model.legs.push(l.bone);
-    model.legBase.push(base);
-    model.legAxis.push(side.clone().applyQuaternion(worldAfter.invert()).normalize());
-    // Left leg + right arm move together, and vice versa.
-    const legPhase = l.side > 0 ? 0 : Math.PI;
-    model.legPhase.push(l.arm ? legPhase + Math.PI : legPhase);
-    (model.legAmps ??= []).push(l.arm ? 0.35 : 0.45);
+  for (const a of topArms) {
+    a.bone.getWorldQuaternion(wq);
+    const fwdLocal = fwd.clone().applyQuaternion(wq.invert()).normalize();
+    lower.setFromAxisAngle(fwdLocal, -a.side * (ARM_DOWN - (a.drop ?? 0)));
+    a.bone.quaternion.multiply(lower);
   }
+  model.root.updateMatrixWorld(true); // so elbows etc. see the lowered arms
+
+  // 2) Every joint swings around the body's side-to-side axis (world X),
+  //    expressed in that bone's own space.
+  const side = new THREE.Vector3(1, 0, 0);
+  const joint = (bone: THREE.Object3D): Joint => {
+    bone.getWorldQuaternion(wq);
+    return { bone, base: bone.quaternion.clone(), axis: side.clone().applyQuaternion(wq.invert()).normalize() };
+  };
+  const limbsOut: BipedLimb[] = [];
+  let legLen = H * 0.48;
+  for (const l of legs) {
+    const { out } = chainFrom(l.bone);
+    l.bone.getWorldPosition(root);
+    out[out.length - 1].getWorldPosition(tip);
+    legLen = root.y - tip.y; // hip to sole
+    // Left leg + right arm move together, and vice versa.
+    limbsOut.push({ arm: false, hip: joint(l.bone), mid: out[1] ? joint(out[1]) : null, phase: l.side > 0 ? 0 : 0.5 });
+  }
+  for (const a of topArms) {
+    const elbow = kids(a.bone)[0];
+    limbsOut.push({ arm: true, hip: joint(a.bone), mid: elbow ? joint(elbow) : null, phase: a.side > 0 ? 0.5 : 0 });
+  }
+  model.biped = { limbs: limbsOut, legLen, step: legLen * Math.sin(LEG_SWING), holdBlend: 0 };
+  // Distance walked per full cycle (two steps) = 4 x the foot's reach, so the
+  // planted foot moves back exactly as fast as the body moves forward.
+  model.stride = (4 * model.biped.step) / model.length;
 }
 
 /** How far below horizontal the arms hang (radians, ~80°). */

@@ -124,9 +124,14 @@ export const AIR = {
   speedMult: 1.15,         // Jack walks a touch faster than the ant Major did
   ticket: 30,              // cash per passenger checked in
   passengerInterval: 2.6,  // seconds between new passengers at check-in
-  cafeInterval: 3.2,       // seconds between new café customers
-  queueMax: 4,
-  serveInterval: 0.55,     // seconds between each check-in / café sale
+  cafeInterval: 1.6,       // seconds between new café customers (arriving passengers)
+  queueMax: 4,             // check-in line
+  cafeQueueMax: 6,         // café line
+  serveInterval: 0.5,      // seconds between each check-in step (a bag, then the ticket)
+  cafeServe: 0.32,         // seconds between each snack box sold
+  crewCarry: 12,           // items a crew member carries per trip
+  crewSpeed: 5.2,          // crew walk speed (people take bigger steps than ants)
+  partialWait: 10,         // a plane with bags aboard leaves after this long without new ones
   crateMax: 18,            // snack boxes the colony's export crate holds
   crateSlowest: 2.8,       // seconds per box with only the first colony unlocks...
   crateFastest: 0.45,      // ...down to this with the whole colony built
@@ -143,11 +148,11 @@ export const AIR = {
  */
 export type AircraftKind = 'cessna' | 'twin' | 'jet' | 'liner' | 'heli';
 export const FLEET: Record<AircraftKind, { name: string; hold: number; fare: number; flight: number }> = {
-  cessna: { name: 'Cessna 172', hold: 6, fare: 1.0, flight: 10 },
-  twin:   { name: 'Twin Prop',  hold: 10, fare: 1.4, flight: 12 },
-  jet:    { name: 'Learjet',    hold: 14, fare: 2.0, flight: 9 },
-  liner:  { name: 'Airliner',   hold: 24, fare: 2.6, flight: 16 },
-  heli:   { name: 'Helicopter', hold: 4, fare: 2.2, flight: 7 },
+  cessna: { name: 'Cessna 172', hold: 10, fare: 1.0, flight: 6 },
+  twin:   { name: 'Twin Prop',  hold: 16, fare: 1.4, flight: 7 },
+  jet:    { name: 'Learjet',    hold: 22, fare: 2.0, flight: 6 },
+  liner:  { name: 'Airliner',   hold: 40, fare: 2.6, flight: 9 },
+  heli:   { name: 'Helicopter', hold: 8, fare: 2.2, flight: 4 },
 };
 
 /** Act 2 unlock tiles (inside the terminal). Same shape as UNLOCKS. */
@@ -156,7 +161,7 @@ export const AIR_UNLOCKS: UnlockDef[] = [
   { id: 'a2-trolley', name: 'Luggage Trolley', icon: '🛒', cost: 2500,  pos: [0, 2],       requires: ['a2-agent'] },
   { id: 'a2-cafe',    name: 'Ant Café',        icon: '☕', cost: 3500,  pos: [-9, 4],      requires: ['a2-agent'] },
   { id: 'a2-handler', name: 'Baggage Handler', icon: '🧳', cost: 5000,  pos: [8.5, -6.2],  requires: ['a2-agent'] },
-  { id: 'a2-barista', name: 'Barista',         icon: '🧋', cost: 6500,  pos: [-13.5, 0.5], requires: ['a2-cafe'] },
+  { id: 'a2-barista', name: 'Barista',         icon: '🧋', cost: 6500,  pos: [-5, 7.6],    requires: ['a2-cafe'] },
   { id: 'a2-host',    name: 'Café Host',       icon: '🍱', cost: 8000,  pos: [-4.5, -6],   requires: ['a2-cafe'] },
   { id: 'a2-twin',    name: 'Plane: Twin Prop', icon: '🛩️', cost: 6000,  pos: [8.5, -10.5], requires: ['a2-handler'] },
   { id: 'a2-heli',    name: 'Helipad',          icon: '🚁', cost: 9000,  pos: [-15.5, -10.2], requires: ['a2-handler'] },

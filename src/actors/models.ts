@@ -26,7 +26,33 @@ export interface CreatureModel {
   wings: Wing[];              // wing root bones (only the housefly has them for now)
   flying: boolean;            // true = wings open and buzzing
   wingOpen: number;           // 0 folded .. 1 spread (eases between)
+  biped?: Biped;              // people only: legs with knees, arms with elbows
+  holding?: boolean;          // people: carrying something (arms go out front)
 }
+
+/** A joint we rotate: its rest rotation + the side-to-side axis (in its own space). */
+export interface Joint {
+  bone: THREE.Object3D;
+  base: THREE.Quaternion;
+  axis: THREE.Vector3;
+}
+/** A human leg (hip + knee) or arm (shoulder + elbow). */
+export interface BipedLimb {
+  arm: boolean;
+  hip: Joint;           // hip or shoulder
+  mid: Joint | null;    // knee or elbow
+  phase: number;        // 0 or 0.5 of a cycle (left/right alternate)
+}
+/** People walk with their own gait (see animateBiped). */
+export interface Biped {
+  limbs: BipedLimb[];
+  legLen: number;       // hip to sole
+  step: number;         // how far the foot reaches forward/back of the hip
+  holdBlend: number;    // 0 = arms swinging .. 1 = arms out front holding something
+}
+
+/** Hip swing (radians) at full stride. */
+export const LEG_SWING = 0.42;
 
 /** One wing bone, with the axes it opens and flaps around (in its own space). */
 export interface Wing {
@@ -200,6 +226,11 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
   const bl = speed / m.length;
   if (moving) m.walkT += dt * ((Math.PI * 2 * bl) / (m.stride ?? strideLengths(bl)));
 
+  if (m.biped) {
+    animateBiped(m, m.biped, dt);
+    return;
+  }
+
   // Wings: open + buzz while flying, fold back down when landed.
   m.wingOpen += ((m.flying ? 1 : 0) - m.wingOpen) * Math.min(1, dt * 12);
   if (m.wings.length) {
@@ -218,6 +249,50 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
   const baseY = m.bob.userData.baseY ?? (m.bob.userData.baseY = m.bob.position.y);
   m.bob.position.y = baseY + Math.abs(Math.sin(m.walkT)) * 0.04 * m.walkBlend;
 }
+
+const jointQ = new THREE.Quaternion();
+function turn(j: Joint, angle: number) {
+  jointQ.setFromAxisAngle(j.axis, angle);
+  j.bone.quaternion.copy(j.base).multiply(jointQ);
+}
+
+/**
+ * A human walk cycle. `u` runs 0..1 per cycle (two steps):
+ *   STANCE (first half): the foot is planted and moves straight back under
+ *     the hip at exactly walking speed (so it never slides on the floor)
+ *   SWING (second half): the knee bends to lift the foot as it swings forward
+ * Arms swing opposite to the leg on their side with a soft elbow, or, while
+ * carrying, reach out front with bent elbows to hold the stack.
+ * Rotations: + around the side axis tips a limb BACKWARD, - FORWARD.
+ */
+function animateBiped(m: CreatureModel, b: Biped, dt: number) {
+  b.holdBlend += ((m.holding ? 1 : 0) - b.holdBlend) * Math.min(1, dt * 8);
+  const w = m.walkBlend;
+  const hb = b.holdBlend;
+  const cycle = m.walkT / (Math.PI * 2);
+  for (const limb of b.limbs) {
+    const u = (((cycle + limb.phase) % 1) + 1) % 1;
+    // Foot position along the walk direction, -1 (behind) .. +1 (in front)
+    const s = u < 0.5 ? 1 - 4 * u : -Math.cos((u - 0.5) * 2 * Math.PI);
+    if (!limb.arm) {
+      const reach = THREE.MathUtils.clamp((s * b.step) / b.legLen, -0.95, 0.95);
+      turn(limb.hip, -Math.asin(reach) * w);
+      // Knee lifts the foot during the swing (peaks mid-swing)
+      if (limb.mid) turn(limb.mid, u < 0.5 ? 0.04 * w : Math.sin((u - 0.5) * 2 * Math.PI) * 1.05 * w);
+    } else {
+      // Swing: forward when the same-side leg is back (phase is offset by half)
+      const swing = -s * 0.32 * w;
+      turn(limb.hip, swing * (1 - hb) + HOLD_SHOULDER * hb);
+      if (limb.mid) turn(limb.mid, -0.18 * (1 - hb) + HOLD_ELBOW * hb);
+    }
+  }
+  // Two small bobs per cycle (one per step)
+  const baseY = m.bob.userData.baseY ?? (m.bob.userData.baseY = m.bob.position.y);
+  m.bob.position.y = baseY + Math.abs(Math.sin(m.walkT)) * m.height * 0.012 * w;
+}
+/** Carrying pose: upper arm a little forward, forearm out level to grip the stack. */
+const HOLD_SHOULDER = -0.5;
+const HOLD_ELBOW = -1.05;
 
 /** Smoothly turn a creature to face a direction (x, z). */
 export function faceToward(m: CreatureModel, dx: number, dz: number, dt: number, turnSpeed = 12) {

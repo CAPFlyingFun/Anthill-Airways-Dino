@@ -95,6 +95,7 @@ async function start() {
     airport = new AirportWorld(hud, sfx, save, progress);
     airport.resize(app.clientWidth, app.clientHeight);
     airport.setShadowSize(QUALITY[quality].shadow);
+    airport.player.setFirstPerson(save.view === 'first');
     modeBtn.classList.remove('hidden');
     return airport;
   }
@@ -129,6 +130,24 @@ async function start() {
     switching = false;
   }
   modeBtn.addEventListener('click', () => switchWorld(mode === 'air' ? 'base' : 'air'));
+
+  // First-person / third-person view (both worlds; gate runs stay as they are).
+  const viewBtn = document.getElementById('viewBtn')!;
+  function applyView() {
+    const fp = save.view === 'first';
+    base.player.setFirstPerson(fp);
+    airport?.player.setFirstPerson(fp);
+    viewBtn.classList.toggle('on', fp);
+    viewBtn.textContent = fp ? '🎥' : '👁️';
+    viewBtn.setAttribute('aria-label', fp ? 'Switch to third-person view' : 'Switch to first-person view');
+  }
+  viewBtn.addEventListener('click', () => {
+    save.view = save.view === 'first' ? 'third' : 'first';
+    applyView();
+    if (save.view === 'first') hud.banner('👁️ First person', 'Stick left/right turns · up/down walks', 2200);
+    writeSave(save);
+  });
+  applyView();
 
   base.onAct2 = async () => {
     hud.banner('Act 1 complete! ✈️🏆', 'Opening the airport…', 4000);

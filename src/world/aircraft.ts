@@ -13,7 +13,7 @@
 // every bag when it lands back.
 // ============================================================================
 import * as THREE from 'three';
-import { AircraftKind, FLEET } from '../data/config';
+import { AIR, AircraftKind, FLEET } from '../data/config';
 import { Flyers, Stack } from './items';
 import { TextSprite, makePad } from './labels';
 import { Zone, gridLayout } from './stations';
@@ -235,10 +235,15 @@ export class Aircraft {
   private logo = new TextSprite(0.8, '#2d6cdf');
   private belt = new THREE.Group();
   private spin = 0;
+  private idleT = 0; // seconds since the last bag went aboard
 
   constructor(private scene: THREE.Scene, private flyers: Flyers, private padX: number, private padZ: number, kind: AircraftKind, private windowZ: number) {
     scene.add(this.group, this.belt);
-    this.group.add(this.door, this.label.sprite, this.logo.sprite);
+    this.group.add(this.door, this.logo.sprite);
+    // The bag counter floats over the pad inside (the plane itself is up
+    // behind the window, where the top bar would cover it).
+    this.label.sprite.position.set(padX, 3.6, padZ - 0.4);
+    scene.add(this.label.sprite);
     const pad = makePad(2.4, 2.4, kind === 'heli' ? 'TO HELI' : 'TO PLANE');
     pad.position.set(padX, 0.03, padZ);
     scene.add(pad);
@@ -246,7 +251,7 @@ export class Aircraft {
     const holder = new THREE.Group();
     holder.position.set(padX, 0, padZ);
     scene.add(holder);
-    this.cargo = new Stack(holder, gridLayout(2, 2, 0.8, 0.5, 0.05), 40);
+    this.cargo = new Stack(holder, gridLayout(3, 3, 0.74, 0.42, 0.05), 45);
     this.setKind(kind);
   }
 
@@ -272,7 +277,6 @@ export class Aircraft {
     this.home.set(this.padX - d.x, 0, kind === 'heli' ? this.windowZ - 5 : this.windowZ - this.built.halfSpan - 1.6);
     if (this.state === 'parked') this.group.position.copy(this.home);
     this.door.position.copy(d).add(new THREE.Vector3(0, 0, 0.3));
-    this.label.sprite.position.set(d.x, this.built.logoY + 1.6, d.z + 0.5);
     this.logo.setText(kind === 'heli' ? '🚁 ANTHILL AIR' : '🐜 ANTHILL AIRWAYS');
     this.logo.sprite.position.set(d.x - (kind === 'heli' ? 0.6 : 3), this.built.logoY, d.z + 0.6);
     this.buildBelt();
@@ -339,7 +343,7 @@ export class Aircraft {
         g.y = Math.max(0, this.t - 2.6) ** 2 * 1.4;
         this.group.rotation.z = -Math.min(0.25, Math.max(0, this.t - 2.6) * 0.15);
       }
-      if (this.t > 6) {
+      if (this.t > 5) {
         this.state = 'away';
         this.t = 0;
         this.group.visible = false;
@@ -352,7 +356,7 @@ export class Aircraft {
         this.group.visible = true;
       }
     } else {
-      const u = Math.min(1, this.t / 5);
+      const u = Math.min(1, this.t / 4);
       const k = (1 - u) * (1 - u);
       if (heli) {
         // Come in high from the east, slow down over the pad, settle.
@@ -377,8 +381,9 @@ export class Aircraft {
   private updateParked(dt: number) {
     // Belt: one bag at a time hops from the pad into the hold.
     this.beltT += dt;
-    if (this.beltT >= 0.3 && this.hold + this.flying < this.holdMax && this.cargo.canPop()) {
+    if (this.beltT >= 0.16 && this.hold + this.flying < this.holdMax && this.cargo.canPop()) {
       this.beltT = 0;
+      this.idleT = 0;
       const it = this.cargo.pop()!;
       const target = new THREE.Vector3();
       this.flying++;
@@ -387,9 +392,12 @@ export class Aircraft {
         this.flying--;
         this.hold++;
         this.drawLabel();
-      }, 0.6, 1.4);
+      }, 0.45, 1.4);
     }
-    if (this.hold >= this.holdMax && this.flying === 0) {
+    // Leave when full, or with a partial load once no bags have come for a while.
+    if (this.hold > 0 && this.flying === 0 && !this.cargo.count) this.idleT += dt;
+    if (this.flying === 0 && (this.hold >= this.holdMax || (this.hold > 0 && this.idleT >= AIR.partialWait))) {
+      this.idleT = 0;
       this.state = 'leaving';
       this.t = 0;
       this.bagsAboard = this.hold;

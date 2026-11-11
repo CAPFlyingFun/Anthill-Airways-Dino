@@ -351,3 +351,14 @@ html, body {
   z-index: 5;
 }
 .fade.on { opacity: 1; }
+
+/* First-person / third-person toggle */
+.view-btn {
+  position: absolute;
+  right: calc(12px + var(--safe-r));
+  bottom: calc(16px + var(--safe-b));
+  width: 52px;
+  height: 52px;
+  font-size: 24px;
+}
+.view-btn.on { background: linear-gradient(#7fd3ff, #2d8fdf); border-color: rgba(255, 255, 255, 0.6); }

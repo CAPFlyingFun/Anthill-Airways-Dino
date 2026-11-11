@@ -18,7 +18,7 @@ export const TEXT_RES = 2;
 export function sharpTexture(canvas: HTMLCanvasElement) {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8; // keeps ground text readable when seen at a slant
+  tex.anisotropy = 16; // keeps ground text readable at a slant (three.js caps it to what the phone supports)
   return tex;
 }
 
@@ -43,6 +43,15 @@ export function gameText(ctx: CanvasRenderingContext2D, text: string, x: number,
   ctx.strokeText(text, x, y);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y);
+}
+
+/** The biggest font size (up to `max`) at which `text` fits in `width` pixels. */
+export function fitFont(ctx: CanvasRenderingContext2D, text: string, width: number, max: number) {
+  let size = max;
+  ctx.font = `900 ${size}px ${GAME_FONT}`;
+  const w = ctx.measureText(text).width * 1.1; // + room for the outline
+  if (w > width) size = Math.floor((size * width) / w);
+  return size;
 }
 
 export class TextSprite {
@@ -110,7 +119,8 @@ export function makePad(width: number, depth: number, label = '', color = '#4fe3
   c.lineWidth = 12 * k;
   c.strokeStyle = color;
   c.stroke();
-  if (label) gameText(c, label, cw / 2, ch / 2 + 4 * k, Math.min(ch * 0.34, cw * 0.3), '#fff', 'rgba(0,0,0,0.55)');
+  // Long labels ("CHECK-IN", "TO PLANE") shrink to fit instead of running off the pad.
+  if (label) gameText(c, label, cw / 2, ch / 2 + 4 * k, fitFont(c, label, cw - inset * 4, Math.min(ch * 0.34, cw * 0.3)), '#fff', 'rgba(0,0,0,0.55)');
   const tex = sharpTexture(canvas);
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),

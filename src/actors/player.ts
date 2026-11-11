@@ -32,9 +32,9 @@ export function backSpot(m: CreatureModel) {
   return { y0: m.height * 0.9, z0: -m.length * 0.12 };
 }
 
-/** People carry things in front of them, starting at hand height (Township style). */
+/** People carry things out in front, held in both hands (Township style). */
 export function handsSpot(m: CreatureModel) {
-  return { y0: m.height * 0.4, z0: m.height * 0.17 };
+  return { y0: m.height * 0.56, z0: m.height * 0.2 };
 }
 
 /** The blue pilot cap + goggles, sized for a head about `size` wide. */
@@ -63,6 +63,12 @@ export class Player {
   stack: Stack;
   carryMax = CONFIG.player.baseCarry;
   speedMult = 1;
+  /** First-person mode: the joystick turns + walks you, and your body is hidden. */
+  firstPerson = false;
+  private person: boolean;   // Act 2 (Jack) vs the ant Major
+  private eyeH: number;      // eye height above the floor
+  private eyeFwd: number;    // eyes sit this far in front of the body's center
+  private pitch: number;     // how far the first-person view looks down (radians)
   private lean = 0;
   private maxLabel = new TextSprite(0.6, '#ff6b6b');
 
@@ -88,10 +94,50 @@ export class Player {
     const spot = opts?.spot ?? backSpot(this.model);
     // Back stacks sway backward; front stacks (people) lean in toward the chest.
     const sway = opts ? () => -this.lean * 0.5 : () => this.lean;
-    this.stack = new Stack(this.model.bob, backLayout(sway, spot.y0, spot.z0, () => this.stack.items), this.carryMax);
+    const layout = backLayout(sway, spot.y0, spot.z0, () => this.stack.items);
+    this.person = !!opts;
+    // First person (people): the stack would sit right in front of your eyes,
+    // so it's held lower and only the bottom couple of items are shown.
+    const fpDrop = spot.y0 - this.model.height * 0.28;
+    const fpOut = this.model.height * 0.2; // ...and a bit further out, so it's in view
+    this.stack = new Stack(
+      this.model.bob,
+      (i, type, out) => {
+        layout(i, type, out);
+        if (this.firstPerson && this.person) {
+          out.y -= fpDrop;
+          out.z += fpOut;
+        }
+        return out;
+      },
+      this.carryMax,
+    );
+    // Eyes: a person's are near the top of the head; the ant Major's are on
+    // the front of its big head.
+    const m = this.model;
+    this.eyeH = opts ? m.height * 0.93 : m.height * 0.95;
+    this.eyeFwd = opts ? m.height * 0.07 : m.length * 0.45;
+    this.pitch = opts ? 0.56 : 0.32;
     this.maxLabel.setText('MAX');
     this.maxLabel.sprite.visible = false;
     scene.add(this.maxLabel.sprite);
+  }
+
+  /** Hide/show your own body (the carried stack stays visible). */
+  setFirstPerson(on: boolean) {
+    this.firstPerson = on;
+    const carried = new Set(this.stack.items.map((it) => it.mesh));
+    for (const c of this.model.bob.children) if (!carried.has(c as THREE.Mesh)) c.visible = !on;
+  }
+
+  /** Put the camera at your eyes, looking where you face (a little down, to see pads). */
+  placeEyeCamera(cam: THREE.PerspectiveCamera) {
+    const r = this.model.root.rotation.y;
+    const p = this.pos;
+    const dx = Math.sin(r);
+    const dz = Math.cos(r);
+    cam.position.set(p.x + dx * this.eyeFwd, this.eyeH, p.z + dz * this.eyeFwd);
+    cam.lookAt(cam.position.x + dx * 10, this.eyeH - Math.tan(this.pitch) * 10, cam.position.z + dz * 10);
   }
 
   /** Height of the top of the carried stack. */
@@ -116,9 +162,19 @@ export class Player {
   update(dt: number, move: THREE.Vector2, blockers: Blocker[], canWalk: (x: number, z: number) => boolean) {
     this.stack.max = this.carryMax;
     const speed = CONFIG.player.speed * this.speedMult;
-    // Camera looks toward -z, so pushing the stick "up" walks toward -z.
-    const vx = move.x * speed;
-    const vz = -move.y * speed;
+    let vx: number;
+    let vz: number;
+    if (this.firstPerson) {
+      // Through your eyes: left/right turns you, up/down walks forward/back.
+      const r = (this.model.root.rotation.y -= move.x * 2.4 * dt);
+      const fwd = move.y * speed;
+      vx = Math.sin(r) * fwd;
+      vz = Math.cos(r) * fwd;
+    } else {
+      // Camera looks toward -z, so pushing the stick "up" walks toward -z.
+      vx = move.x * speed;
+      vz = -move.y * speed;
+    }
     const p = this.pos;
     // Move one axis at a time so you slide along fences instead of sticking.
     if (canWalk(p.x + vx * dt, p.z)) p.x += vx * dt;
@@ -141,18 +197,23 @@ export class Player {
     }
 
     const moving = Math.hypot(vx, vz);
-    faceToward(this.model, vx, vz, dt);
+    this.model.holding = this.stack.count > 0; // people: arms out front to hold the stack
+    // Third person: turn to face where you walk. (First person: the stick
+    // already turned you, and walking backward keeps you facing forward.)
+    if (!this.firstPerson) faceToward(this.model, vx, vz, dt);
     animateCreature(this.model, dt, moving);
     // Stack sways back a little when walking, settles when you stop.
     this.lean += ((moving > 0.1 ? 1 : 0) - this.lean) * Math.min(1, dt * 6);
 
     // Re-place landed items each frame so the sway shows.
+    const fpHide = this.firstPerson && this.person;
     this.stack.items.forEach((it, i) => {
       if (!it.flying) this.stack.layout(i, it.type, it.mesh.position);
+      it.mesh.visible = !(fpHide && i >= 1); // first person: just the top of the bottom item peeks in
     });
 
     const full = this.stack.full;
-    this.maxLabel.sprite.visible = full;
+    this.maxLabel.sprite.visible = full && !this.firstPerson;
     if (full) {
       const top = Math.max(this.model.height + 0.6, this.stackTop() + 0.7);
       this.maxLabel.sprite.position.set(p.x, top, p.z);
