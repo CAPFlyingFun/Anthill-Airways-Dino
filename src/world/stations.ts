@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { CONFIG, UnlockDef } from '../data/config';
 import { Flyers, ITEM_H, ITEM_VALUE, ItemType, Layout, Stack, StackItem, makeItem } from './items';
-import { GAME_FONT, TEXT_RES, TextSprite, groundText, makePad, roundRect, setGroundText, sharpTexture } from './labels';
+import { GAME_FONT, TEXT_RES, TextSprite, groundText, makePad, roundRect, setGroundText, sharpTexture, TITLE, titleTag } from './labels';
 import type { Text } from 'troika-three-text';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
 import { CreatureKind, spawnCreature, spawnTree } from '../actors/creatures';
@@ -414,6 +414,7 @@ export class Counter {
     this.cashier.bob.add(visor);
     this.cashier.root.position.set(this.x - 1.15 * this.opts.facing, 0, this.z + 1.0);
     this.cashier.root.rotation.y = (Math.PI / 2) * this.opts.facing; // face the customers
+    titleTag(this.cashier, '💵 CASHIER', TITLE.ant);
     this.scene.add(this.cashier.root);
     if (animate) this.flyers.grow(this.cashier.root);
   }

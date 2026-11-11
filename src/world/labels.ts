@@ -161,6 +161,23 @@ export class TextSprite {
   }
 }
 
+/**
+ * Role titles ("🐜 WORKER", "⛏️ MINER"...): the same gold label floats over
+ * every helper in every act. The ant world's units are bigger than the human
+ * worlds', so each scale has its own size (they look the same on screen).
+ */
+export const TITLE = { ant: 1.0, human: 0.65 };
+export function titleTag(model: { root: THREE.Object3D; height: number }, text: string, size: number) {
+  const tag = new TextSprite(size, '#ffd166');
+  tag.setText(text);
+  // It rides along as a child of the model, so undo the model's own scale
+  const s = model.root.scale.x || 1;
+  tag.sprite.scale.divideScalar(s);
+  tag.sprite.position.set(0, (model.height + size * 0.65) / s, 0);
+  model.root.add(tag.sprite);
+  return tag;
+}
+
 /** A dashed rounded square on the ground, like the "SELL" pad in idle games. */
 export function makePad(width: number, depth: number, label = '', color = '#4fe3ff'): THREE.Mesh {
   const k = TEXT_RES;

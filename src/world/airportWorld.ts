@@ -1,7 +1,7 @@
 // ============================================================================
 // airportWorld.ts — ACT 2: THE AIRPORT (human scale).
 //
-// You play Jack, running the terminal for Anthill Airways. Your ant colony
+// You play the terminal manager (Jack's model; he's only named on the island), running the terminal for Anthill Airways. Your ant colony
 // is still there: it's the little planter box by the window (the camera
 // zooms out from it when you switch worlds), and it keeps working while
 // you're here. The Queen still collects your cash in the colony.
@@ -16,7 +16,7 @@
 //   the colony you've built) -> you carry them to the café -> travellers buy.
 //
 // Unlock tiles hire crew (people from the Anthill Airways flight crew) until
-// it all runs by itself, and Sarah, your personal assistant, collects cash.
+// it all runs by itself, and your personal assistant (Sarah's model) collects cash.
 // ============================================================================
 import * as THREE from 'three';
 import { AIR, AIR_UNLOCKS, AircraftKind, CONFIG, UNLOCKS } from '../data/config';
@@ -31,7 +31,7 @@ import { CreatureModel, animateCreature, faceToward, makeAnt } from '../actors/m
 import { Player, backLayout, fpFov, handsSpot } from '../actors/player';
 import { Route, Worker } from '../actors/worker';
 import { Flyers, ITEM_VALUE, ItemType, Stack, StackItem, makeItem } from './items';
-import { TextSprite, makePad } from './labels';
+import { TextSprite, makePad, TITLE, titleTag } from './labels';
 import { Blocker, CashPad, ResourcePile, TrashBin, UnlockTile, Zone, gridLayout } from './stations';
 
 const H = AIR.humanH;
@@ -161,12 +161,13 @@ export class Desk {
     this.blocker = { minX: x - 0.8, maxX: x + 0.8, minZ: z - 1.9, maxZ: z + 1.9 };
   }
 
-  /** Crew member who serves for you (check-in agent / barista). */
-  hireStaff(model: CreatureModel, animate: boolean) {
+  /** Crew member who serves for you (check-in agent / barista), with a role title. */
+  hireStaff(model: CreatureModel, animate: boolean, title: string) {
     this.hasStaff = true;
     this.staff = model;
     model.root.position.set(this.x - 1.4, 0, this.z + 0.9);
     model.root.rotation.y = Math.PI / 2; // face the line
+    titleTag(model, title, TITLE.human);
     this.scene.add(model.root);
     if (animate) this.flyers.grow(model.root);
   }
@@ -760,9 +761,10 @@ export class AirportWorld {
   // --------------------------------------------------------------------------
   // Unlocks
   // --------------------------------------------------------------------------
-  private crew(kind: HumanKind, x: number, z: number, route: () => Route, animate: boolean) {
+  private crew(title: string, kind: HumanKind, x: number, z: number, route: () => Route, animate: boolean) {
     const m = person(kind);
     const w = new Worker(this.scene, x, z, route, { color: 0 }, H, { model: m, spot: handsSpot(m), carry: AIR.crewCarry, speed: AIR.crewSpeed });
+    titleTag(m, title, TITLE.human);
     this.workers.push(w);
     if (animate) this.flyers.grow(m.root);
   }
@@ -773,7 +775,7 @@ export class AirportWorld {
     const grow = (o: THREE.Object3D) => animate && this.flyers.grow(o);
     switch (id) {
       case 'a2-agent':
-        this.checkin.hireStaff(person('h-crew4'), animate);
+        this.checkin.hireStaff(person('h-crew4'), animate, '🎫 AGENT');
         break;
       case 'a2-trolley':
         this.trolley = true;
@@ -800,7 +802,7 @@ export class AirportWorld {
         break;
       }
       case 'a2-handler':
-        this.crew('h-crew1', 8, -8, () => {
+        this.crew('🧳 HANDLER', 'h-crew1', 8, -8, () => {
           // Feed whichever aircraft is shorter on bags (the helicopter's hold is small).
           const h = this.heli;
           const to = h && h.cargo.count + h.hold < h.holdMax && h.cargo.count < this.plane.cargo.count ? h : this.plane;
@@ -808,10 +810,10 @@ export class AirportWorld {
         }, animate);
         break;
       case 'a2-barista':
-        if (this.cafe) this.cafe.hireStaff(person('h-crew3'), animate);
+        if (this.cafe) this.cafe.hireStaff(person('h-crew3'), animate, '☕ BARISTA');
         break;
       case 'a2-host':
-        this.crew('h-crew2', -9, 0, () => ({ src: this.crate!.stack, srcZone: this.crate!.zone, dst: this.cafe!.shelf!, dstZone: this.cafe!.staffZone }), animate);
+        this.crew('🍱 HOST', 'h-crew2', -9, 0, () => ({ src: this.crate!.stack, srcZone: this.crate!.zone, dst: this.cafe!.shelf!, dstZone: this.cafe!.staffZone }), animate);
         break;
       // Fleet upgrades: the plane is swapped for the next one up.
       case 'a2-twin':
@@ -836,11 +838,11 @@ export class AirportWorld {
         m.root.position.set(3, 0, 7.5);
         this.scene.add(m.root);
         grow(m.root);
-        const tag = new TextSprite(0.45, '#ffd166');
-        tag.setText('💼 SARAH');
+        const tag = new TextSprite(TITLE.human, '#ffd166');
+        tag.setText('💼 ASSISTANT'); // (Sarah's model; she's only named on the island)
         this.scene.add(tag.sprite);
         this.sarah = new Assistant(m, new THREE.Vector3(3, 0, 7.5), tag, (v) => this.addCash(v));
-        if (animate) this.hud.banner('👩‍💼 Sarah is your assistant!', 'She collects the cash from every pad for you', 3500);
+        if (animate) this.hud.banner('👩‍💼 You hired a personal assistant!', 'She collects the cash from every pad for you', 3500);
         break;
       }
       case 'a2-island':

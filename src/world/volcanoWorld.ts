@@ -2,7 +2,7 @@
 // volcanoWorld.ts — ACT 4: THE VOLCANO (human scale, like the island).
 //
 // Anthill Airways charters helicopter tours to Mount Anthill, an active
-// volcano. Jack runs everything around its base:
+// volcano. You run everything around its base:
 //
 //   💎 OBSIDIAN MINE     black rock -> FORGE -> polished gems -> GEM SHOP
 //   ⚡ GEOTHERMAL PLANT  carry 🔥 magma from the lava vent into MAGMA IN.
@@ -32,7 +32,7 @@ import { Player, backSpot, fpFov, handsSpot } from '../actors/player';
 import { Route, Worker, addHat } from '../actors/worker';
 import { makeRex, roar } from '../actors/rex';
 import { Flyers, ITEM_VALUE, ItemType, Stack } from './items';
-import { TextSprite, makePad } from './labels';
+import { TITLE, TextSprite, makePad, titleTag } from './labels';
 import { Bakery, Blocker, CashPad, ProcessorOpts, ResourcePile, TrashBin, UnlockTile, Zone, gridLayout } from './stations';
 import { Assistant, Desk, payBill, person, stepTo } from './airportWorld';
 import { buildAircraftModel } from './aircraft';
@@ -724,7 +724,7 @@ export class VolcanoWorld {
     this.arrivals = new Arrivals(this.scene, () => this.erupting);
     this.arrivals.onLand = (n) => this.tours?.add(n);
 
-    // Jack flies in with the tourists
+    // You fly in with the tourists (Jack's model, unnamed here)
     const jack = person('h-jack');
     jack.root.position.set(2, 0, 20);
     this.player = new Player(this.scene, { model: jack, spot: handsSpot(jack) });
@@ -988,9 +988,10 @@ export class VolcanoWorld {
   // --------------------------------------------------------------------------
   // Unlocks
   // --------------------------------------------------------------------------
-  private crew(kind: HumanKind, x: number, z: number, route: () => Route, animate: boolean) {
+  private crew(title: string, kind: HumanKind, x: number, z: number, route: () => Route, animate: boolean) {
     const m = person(kind);
     const w = new Worker(this.scene, x, z, route, { color: 0 }, H, { model: m, spot: handsSpot(m), carry: C.crewCarry, speed: C.crewSpeed });
+    titleTag(m, title, TITLE.human);
     this.workers.push(w);
     if (animate) this.flyers.grow(m.root);
   }
@@ -999,6 +1000,7 @@ export class VolcanoWorld {
   private antHauler(x: number, z: number, route: () => Route, animate: boolean) {
     const m = spawnCreature('worker', 2.4) ?? makeAnt(0x8e2f14);
     addHat(m, 0xff7a1a);
+    titleTag(m, '🔥 HAULER', TITLE.human);
     const w = new Worker(this.scene, x, z, route, { color: 0 }, 2.4, { model: m, spot: backSpot(m), carry: C.crewCarry, speed: C.crewSpeed });
     this.workers.push(w);
     if (animate) this.flyers.grow(m.root);
@@ -1018,10 +1020,7 @@ export class VolcanoWorld {
     // Its load rides on its back in neat layers (not one tall tower)
     w.stack.layout = gridLayout(2, 3, 0.55, 0.55, rex.height * 0.92, 0, -0.2);
     this.workers.push(w);
-    const tag = new TextSprite(0.5, '#7df9a0');
-    tag.setText('🦖 REX');
-    tag.sprite.position.set(0, rex.height + 1.2, 0);
-    rex.root.add(tag.sprite);
+    titleTag(rex, '🦖 REX · HAULER', TITLE.human);
     if (animate) {
       this.flyers.grow(rex.root);
       roar(rex);
@@ -1034,16 +1033,16 @@ export class VolcanoWorld {
     const fullest = (piles: ResourcePile[]) => piles.reduce((a, b) => (b.stack.count > a.stack.count ? b : a));
     switch (id) {
       case 'v4-clerk':
-        this.gemShop.hireStaff(person('h-crew3'), animate);
+        this.gemShop.hireStaff(person('h-crew3'), animate, '🛍️ CLERK');
         break;
       case 'v4-miner':
-        this.crew('h-crew1', -22, 12, () => {
+        this.crew('⛏️ MINER', 'h-crew1', -22, 12, () => {
           const p = fullest(this.piles);
           return { src: p.stack, srcZone: p.zone, dst: this.forge.input, dstZone: this.forge.inZone };
         }, animate);
         break;
       case 'v4-runner':
-        this.crew('h-ember', -10, 12, () => ({ src: this.forge.output, srcZone: this.forge.outZone, dst: this.gemShop.shelf!, dstZone: this.gemShop.staffZone }), animate);
+        this.crew('🏃 RUNNER', 'h-ember', -10, 12, () => ({ src: this.forge.output, srcZone: this.forge.outZone, dst: this.gemShop.shelf!, dstZone: this.gemShop.staffZone }), animate);
         break;
       case 'v4-plant': {
         this.plant = new GeoPlant(this.scene, this.flyers, () => this.progress.cashMult);
@@ -1093,6 +1092,7 @@ export class VolcanoWorld {
         const m = person('h-director');
         m.root.position.set(TOUR_HELI.x - 4.5, 0, TOUR_HELI.z - 2);
         m.root.rotation.y = Math.PI / 4;
+        titleTag(m, '🧑‍✈️ PILOT', TITLE.human);
         this.scene.add(m.root);
         grow(m.root);
         if (animate) this.hud.banner('🧑‍✈️ Tour Pilot hired', 'Flies full tours by himself (steady 1x), and evacuates in eruptions', 3800);
@@ -1147,20 +1147,20 @@ export class VolcanoWorld {
         if (animate) this.hud.banner('🔥 Fire Ant Haulers', 'Crystals -> the exchange, and gems -> the Queen\'s tribute', 3800);
         break;
       case 'v4-trader':
-        this.exchange?.hireStaff(person('h-balance'), animate);
+        this.exchange?.hireStaff(person('h-balance'), animate, '💱 TRADER');
         break;
       case 'v4-treasurer': {
-        // A giant fire ant Major collects the cash from every pad
-        const m = spawnCreature('major', 3.2) ?? makeAnt(0x8e2f14);
+        // Your personal assistant (Sarah's model, unnamed here) collects the cash from every pad
+        const m = person('h-sarah');
         m.root.position.set(-2, 0, 8);
         this.scene.add(m.root);
         grow(m.root);
-        const tag = new TextSprite(0.45, '#ffd166');
-        tag.setText('🐜 TREASURER');
+        const tag = new TextSprite(TITLE.human, '#ffd166');
+        tag.setText('💼 ASSISTANT');
         this.scene.add(tag.sprite);
         this.treasurer = new Assistant(m, new THREE.Vector3(-2, 0, 8), tag, (v) => this.addCash(v));
-        this.treasurer.speed = 5;
-        if (animate) this.hud.banner('🐜 Ant Treasurer', 'A giant fire ant Major collects the cash from every pad', 3500);
+        this.treasurer.speed = 5.5;
+        if (animate) this.hud.banner('👩‍💼 Personal Assistant', 'She collects the cash from every pad for you', 3500);
         break;
       }
       case 'v4-eruption': {

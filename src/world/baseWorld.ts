@@ -27,7 +27,7 @@ import { Impostor } from '../actors/impostor';
 import { spawnCreature, spawnProp } from '../actors/creatures';
 import { animateCreature, CreatureModel } from '../actors/models';
 import { Flyers, ITEM_VALUE, ItemType } from './items';
-import { TextSprite } from './labels';
+import { TextSprite, TITLE, titleTag } from './labels';
 import {
   Bakery, Blocker, CashPad, Conveyor, Counter, DispatchPad, Hatchery, ProcessorOpts, ResourcePile, TrashBin, UnlockTile,
 } from './stations';
@@ -515,8 +515,9 @@ export class BaseWorld {
     return () => ({ src: proc.output, srcZone: proc.outZone, dst: counter.shelf, dstZone: counter.sellZone });
   }
 
-  private hire(x: number, z: number, route: () => Route, hat: { color: number; flat?: boolean }, animate: boolean, length?: number) {
+  private hire(title: string, x: number, z: number, route: () => Route, hat: { color: number; flat?: boolean }, animate: boolean, length?: number) {
     const w = new Worker(this.scene, x, z, route, hat, length);
+    titleTag(w.model, title, TITLE.ant);
     this.workers.push(w);
     if (animate) this.flyers.grow(w.model.root);
   }
@@ -528,6 +529,7 @@ export class BaseWorld {
       const tribute = this.save.queen.active ? this.queenProgress.tributeMult : 1;
       this.addCash(amount * tribute);
     });
+    titleTag(b.model, '🏦 BANKER', TITLE.ant);
     this.bankers.push(b);
     if (animate) this.flyers.grow(b.model.root);
   }
@@ -539,7 +541,7 @@ export class BaseWorld {
     const deliver = this.deliverRoute(this.leafPress, this.market);
     let flip = this.workers.length % 2 === 0;
     const h = this.hatchery.zone;
-    this.hire(h.x, h.z + 1.5, () => ((flip = !flip) ? gather() : deliver()), { color: 0xffffff }, animate, 1.7);
+    this.hire('🐣 HATCHLING', h.x, h.z + 1.5, () => ((flip = !flip) ? gather() : deliver()), { color: 0xffffff }, animate, 1.7);
   }
 
   // --------------------------------------------------------------------------
@@ -573,10 +575,10 @@ export class BaseWorld {
         break;
       case 'worker1':
       case 'worker2':
-        this.hire(x, z, this.gatherRoute('crumb', this.bakery), { color: 0xffc928 }, animate);
+        this.hire('🐜 WORKER', x, z, this.gatherRoute('crumb', this.bakery), { color: 0xffc928 }, animate);
         break;
       case 'runner':
-        this.hire(x, z, this.deliverRoute(this.bakery, this.counter), { color: 0xe63946, flat: true }, animate);
+        this.hire('🏃 RUNNER', x, z, this.deliverRoute(this.bakery, this.counter), { color: 0xe63946, flat: true }, animate);
         break;
       case 'conveyor':
         this.conveyor = new Conveyor(this.scene, this.bakery, this.counter, this.flyers);
@@ -605,10 +607,10 @@ export class BaseWorld {
         this.market?.hireCashier(animate);
         break;
       case 'leafant':
-        if (this.leafPress) this.hire(x, z, this.gatherRoute('leaf', this.leafPress), { color: 0x7df9a0 }, animate);
+        if (this.leafPress) this.hire('🍃 LEAF ANT', x, z, this.gatherRoute('leaf', this.leafPress), { color: 0x7df9a0 }, animate);
         break;
       case 'wraprunner':
-        if (this.leafPress && this.market) this.hire(x, z, this.deliverRoute(this.leafPress, this.market), { color: 0xe63946, flat: true }, animate);
+        if (this.leafPress && this.market) this.hire('🏃 RUNNER', x, z, this.deliverRoute(this.leafPress, this.market), { color: 0xe63946, flat: true }, animate);
         break;
       case 'hatchery': {
         this.hatchery = new Hatchery(this.scene, x, z, this.flyers, this.save.hatched, 4);
@@ -633,7 +635,7 @@ export class BaseWorld {
         this.leafPress?.makeFaster();
         break;
       case 'leafant2':
-        if (this.leafPress) this.hire(x, z, this.gatherRoute('leaf', this.leafPress), { color: 0x7df9a0 }, animate);
+        if (this.leafPress) this.hire('🍃 LEAF ANT', x, z, this.gatherRoute('leaf', this.leafPress), { color: 0x7df9a0 }, animate);
         break;
       case 'banker2':
         if (this.market) this.hireBanker(this.cashPads[this.counters.indexOf(this.market)], animate);
@@ -654,16 +656,16 @@ export class BaseWorld {
         this.shop?.hireCashier(animate);
         break;
       case 'sugarant':
-        if (this.candyPress) this.hire(x, z, this.gatherRoute('sugar', this.candyPress), { color: 0xff6fb5 }, animate);
+        if (this.candyPress) this.hire('🍬 SUGAR ANT', x, z, this.gatherRoute('sugar', this.candyPress), { color: 0xff6fb5 }, animate);
         break;
       case 'candyrunner':
-        if (this.candyPress && this.shop) this.hire(x, z, this.deliverRoute(this.candyPress, this.shop), { color: 0xe63946, flat: true }, animate);
+        if (this.candyPress && this.shop) this.hire('🏃 RUNNER', x, z, this.deliverRoute(this.candyPress, this.shop), { color: 0xe63946, flat: true }, animate);
         break;
       case 'candy2':
         this.candyPress?.makeFaster();
         break;
       case 'sugarant2':
-        if (this.candyPress) this.hire(x, z, this.gatherRoute('sugar', this.candyPress), { color: 0xff6fb5 }, animate);
+        if (this.candyPress) this.hire('🍬 SUGAR ANT', x, z, this.gatherRoute('sugar', this.candyPress), { color: 0xff6fb5 }, animate);
         break;
       case 'banker3':
         if (this.shop) this.hireBanker(this.cashPads[this.counters.indexOf(this.shop)], animate);

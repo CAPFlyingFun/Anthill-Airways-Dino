@@ -25,7 +25,7 @@ import { CreatureModel, animateCreature, faceToward } from '../actors/models';
 import { Player, fpFov, handsSpot } from '../actors/player';
 import { Route, Worker } from '../actors/worker';
 import { Flyers, ITEM_VALUE, ItemType, Stack } from './items';
-import { TextSprite, makePad } from './labels';
+import { TextSprite, makePad, TITLE, titleTag } from './labels';
 import { Bakery, Blocker, CashPad, ProcessorOpts, ResourcePile, TrashBin, UnlockTile, Zone, gridLayout } from './stations';
 import { Assistant, Desk, payBill, person, stepTo } from './airportWorld';
 import { weather } from '../core/weather';
@@ -898,9 +898,10 @@ export class IslandWorld {
   // --------------------------------------------------------------------------
   // Unlocks
   // --------------------------------------------------------------------------
-  private crew(kind: HumanKind, x: number, z: number, route: () => Route, animate: boolean) {
+  private crew(title: string, kind: HumanKind, x: number, z: number, route: () => Route, animate: boolean) {
     const m = person(kind);
     const w = new Worker(this.scene, x, z, route, { color: 0 }, H, { model: m, spot: handsSpot(m), carry: C.crewCarry, speed: C.crewSpeed });
+    titleTag(m, title, TITLE.human);
     this.workers.push(w);
     if (animate) this.flyers.grow(m.root);
   }
@@ -911,16 +912,16 @@ export class IslandWorld {
     const fullest = (piles: ResourcePile[]) => piles.reduce((a, b) => (b.stack.count > a.stack.count ? b : a));
     switch (id) {
       case 'i3-cashier':
-        this.juice.hireStaff(person('h-crew3'), animate);
+        this.juice.hireStaff(person('h-crew3'), animate, '🥤 CASHIER');
         break;
       case 'i3-picker':
-        this.crew('h-crew1', -20, 12, () => {
+        this.crew('🍈 PICKER', 'h-crew1', -20, 12, () => {
           const p = fullest(this.piles);
           return { src: p.stack, srcZone: p.zone, dst: this.blender.input, dstZone: this.blender.inZone };
         }, animate);
         break;
       case 'i3-runner':
-        this.crew('h-ember', -10, 12, () => ({ src: this.blender.output, srcZone: this.blender.outZone, dst: this.juice.shelf!, dstZone: this.juice.staffZone }), animate);
+        this.crew('🏃 RUNNER', 'h-ember', -10, 12, () => ({ src: this.blender.output, srcZone: this.blender.outZone, dst: this.juice.shelf!, dstZone: this.juice.staffZone }), animate);
         break;
       case 'i3-dilo': {
         this.show = new DiloShow(this.scene, this.flyers, () => this.progress.cashMult, this.sfx);
@@ -940,7 +941,7 @@ export class IslandWorld {
         break;
       }
       case 'i3-keeper':
-        this.crew('h-crew4', -6, -8, () => ({ src: this.supply!.stack, srcZone: this.supply!.zone, dst: this.show!.feed, dstZone: this.show!.feedZone }), animate);
+        this.crew('🦖 KEEPER', 'h-crew4', -6, -8, () => ({ src: this.supply!.stack, srcZone: this.supply!.zone, dst: this.show!.feed, dstZone: this.show!.feedZone }), animate);
         break;
       case 'i3-dodo': {
         this.ranch = new DodoRanch(this.scene, this.flyers);
@@ -953,13 +954,13 @@ export class IslandWorld {
         break;
       }
       case 'i3-eggs':
-        this.crew('h-crew2', 20, -4, () => {
+        this.crew('🥚 COLLECTOR', 'h-crew2', 20, -4, () => {
           const n = fullest(this.ranch!.nests);
           return { src: n.stack, srcZone: n.zone, dst: this.shop!.shelf!, dstZone: this.shop!.staffZone };
         }, animate);
         break;
       case 'i3-clerk':
-        this.shop?.hireStaff(person('h-balance'), animate);
+        this.shop?.hireStaff(person('h-balance'), animate, '🛍️ CLERK');
         break;
       case 'i3-dock': {
         this.dock = new SafariDock(this.scene);
@@ -974,10 +975,18 @@ export class IslandWorld {
         if (animate) this.hud.banner('🚤 Sea Safari open!', 'Tourists wait on the pier: stand on BOARD to launch a safari run', 4200);
         break;
       }
-      case 'i3-captain':
+      case 'i3-captain': {
         if (this.dock) this.dock.hasCaptain = true;
+        // He waits by the BOARD pad between trips
+        const cap = person('h-director');
+        cap.root.position.set(33.6, 0, 21.4);
+        cap.root.rotation.y = -Math.PI / 2;
+        titleTag(cap, '🧑‍✈️ CAPTAIN', TITLE.human);
+        this.scene.add(cap.root);
+        grow(cap.root);
         if (animate) this.hud.banner('🧑‍✈️ Boat Captain hired', 'He takes full boats out by himself (steady 1x trips)', 3500);
         break;
+      }
       case 'i3-cashdodo': {
         // Sarah, your personal assistant, comes over from the airport to run
         // the island's cash (the unlock's id is kept so old saves still work).
@@ -985,8 +994,8 @@ export class IslandWorld {
         m.root.position.set(4, 0, 12);
         this.scene.add(m.root);
         grow(m.root);
-        const tag = new TextSprite(0.45, '#ffd166');
-        tag.setText('💼 SARAH');
+        const tag = new TextSprite(TITLE.human, '#ffd166');
+        tag.setText('💼 SARAH'); // (the only place she goes by name)
         this.scene.add(tag.sprite);
         this.cashDodo = new Assistant(m, new THREE.Vector3(4, 0, 12), tag, (v) => this.addCash(v));
         if (animate) this.hud.banner('👩‍💼 Sarah is on the island!', 'She collects the cash from every pad for you', 3500);

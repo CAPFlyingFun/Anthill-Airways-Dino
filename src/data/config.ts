@@ -126,7 +126,7 @@ export const OFFLINE = {
 };
 
 // ============================================================================
-// ACT 2: THE AIRPORT (human scale). Jack runs the terminal for Anthill Airways:
+// ACT 2: THE AIRPORT (human scale). You (the terminal manager) run the terminal for Anthill Airways:
 //   passengers check in (ticket cash + a suitcase) -> carry bags to the plane
 //   -> the plane flies when its hold is full (pays per bag)
 //   the ant colony ships snack boxes -> carry them to the café -> travellers buy
@@ -134,7 +134,7 @@ export const OFFLINE = {
 // ============================================================================
 export const AIR = {
   humanH: 2.8,             // how tall people are in airport units
-  speedMult: 1.15,         // Jack walks a touch faster than the ant Major did
+  speedMult: 1.15,         // the terminal manager walks a touch faster than the ant Major did
   ticket: 30,              // cash per passenger checked in
   passengerInterval: 2.6,  // seconds between new passengers at check-in
   cafeInterval: 1.6,       // seconds between new café customers (arriving passengers)
@@ -179,7 +179,7 @@ export const AIR_UNLOCKS: UnlockDef[] = [
   { id: 'a2-twin',    name: 'Plane: Twin Prop', icon: '🛩️', cost: 12000,  pos: [8.5, -10.5], requires: ['a2-handler'] },
   { id: 'a2-heli',    name: 'Helipad',          icon: '🚁', cost: 18000,  pos: [-15.5, -10.2], requires: ['a2-handler'] },
   { id: 'a2-jet',     name: 'Plane: Learjet',   icon: '🛫', cost: 28000, pos: [8.5, -10.5], requires: ['a2-twin'] },
-  { id: 'a2-sarah',   name: 'Sarah: Assistant', icon: '👩‍💼', cost: 36000, pos: [3, 6.5],  requires: ['a2-barista', 'a2-host', 'a2-handler'] },
+  { id: 'a2-sarah',   name: 'Personal Assistant', icon: '👩‍💼', cost: 36000, pos: [3, 6.5],  requires: ['a2-barista', 'a2-host', 'a2-handler'] },
   { id: 'a2-liner',   name: 'Plane: Airliner',  icon: '✈️', cost: 52000, pos: [8.5, -10.5], requires: ['a2-jet', 'a2-sarah'] },
   { id: 'a2-island',  name: 'Big Order: Island', icon: '🏝️', cost: 90000, pos: [-2.5, 9.6], requires: ['a2-liner', 'a2-heli'] },
 ];
@@ -361,7 +361,7 @@ export const VOLCANO_UNLOCKS: UnlockDef[] = [
   { id: 'v4-kingdom',   name: 'Fire Ant Kingdom',   icon: '🐜', cost: 1500000, pos: [20, 2],   requires: ['v4-lair', 'v4-runner'] },
   { id: 'v4-haulers',   name: 'Fire Ant Haulers',   icon: '🔥', cost: 1800000, pos: [28, 18],  requires: ['v4-kingdom'] },
   { id: 'v4-trader',    name: 'Crystal Trader',     icon: '💱', cost: 2100000, pos: [6, 10],   requires: ['v4-kingdom'] },
-  { id: 'v4-treasurer', name: 'Ant Treasurer',      icon: '🐜', cost: 2500000, pos: [-2, 8],   requires: ['v4-trader', 'v4-pilot', 'v4-clerk'] },
+  { id: 'v4-treasurer', name: 'Personal Assistant', icon: '👩‍💼', cost: 2500000, pos: [-2, 8],   requires: ['v4-trader', 'v4-pilot', 'v4-clerk'] },
   { id: 'v4-eruption',  name: 'THE BIG ERUPTION',   icon: '🌋', cost: 6000000, pos: [-8, -30],  requires: ['v4-treasurer', 'v4-haulers'] },
 ];
 

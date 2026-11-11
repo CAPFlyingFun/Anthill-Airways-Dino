@@ -20,6 +20,8 @@ On iPhone: open in Safari → Share → **Add to Home Screen** to install it as 
 - **XP & levels (ARK style):** every task gives XP; each level = 1 point for Carry Weight,
   Movement Speed, Work Speed, Haggling or Luck (tap your level, top left)
 - Autosaves to the browser; Settings has sound + reset
+- Every helper wears a gold **role title** over its head (🐜 WORKER, 🏃 RUNNER, 💵 CASHIER,
+  🏦 BANKER…), and so does every crew member and creature with a job in the later acts
 
 ## Act 2 — The Airport (human scale)
 
@@ -27,14 +29,14 @@ Finish Act 1 (**Big Order: Airstrip**) and a 🧍 button appears top left. The c
 from your colony (now a planter box in the terminal) to human scale. Tap 🐜 to go back.
 Both worlds keep running while you're in the other one, and the Queen keeps collecting.
 
-- You're **Jack**. Passengers check in (ticket cash + suitcases) → carry 🧳 bags to the
+- You're the terminal manager (Jack's model). Passengers check in (ticket cash + suitcases) → carry 🧳 bags to the
   **TO PLANE** belt → the plane takes off when its hold is full and pays per bag when it lands
 - **The fleet:** Cessna 172 → Twin Prop → Learjet → Airliner, plus a **Helipad** 🚁
   (small hold, quick trips, big fares)
 - **Ant Café:** the colony ships 🍱 snack boxes (faster the more of Act 1 you built) →
   carry them to the café → travellers buy them
 - **Crew:** Check-in Agent, Baggage Handler, Barista, Café Host (the Anthill Airways
-  flight crew), and **Sarah**, your personal assistant, who collects the cash
+  flight crew), and your **personal assistant** (Sarah's model), who collects the cash
 - The people (~11 MB) only download once you reach Act 2
 
 ## Act 3 — Dino Island 🏝️🦖
@@ -51,7 +53,8 @@ Colony, the Airport and Dino Island (all three keep earning in the background).
   Sail past a breaching sea creature for a 📸 bonus, and the Megalodon boss at the finish
   pays ×1.25. The boat is away ~25 s per trip
 - Crew for every job, a Boat Captain who runs safaris by himself, and **Sarah** 👩‍💼, who
-  comes along as your island assistant and collects the cash
+  comes along as your island assistant and collects the cash (on the island, Jack and Sarah
+  go by their names; at the airport and volcano they're just your role and your assistant)
 - The island's models (Dodo, Dilophosaurus, 5 sea creatures, 5 trees) come from the
   Beyond-Extinction repo and only download the first time you fly there
 
@@ -72,7 +75,7 @@ tours fly in to an active volcano:
   Queen 💎 tribute; while she's pleased, her colony fills the vault with 🔶 Fire Crystals
   ($450 each at the Crystal Exchange)
 - Crew: Gem Shop Clerk, Obsidian Miner, Gem Runner, Tour Pilot, Crystal Trader, Fire Ant
-  Haulers, and a giant fire ant Major as your Treasurer
+  Haulers, and your personal assistant (Sarah's model) collecting the cash
 - **Dangers:** 🥵 **heat** (stand near the lava lake and the heat bar fills; full = you drop
   everything; cool off at ❄️ MIST or buy the Heat Suit) and 🌋 **eruptions** (every 4–6 min:
   lava bombs land on red rings near you, lava flows cross the paths, and the tourists in line
@@ -119,7 +122,7 @@ at least 25%. (💤 Night Shift shards raise the 50%.)
 ## First-person view 👁️
 
 The eye button (bottom right) switches either world to **first person**: you see through the
-ant Major's eyes or Jack's, and your body is hidden. The **left half** of the screen is the joystick (walk + strafe), the **right half** is drag-to-look, in portrait and landscape.
+ant Major's eyes or your human character's, and your body is hidden. The **left half** of the screen is the joystick (walk + strafe), the **right half** is drag-to-look, in portrait and landscape.
 
 ## 3D models
 
