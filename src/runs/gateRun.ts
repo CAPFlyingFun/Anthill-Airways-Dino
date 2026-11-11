@@ -12,7 +12,7 @@ import { CONFIG } from '../data/config';
 import { Sfx } from '../core/audio';
 import { Hud } from '../ui/hud';
 import { CreatureModel, animateCreature, makeBeetle } from '../actors/models';
-import { SeaKind, spawnCreature, spawnSea } from '../actors/creatures';
+import { SeaKind, spawnCreature, spawnHuman, spawnSea } from '../actors/creatures';
 import { ITEM_VALUE, ItemType, makeItem } from '../world/items';
 import { RunTheme, makeVehicle } from '../world/stations';
 import { TEXT_RES, TextSprite, gameText, roundRect, sharpTexture } from '../world/labels';
@@ -97,6 +97,8 @@ export class GateRun {
   private boss: THREE.Object3D | null = null; // the Megalodon at the Sea Safari finish
   private rexBoss: ReturnType<typeof makeRex> | null = null; // the Lava Rex at the heli tour finish
   private heliSpin: THREE.Object3D[] = [];
+  private bellhop: CreatureModel | null = null;     // pushes the luggage cart (Bellhop Dash)
+  private celeb: { m: CreatureModel; flashes: THREE.Mesh[] } | null = null; // waits at the finish
   private bossT = -1;
   private bossDone = false;
   private dynamic = new THREE.Group(); // everything rebuilt each run
@@ -139,8 +141,29 @@ export class GateRun {
     this.heliSpin = heli.spinners;
     const lavaVehicle = { group: new THREE.Group(), deckY: 1.6 };
     lavaVehicle.group.add(heli.group);
-    this.vehicles = { grass: makeVehicle('grass'), gutter: makeVehicle('gutter'), ocean: makeVehicle('ocean'), lava: lavaVehicle };
-    this.cart.add(this.vehicles.grass.group, this.vehicles.gutter.group, this.vehicles.ocean.group, this.vehicles.lava.group);
+    // Act 5: a brass luggage trolley for the Bellhop Dash
+    const trolley = { group: new THREE.Group(), deckY: 0.75 };
+    const brass = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.3, metalness: 0.85 });
+    const base = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.14, 2.4), new THREE.MeshStandardMaterial({ color: 0xb3261e, roughness: 0.8 }));
+    base.position.y = 0.6;
+    trolley.group.add(base);
+    for (const [x, z] of [[-0.9, -1.1], [0.9, -1.1], [-0.9, 1.1], [0.9, 1.1]]) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.2, 8), brass);
+      pole.position.set(x, 1.7, z);
+      trolley.group.add(pole);
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 12), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(x, 0.22, z);
+      trolley.group.add(wheel);
+    }
+    for (const z of [-1.1, 1.1]) {
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8), brass);
+      bar.rotation.z = Math.PI / 2;
+      bar.position.set(0, 2.8, z);
+      trolley.group.add(bar);
+    }
+    this.vehicles = { grass: makeVehicle('grass'), gutter: makeVehicle('gutter'), ocean: makeVehicle('ocean'), lava: lavaVehicle, hotel: trolley };
+    this.cart.add(this.vehicles.grass.group, this.vehicles.gutter.group, this.vehicles.ocean.group, this.vehicles.lava.group, this.vehicles.hotel.group);
     this.cart.add(this.cargo);
     this.beetle = spawnCreature('aphid', 1.9) ?? makeBeetle(0x2a9d8f);
     this.beetle.root.position.set(0, 0, -1.9);
@@ -162,9 +185,20 @@ export class GateRun {
     this.vehicles.gutter.group.visible = theme === 'gutter';
     this.vehicles.ocean.group.visible = theme === 'ocean';
     this.vehicles.lava.group.visible = theme === 'lava';
-    this.beetle.root.visible = theme !== 'ocean' && theme !== 'lava'; // the boat has a motor, the heli has rotors
+    this.vehicles.hotel.group.visible = theme === 'hotel';
+    this.beetle.root.visible = theme === 'grass' || theme === 'gutter'; // the boat has a motor, the heli has rotors, the trolley has a bellhop
     this.cargo.visible = theme !== 'lava'; // tour passengers ride inside the helicopter
-    const sky = theme === 'ocean' ? 0x8fd3ff : theme === 'lava' ? 0x8a6656 : 0x9fdcff;
+    // A bellhop pushes the luggage trolley
+    if (theme === 'hotel' && !this.bellhop) {
+      this.bellhop = spawnHuman('h-crew1', 2.6);
+      if (this.bellhop) {
+        this.bellhop.root.position.set(0, 0, 1.9);
+        this.bellhop.root.rotation.y = Math.PI; // facing down the hallway
+        this.cart.add(this.bellhop.root);
+      }
+    }
+    if (this.bellhop) this.bellhop.root.visible = theme === 'hotel';
+    const sky = theme === 'ocean' ? 0x8fd3ff : theme === 'lava' ? 0x8a6656 : theme === 'hotel' ? 0x4a3628 : 0x9fdcff;
     this.scene.background = new THREE.Color(sky);
     (this.scene.fog as THREE.Fog).color.setHex(sky);
     const deck = this.vehicles[theme].deckY;
@@ -183,7 +217,7 @@ export class GateRun {
     this.cart.position.set(0, 0, 0);
     this.updateLabel();
     this.hud.setHint('Drag left / right to steer through the best gates!');
-    const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles', ticket: 'tourists' };
+    const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles', ticket: 'tourists', bag: 'suitcases' };
     this.hud.banner(opts.title ?? 'Ready…', `${count} ${names[itemType] ?? 'items'} loaded`, opts.title ? 1800 : 1100);
   }
 
@@ -194,10 +228,12 @@ export class GateRun {
     this.breachers = [];
     this.boss = null;
     this.rexBoss = null;
+    this.celeb = null;
     this.bossT = -1;
     this.bossDone = false;
     const { rows, rowSpacing, firstRow, laneHalfWidth } = CONFIG.run;
     const lava = this.theme === 'lava';
+    const hotel = this.theme === 'hotel';
     this.finishZ = -(firstRow + rows * rowSpacing) + 6;
     const length = -this.finishZ + 60;
 
@@ -206,11 +242,11 @@ export class GateRun {
     // Ground: a dirt lane (grass), a rain gutter full of water (gutter), or the open sea (ocean)
     const lane = new THREE.Mesh(
       new THREE.PlaneGeometry(laneHalfWidth * 2 + 0.6, length),
-      new THREE.MeshStandardMaterial(gutter ? { color: 0x4aa8ff, roughness: 0.1, metalness: 0.2 } : ocean ? { color: 0x2f9be0, roughness: 0.15, metalness: 0.15 } : lava ? { color: 0x4a3e3a, roughness: 0.95 } : { color: 0xc99561 }),
+      new THREE.MeshStandardMaterial(gutter ? { color: 0x4aa8ff, roughness: 0.1, metalness: 0.2 } : ocean ? { color: 0x2f9be0, roughness: 0.15, metalness: 0.15 } : lava ? { color: 0x4a3e3a, roughness: 0.95 } : hotel ? { color: 0xb3261e, roughness: 0.9 } : { color: 0xc99561 }),
     );
     lane.rotation.x = -Math.PI / 2;
     lane.position.set(0, 0.01, -length / 2 + 20);
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(ocean ? 600 : 160, length + 80), new THREE.MeshStandardMaterial({ color: ocean ? 0x1f7fc4 : lava ? 0x2b2321 : 0x79c257, roughness: ocean ? 0.2 : 1 }));
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(ocean ? 600 : 160, length + 80), new THREE.MeshStandardMaterial({ color: ocean ? 0x1f7fc4 : lava ? 0x2b2321 : hotel ? 0x6b4a2f : 0x79c257, roughness: ocean ? 0.2 : 1 }));
     grass.rotation.x = -Math.PI / 2;
     grass.position.set(0, 0, -length / 2 + 20);
     this.dynamic.add(grass, lane);
@@ -238,6 +274,38 @@ export class GateRun {
         const isle = new THREE.Mesh(new THREE.ConeGeometry(rand(6, 14), rand(4, 9), 10), new THREE.MeshStandardMaterial({ color: 0x5f9e45 }));
         isle.position.set((i % 2 ? 1 : -1) * rand(30, 70), 0, rand(-length + 20, 0));
         this.dynamic.add(isle);
+      }
+    }
+
+    if (hotel) {
+      // A long hotel hallway: gold carpet edges, cream walls lined with room
+      // doors, and wall lights between them
+      const gold = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.4, metalness: 0.6 });
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0xf3ead8, roughness: 0.8 });
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0x7a4a2a, roughness: 0.6 });
+      for (const sx of [-1, 1]) {
+        const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, length), gold);
+        edge.rotation.x = -Math.PI / 2;
+        edge.position.set(sx * (laneHalfWidth + 0.15), 0.02, -length / 2 + 20);
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4.5, length), wallMat);
+        wall.position.set(sx * (laneHalfWidth + 3.2), 2.25, -length / 2 + 20);
+        this.dynamic.add(edge, wall);
+        for (let z = 14; z > -length + 20; z -= 7) {
+          const door = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.8, 1.5), doorMat);
+          door.position.set(sx * (laneHalfWidth + 2.95), 1.4, z);
+          const knob = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), gold);
+          knob.position.set(sx * (laneHalfWidth + 2.88), 1.3, z + 0.5);
+          this.dynamic.add(door, knob);
+        }
+      }
+      // Wall sconces between the doors
+      const lampMat = new THREE.MeshBasicMaterial({ color: 0xfff1c4 });
+      for (let z = 10.5; z > -length + 20; z -= 7) {
+        for (const sx of [-1, 1]) {
+          const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), lampMat);
+          lamp.position.set(sx * (laneHalfWidth + 2.95), 3.2, z);
+          this.dynamic.add(lamp);
+        }
       }
     }
 
@@ -283,7 +351,7 @@ export class GateRun {
       m.makeScale(rand(0.8, 1.6), h, rand(0.8, 1.6)).setPosition(x, 0, z);
       blades.setMatrixAt(i, m);
     }
-    if (!ocean && !lava) this.dynamic.add(blades);
+    if (!ocean && !lava && !hotel) this.dynamic.add(blades);
 
     // Which rows get the special gates
     const xRow = 1 + Math.floor(Math.random() * 3);
@@ -323,7 +391,37 @@ export class GateRun {
       for (let h = 0; h < hazards; h++) {
         const p: Puddle = { x: rand(-laneHalfWidth + 1, laneHalfWidth - 1), z: z - rowSpacing * (hazards === 2 ? (h ? 0.68 : 0.36) : 0.5), r: 1.1, hit: false };
         this.puddles.push(p);
-        if (lava) {
+        if (hotel) {
+          // A yellow WET FLOOR sign, or a room-service cart parked in the way
+          const g = new THREE.Group();
+          if ((r + h) % 2 === 0) {
+            const yellow = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.6 });
+            for (const sz of [-1, 1]) {
+              const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.05), yellow);
+              leaf.position.set(0, 0.68, sz * 0.25);
+              leaf.rotation.x = sz * 0.35;
+              g.add(leaf);
+            }
+            const puddle = new THREE.Mesh(new THREE.CircleGeometry(p.r, 20), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.6 }));
+            puddle.rotation.x = -Math.PI / 2;
+            puddle.position.y = 0.03;
+            g.add(puddle);
+            g.userData.kind = 'wet';
+          } else {
+            const silver = new THREE.MeshStandardMaterial({ color: 0xdfe4ea, roughness: 0.25, metalness: 0.8 });
+            const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.1, 0.9), silver);
+            top.position.y = 1.0;
+            const lower = top.clone();
+            lower.position.y = 0.35;
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), silver);
+            dome.position.y = 1.05;
+            g.add(top, lower, dome);
+            g.userData.kind = 'service';
+          }
+          g.position.set(p.x, 0, p.z);
+          p.monster = g;
+          this.dynamic.add(g);
+        } else if (lava) {
           // Every other hazard: an ash cloud hanging in the air, or a lava bomb
           // that drops out of the sky as you get close (watch the red ring!)
           if ((r + h) % 2 === 0) {
@@ -411,6 +509,55 @@ export class GateRun {
       rex.root.rotation.y = Math.PI / 2; // facing the lane
       this.rexBoss = rex;
       this.dynamic.add(rex.root);
+    }
+
+    if (hotel) {
+      // 💵 Tip doors: now and then a guest opens their door to tip the bellhop.
+      // Be on their side as you pass.
+      for (const row of this.rows) {
+        if (Math.random() > 0.6 || row.z - rowSpacing * 0.2 < this.finishZ + 8) continue;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const g = new THREE.Group();
+        const door = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.8, 1.5), new THREE.MeshStandardMaterial({ color: 0x9a6a3a, roughness: 0.6 }));
+        door.position.set(0, 1.4, 0.75);
+        const hinge = new THREE.Group();
+        hinge.position.set(0, 0, -0.75);
+        hinge.add(door);
+        hinge.name = 'hinge';
+        g.add(hinge);
+        const guest = spawnHuman(['h-exec', 'h-balance', 'h-ember'][Math.floor(Math.random() * 3)] as 'h-exec', 2.5);
+        if (guest) {
+          guest.root.position.set(side * 0.6, 0, 0);
+          guest.root.rotation.y = -side * Math.PI / 2; // facing the hallway
+          guest.root.name = 'guest';
+          guest.root.visible = false;
+          g.add(guest.root);
+        }
+        const b: Breacher = { m: g, x: side * (laneHalfWidth + 2.6), z: row.z - rowSpacing * 0.2, t: -1, snapped: false };
+        g.position.set(b.x, 0, b.z);
+        this.dynamic.add(g);
+        this.breachers.push(b);
+        const marker = new TextSprite(0.6, '#ffffff');
+        marker.setText('💵');
+        marker.sprite.position.set(side * (laneHalfWidth - 0.6), 1.2, b.z);
+        this.dynamic.add(marker.sprite);
+      }
+      // A celebrity waits by the penthouse suite at the finish (paparazzi flashing)
+      const m = spawnHuman('h-director', 2.8);
+      if (m) {
+        m.root.position.set(-laneHalfWidth - 1.6, 0, this.finishZ - 2);
+        m.root.rotation.y = Math.PI / 2;
+        this.dynamic.add(m.root);
+        const flashes: THREE.Mesh[] = [];
+        for (let k = 0; k < 6; k++) {
+          const f = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+          f.position.set(-laneHalfWidth - rand(0.5, 2.6), rand(1.6, 2.8), this.finishZ - rand(-1, 5));
+          f.visible = false;
+          this.dynamic.add(f);
+          flashes.push(f);
+        }
+        this.celeb = { m, flashes };
+      }
     }
 
     if (ocean) {
@@ -588,7 +735,7 @@ export class GateRun {
         const u = THREE.MathUtils.clamp((14 - near) / 12, 0, 1); // lands just before you reach it
         rock.position.y = 30 * (1 - u * u) + 0.6;
         rock.rotation.x += dt * 4;
-      } else {
+      } else if (m.userData.kind === 'ash') {
         m.rotation.y += dt * 0.6;
       }
     }
@@ -608,7 +755,7 @@ export class GateRun {
       p.hit = true;
       const loss = CONFIG.run.puddleLoss * Math.max(0.3, 1 - this.luck * 0.06);
       const lost = Math.max(1, Math.ceil(this.count * loss));
-      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : this.theme === 'ocean' ? '🦈' : this.theme === 'lava' ? (p.monster?.userData.kind === 'ash' ? '💨' : '🌋') : '💦'} -${lost}`, false);
+      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : this.theme === 'ocean' ? '🦈' : this.theme === 'lava' ? (p.monster?.userData.kind === 'ash' ? '💨' : '🌋') : this.theme === 'hotel' ? (p.monster?.userData.kind === 'wet' ? '🧽' : '🛎️') : '💦'} -${lost}`, false);
       this.sfx.splash();
     }
 
@@ -617,6 +764,20 @@ export class GateRun {
       if (b.t < 0 && this.z - b.z < 9) b.t = 0;
       if (b.t < 0 || b.t > 1) continue;
       b.t = Math.min(1.01, b.t + dt / 1.7);
+      if (this.theme === 'hotel') {
+        // The door swings open and the guest leans out with a tip
+        const open = Math.sin(Math.min(1, b.t) * Math.PI);
+        const hinge = b.m.getObjectByName('hinge');
+        if (hinge) hinge.rotation.y = -Math.sign(b.x) * open * 1.4;
+        const guest = b.m.getObjectByName('guest');
+        if (guest) guest.visible = open > 0.3;
+        if (!b.snapped && Math.abs(this.z - b.z) < 1.6 && Math.abs(this.x - Math.sign(b.x) * (CONFIG.run.laneHalfWidth - 0.6)) < 3.0) {
+          b.snapped = true;
+          const bonus = Math.max(3, Math.round(this.count * 0.12));
+          this.changeCount(this.count + bonus, new THREE.Vector3(this.x, 2.6, this.z), `💵 TIP +${bonus}`, true);
+        }
+        continue;
+      }
       if (this.theme === 'lava') {
         // The fountain shoots up, blobs arcing out, then dies down
         const arc = Math.sin(Math.min(1, b.t) * Math.PI);
@@ -644,6 +805,13 @@ export class GateRun {
       }
     }
     // The Lava Rex roars at the passing helicopter
+    // The bellhop jogs behind the trolley; the paparazzi flash at the celebrity
+    if (this.bellhop?.root.visible) animateCreature(this.bellhop, dt, this.speed);
+    if (this.celeb) {
+      animateCreature(this.celeb.m, dt, 0);
+      const near = this.z - this.finishZ < 22;
+      for (const f of this.celeb.flashes) f.visible = near && Math.random() < 0.18;
+    }
     if (this.rexBoss) {
       if (this.bossT < 0 && this.z - this.finishZ < 18) {
         this.bossT = 0;
@@ -670,6 +838,10 @@ export class GateRun {
         // The money shot: everyone got the Megalodon on camera
         this.bossDone = true;
         this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 MEGALODON! ×1.25', true);
+      }
+      if (this.celeb && !this.bossDone) {
+        this.bossDone = true;
+        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '🌟 CELEBRITY TIP ×1.25', true);
       }
       if (this.rexBoss && !this.bossDone) {
         this.bossDone = true;

@@ -4,7 +4,7 @@
 // The 3D game never touches the DOM directly; it calls these methods.
 // ============================================================================
 import * as THREE from 'three';
-import { QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STATS, shardCost } from '../data/config';
+import { GAME_SPEED, QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STATS, shardCost } from '../data/config';
 import { Progress, QueenProgress } from '../core/progress';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -235,7 +235,7 @@ export class Hud {
 
   // ---- Inventory (ARK style) ----------------------------------------------
   private invKey = '';
-  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱', fruit: '🍈', smoothie: '🥤', meat: '🍖', egg: '🥚', ticket: '🎟️', obsidian: '🪨', gem: '💎', magma: '🔥', crystal: '🔶' };
+  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱', fruit: '🍈', smoothie: '🥤', meat: '🍖', egg: '🥚', ticket: '🎟️', obsidian: '🪨', gem: '💎', magma: '🔥', crystal: '🔶', laundry: '🧺', towel: '🧻', grocery: '🥬', tray: '🍽️' };
 
   /** Show what you're carrying: one slot per item type + a weight bar. */
   setInventory(counts: Map<string, number>, used: number, max: number) {
@@ -401,6 +401,32 @@ export class Hud {
       }
       list.appendChild(row);
     }
+  }
+
+  /** 🐢 / 🐇 Game speed slider in Settings (0.2x - 3x, 1x = normal). */
+  initSpeed(value: number, onChange: (v: number) => void) {
+    const slider = $('speedSlider') as HTMLInputElement;
+    const label = $('speedLabel');
+    slider.min = String(GAME_SPEED.min);
+    slider.max = String(GAME_SPEED.max);
+    slider.step = String(GAME_SPEED.step);
+    const show = (v: number) => {
+      label.textContent = `${v < 1 ? '🐢' : v > 1 ? '🐇' : '🐜'} Game speed: ${v.toFixed(1)}x${v === 1 ? ' (normal)' : ''}`;
+    };
+    slider.value = String(value);
+    show(value);
+    slider.addEventListener('input', () => {
+      // Snap to 1.0x near the middle so normal speed is easy to get back to
+      let v = Math.round(Number(slider.value) * 10) / 10;
+      if (Math.abs(v - 1) < 0.051) v = 1;
+      show(v);
+      onChange(v);
+    });
+    $('speedReset').addEventListener('click', () => {
+      slider.value = '1';
+      show(1);
+      onChange(1);
+    });
   }
 
   initSettings(opts: { sound: boolean; onSound: (on: boolean) => void; onReset: () => void; onOpen?: () => void }) {

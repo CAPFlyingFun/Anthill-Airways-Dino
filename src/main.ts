@@ -9,7 +9,7 @@ import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { SLOTS, Slot, activeSlot, clearSave, eraseSlot, loadSave, slotSummary, switchSlot, writeSave } from './core/save';
 import { Progress, QueenProgress } from './core/progress';
-import { OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
+import { GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
 import { erupt, shardsFor } from './core/prestige';
 import { weather } from './core/weather';
 import { Hud } from './ui/hud';
@@ -19,6 +19,7 @@ import { loadHumans, loadIsland, loadModels } from './actors/creatures';
 import { AirportWorld } from './world/airportWorld';
 import { IslandWorld } from './world/islandWorld';
 import { VolcanoWorld } from './world/volcanoWorld';
+import { HotelWorld } from './world/hotelWorld';
 import { lod } from './core/lod';
 import { Updater, versionLabel } from './core/updater';
 
@@ -79,11 +80,13 @@ async function start() {
   const run = new GateRun(hud, sfx);
   // base = the ant colony, air = the airport (Act 2), island = Dino Island (Act 3),
   // volcano = Mount Anthill (Act 4), run = a gate run
-  let mode: 'base' | 'air' | 'island' | 'volcano' | 'run' = 'base';
+  // hotel = the Anthill Grand Resort (Act 5)
+  let mode: 'base' | 'air' | 'island' | 'volcano' | 'hotel' | 'run' = 'base';
   let airport: AirportWorld | null = null;
   let island: IslandWorld | null = null;
   let volcano: VolcanoWorld | null = null;
-  type World = 'base' | 'air' | 'island' | 'volcano';
+  let hotel: HotelWorld | null = null;
+  type World = 'base' | 'air' | 'island' | 'volcano' | 'hotel';
   const modeBtn = document.getElementById('modeBtn')!;
   const fade = document.getElementById('fade')!;
 
@@ -204,8 +207,40 @@ async function start() {
       }
       window.location.reload();
     };
+    volcano.onAct5 = async () => {
+      hud.banner('🏨 The resort is being built!', 'Loading the Anthill Grand Resort…', 4000);
+      await openHotel();
+      modeBtn.classList.add('pulse');
+      hud.banner('The Anthill Grand Resort is open! 🏨', 'Tap 🌍 (top left) to go there', 6000);
+    };
     refreshModeBtn();
     return volcano;
+  }
+
+  // ACT 5: the Anthill Grand Resort. Opens from the volcano; eruptions don't reset it.
+  const hotelOpen = () => save.unlocked.includes('h5-open');
+  async function openHotel() {
+    if (hotel) return hotel;
+    await openIsland(); // shares the people (and the island's Dodo, for when one escapes)
+    hotel = new HotelWorld(hud, sfx, save, progress);
+    hotel.resize(app.clientWidth, app.clientHeight);
+    hotel.setShadowSize(QUALITY[quality].shadow);
+    hotel.player.setFirstPerson(save.view === 'first');
+    // 🛒 Bellhop Dash: race the luggage up the hallways for tips
+    hotel.onDash = (count) => {
+      mode = 'run';
+      hud.setLaunch(null);
+      run.luck = progress.luck;
+      run.cashMult = hotel!.priceMult * HOTEL_CFG.bellhopTip; // (shows the tips on the results card)
+      run.start(count, (end) => {
+        mode = 'hotel';
+        hotel!.enter(false);
+        hotel!.receiveDash(end);
+        writeSave(save);
+      }, 'hotel', 'bag');
+    };
+    refreshModeBtn();
+    return hotel;
   }
 
   // Buying "Big Order: Volcano" on the island opens Act 4.
@@ -230,6 +265,7 @@ async function start() {
     if (to === 'air') await openAirport();
     if (to === 'island') await openIsland();
     if (to === 'volcano') await openVolcano();
+    if (to === 'hotel') await openHotel();
     await new Promise((r) => setTimeout(r, 380));
     hud.setLaunch(null);
     // Leave the old world (it keeps running in the background)...
@@ -237,6 +273,7 @@ async function start() {
     else if (from === 'air') airport?.leave();
     else if (from === 'island') island?.leave();
     else if (from === 'volcano') volcano?.leave();
+    else if (from === 'hotel') hotel?.leave();
     // ...and step into the new one.
     if (to === 'base') base.enter();
     else if (to === 'air') {
@@ -248,6 +285,9 @@ async function start() {
     } else if (to === 'island') {
       island!.enter(true); // fly in over the island
       hud.banner('🏝️ Dino Island', 'Tourists fly in on Anthill Airways. Start with the Juice Bar!', 3500);
+    } else if (to === 'hotel') {
+      hotel!.enter(true); // swoop down past the tower
+      hud.banner('🏨 Anthill Grand Resort', 'Check guests in, get their luggage up, keep the rooms clean ⭐', 3800);
     } else {
       volcano!.enter(true); // swoop down from the crater
       hud.banner('🌋 Mount Anthill', 'Mine 🪨 obsidian, forge 💎 gems… and watch out for the lava!', 3800);
@@ -275,6 +315,7 @@ async function start() {
     worldMenu.querySelectorAll<HTMLButtonElement>('button[data-world]').forEach((b) => {
       b.classList.toggle('here', b.dataset.world === mode);
       if (b.dataset.world === 'volcano') b.classList.toggle('hidden', !volcanoOpen());
+      if (b.dataset.world === 'hotel') b.classList.toggle('hidden', !hotelOpen());
     });
   }
   function closeWorldMenu() {
@@ -316,6 +357,7 @@ async function start() {
     airport?.player.setFirstPerson(fp);
     island?.player.setFirstPerson(fp);
     volcano?.player.setFirstPerson(fp);
+    hotel?.player.setFirstPerson(fp);
     viewBtn.classList.toggle('on', fp);
     viewBtn.textContent = fp ? '🎥' : '👁️';
     viewBtn.setAttribute('aria-label', fp ? 'Switch to third-person view' : 'Switch to first-person view');
@@ -363,6 +405,7 @@ async function start() {
     airport?.resize(w, h);
     island?.resize(w, h);
     volcano?.resize(w, h);
+    hotel?.resize(w, h);
   }
   window.addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize', resize);
@@ -433,7 +476,7 @@ async function start() {
       return;
     }
     // Bonus run: cash bundles on a tougher course. The finish pays per bundle.
-    const back = mode === 'air' ? 'air' : mode === 'island' ? 'island' : mode === 'volcano' ? 'volcano' : 'base';
+    const back = mode === 'air' ? 'air' : mode === 'island' ? 'island' : mode === 'volcano' ? 'volcano' : mode === 'hotel' ? 'hotel' : 'base';
     mode = 'run';
     hud.setLaunch(null);
     run.luck = progress.luck;
@@ -445,6 +488,7 @@ async function start() {
         if (back === 'air') airport?.enter(false);
         else if (back === 'island') island?.enter(false);
         else if (back === 'volcano') volcano?.enter(false);
+        else if (back === 'hotel') hotel?.enter(false);
         else base.enter();
         payOffline(Math.max(amount * OFFLINE.keepMin, end * per));
       },
@@ -504,6 +548,7 @@ async function start() {
       airport?.setShadowSize(QUALITY[quality].shadow);
       island?.setShadowSize(QUALITY[quality].shadow);
       volcano?.setShadowSize(QUALITY[quality].shadow);
+      hotel?.setShadowSize(QUALITY[quality].shadow);
       resize();
       qualityWait = 3;
     }
@@ -511,19 +556,20 @@ async function start() {
 
   // Act 2 already reached in an earlier session: get the airport ready, and
   // go straight back to it if that's where you left off.
-  if ((save.world === 'island' && islandOpen()) || (save.world === 'volcano' && volcanoOpen())) {
+  if ((save.world === 'island' && islandOpen()) || (save.world === 'volcano' && volcanoOpen()) || (save.world === 'hotel' && hotelOpen())) {
     await loadHumans((d, t) => hud.setLoading((d / t) * 0.5));
     await loadIsland((d, t) => hud.setLoading(0.5 + (d / t) * 0.5));
-    await switchWorld(save.world === 'volcano' ? 'volcano' : 'island');
+    await switchWorld(save.world === 'island' ? 'island' : save.world);
     if (volcanoOpen()) void openVolcano(); // keeps running in the background
+    if (hotelOpen()) void openHotel();
   } else if (save.unlocked.includes('expand3')) {
     if (save.world === 'air') {
       await loadHumans((d, t) => hud.setLoading(d / t)); // loading bar again, for the people
       await switchWorld('air');
-      if (islandOpen()) void openIsland().then(() => { if (volcanoOpen()) void openVolcano(); });
+      if (islandOpen()) void openIsland().then(() => { if (volcanoOpen()) void openVolcano(); if (hotelOpen()) void openHotel(); });
     } else {
       void openAirport().then(() => {
-        if (islandOpen()) void openIsland().then(() => { if (volcanoOpen()) void openVolcano(); }); // they idle in the background too
+        if (islandOpen()) void openIsland().then(() => { if (volcanoOpen()) void openVolcano(); if (hotelOpen()) void openHotel(); }); // they idle in the background too
         if (save.airSeen) return;
         // Finished Act 1 before the airport existed: point them to it.
         modeBtn.classList.add('pulse');
@@ -550,14 +596,30 @@ async function start() {
   window.setTimeout(() => offerOffline(awayAtLaunch), 900);
 
   // 7) Main loop. `?speed=4` in the URL fast-forwards (handy for testing).
-  const timeScale = Math.min(10, Number(new URLSearchParams(location.search).get('speed')) || 1);
+  const testSpeed = Math.min(10, Number(new URLSearchParams(location.search).get('speed')) || 1);
+  // 🐢 / 🐇 Game speed (Settings slider, saved on this device): 0.2x - 3x
+  let gameSpeed = 1;
+  try {
+    gameSpeed = THREE.MathUtils.clamp(Number(localStorage.getItem(GAME_SPEED.key)) || 1, GAME_SPEED.min, GAME_SPEED.max);
+  } catch {
+    /* ignore */
+  }
+  hud.initSpeed(gameSpeed, (v) => {
+    gameSpeed = v;
+    try {
+      localStorage.setItem(GAME_SPEED.key, String(v));
+    } catch {
+      /* ignore */
+    }
+  });
   // The worlds you're NOT looking at keep running (idle game!), but only every
   // other frame, taking turns, with the time they missed (saves battery).
   const still = new THREE.Vector2();
-  const bgDt = { base: 0, air: 0, island: 0, volcano: 0 };
+  const bgDt = { base: 0, air: 0, island: 0, volcano: 0, hotel: 0 };
   let bgTurn = 0;
   function background(dt: number) {
-    const others = (['base', 'air', 'island', 'volcano'] as const).filter((w) => w !== mode && (w === 'base' || (w === 'air' ? airport : w === 'island' ? island : volcano)));
+    const open = { base: true, air: !!airport, island: !!island, volcano: !!volcano, hotel: !!hotel };
+    const others = (['base', 'air', 'island', 'volcano', 'hotel'] as const).filter((w) => w !== mode && open[w]);
     for (const w of others) bgDt[w] += dt;
     if (!others.length || ++bgTurn % 2) return;
     const w = others[(bgTurn >> 1) % others.length];
@@ -566,16 +628,25 @@ async function start() {
     if (w === 'base') base.update(step, still);
     else if (w === 'air') airport?.update(step, still);
     else if (w === 'island') island?.update(step, still);
-    else volcano?.update(step, still);
+    else if (w === 'volcano') volcano?.update(step, still);
+    else hotel?.update(step, still);
+  }
+
+  /** Split a big time step (fast game speeds) into small ones so nothing tunnels through walls. */
+  function steps(dt: number) {
+    const n = Math.max(1, Math.ceil(dt / 0.05 - 1e-6));
+    return Array.from({ length: n }, () => dt / n);
   }
 
   let last = performance.now();
   function frame(now: number) {
     const rawMs = now - last;
+    const timeScale = testSpeed * gameSpeed;
     const dt = Math.min(0.05, rawMs / 1000) * timeScale; // cap dt so a lag spike can't teleport things
     last = now;
     watchQuality(rawMs);
-    trackIncome(Math.min(1, rawMs / 1000)); // real seconds (income per real second)
+    // Income per GAME second, so offline earnings stay the same at any game speed
+    trackIncome(Math.min(1, rawMs / 1000) * gameSpeed);
     weather.update(dt);
     stormEl.classList.toggle('on', weather.storm && humanWorld());
     ashEl.classList.toggle('on', mode === 'volcano' && !!volcano?.erupting);
@@ -589,28 +660,35 @@ async function start() {
     else if (mode === 'air') airport?.player.look(look.dx, look.dy);
     else if (mode === 'island') island?.player.look(look.dx, look.dy);
     else if (mode === 'volcano') volcano?.player.look(look.dx, look.dy);
+    else if (mode === 'hotel') hotel?.player.look(look.dx, look.dy);
     if (mode === 'base') {
-      base.update(dt, input.move);
+      for (const step of steps(dt)) base.update(step, input.move);
       background(dt);
       lod.update(base.scene, base.camera, base.player.pos); // hide what the camera can't see
       renderer.render(base.scene, base.camera);
     } else if (mode === 'air' && airport) {
-      airport.update(dt, input.move);
+      for (const step of steps(dt)) airport.update(step, input.move);
       background(dt);
       lod.update(airport.scene, airport.camera, airport.focus);
       renderer.render(airport.scene, airport.camera);
     } else if (mode === 'island' && island) {
-      island.update(dt, input.move);
+      for (const step of steps(dt)) island.update(step, input.move);
       background(dt);
       lod.update(island.scene, island.camera, island.focus);
       renderer.render(island.scene, island.camera);
+    } else if (mode === 'hotel' && hotel) {
+      // (fast game speeds take smaller steps, so nobody walks through walls)
+      for (const step of steps(dt)) hotel.update(step, input.move);
+      background(dt);
+      lod.update(hotel.scene, hotel.camera, hotel.focus);
+      renderer.render(hotel.scene, hotel.camera);
     } else if (mode === 'volcano' && volcano) {
-      volcano.update(dt, input.move);
+      for (const step of steps(dt)) volcano.update(step, input.move);
       background(dt);
       lod.update(volcano.scene, volcano.camera, volcano.focus);
       renderer.render(volcano.scene, volcano.camera);
     } else {
-      run.update(dt, input.move);
+      for (const step of steps(dt)) run.update(step, input.move);
       lod.update(run.scene, run.camera, run.camera.position);
       renderer.render(run.scene, run.camera);
     }
@@ -624,6 +702,8 @@ async function start() {
     get airport() { return airport; },
     get island() { return island; },
     get volcano() { return volcano; },
+    get hotel() { return hotel; },
+    openHotel,
     openVolcano,
     weather,
     switchWorld,

@@ -15,10 +15,12 @@ export type ItemType = 'crumb' | 'snack' | 'leaf' | 'wrap' | 'sugar' | 'candy' |
   // Act 3 (Dino Island)
   | 'fruit' | 'smoothie' | 'meat' | 'egg' | 'ticket'
   // Act 4 (Volcano)
-  | 'obsidian' | 'gem' | 'magma' | 'crystal';
+  | 'obsidian' | 'gem' | 'magma' | 'crystal'
+  // Act 5 (Hotel)
+  | 'laundry' | 'towel' | 'grocery' | 'tray';
 
 /** Height of one item when stacked. */
-export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, leaf: 0.14, wrap: 0.32, sugar: 0.4, candy: 0.3, cash: 0.11, bag: 0.48, snackbox: 0.36, fruit: 0.4, smoothie: 0.5, meat: 0.32, egg: 0.42, ticket: 0.1, obsidian: 0.36, gem: 0.4, magma: 0.4, crystal: 0.52 };
+export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, leaf: 0.14, wrap: 0.32, sugar: 0.4, candy: 0.3, cash: 0.11, bag: 0.48, snackbox: 0.36, fruit: 0.4, smoothie: 0.5, meat: 0.32, egg: 0.42, ticket: 0.1, obsidian: 0.36, gem: 0.4, magma: 0.4, crystal: 0.52, laundry: 0.4, towel: 0.2, grocery: 0.42, tray: 0.36 };
 
 // Shared geometry + materials: every crumb reuses the same ones (fast).
 const geo = {
@@ -48,6 +50,13 @@ const geo = {
   rock: new THREE.DodecahedronGeometry(0.22).scale(1.15, 0.85, 1),       // a chunk of obsidian / magma
   gem: new THREE.OctahedronGeometry(0.2).scale(1, 1.25, 1),              // a polished obsidian gem
   crystal: new THREE.ConeGeometry(0.15, 0.5, 6),                         // a Fire Crystal shard
+  // Act 5 (Hotel)
+  laundry: new THREE.IcosahedronGeometry(0.26, 1).scale(1.2, 0.8, 1),   // a lumpy bundle of sheets
+  towel: new THREE.BoxGeometry(0.5, 0.18, 0.36),                          // a folded towel
+  grocery: new THREE.BoxGeometry(0.46, 0.34, 0.34),                       // a crate of groceries
+  tray: new THREE.CylinderGeometry(0.28, 0.28, 0.04, 18),                 // a silver tray...
+  cloche: new THREE.SphereGeometry(0.2, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), // ...with a dome lid
+  veg: new THREE.SphereGeometry(0.1, 8, 6),
 };
 const mat = {
   crumb: new THREE.MeshStandardMaterial({ color: 0xdca44a, roughness: 0.9 }),
@@ -76,10 +85,16 @@ const mat = {
   gem: new THREE.MeshStandardMaterial({ color: 0x5b3fa0, roughness: 0.1, metalness: 0.4, emissive: 0x2a1250, emissiveIntensity: 0.6 }),
   magma: new THREE.MeshStandardMaterial({ color: 0x5a1606, roughness: 0.6, emissive: 0xff4a12, emissiveIntensity: 1.3 }),
   crystal: new THREE.MeshStandardMaterial({ color: 0xff7a3d, roughness: 0.2, metalness: 0.1, emissive: 0xff3300, emissiveIntensity: 0.9 }),
+  laundry: new THREE.MeshStandardMaterial({ color: 0xb8c4d6, roughness: 1 }),
+  towel: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }),
+  towelStripe: new THREE.MeshStandardMaterial({ color: 0x2ec4b6, roughness: 0.9 }),
+  grocery: new THREE.MeshStandardMaterial({ color: 0xc89b5e, roughness: 0.9 }),
+  veg: new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.8 }),
+  silver: new THREE.MeshStandardMaterial({ color: 0xdfe4ea, roughness: 0.25, metalness: 0.8 }),
 };
 
 /** Cash value of each sellable item (counter price; gate runs pay the same per item). */
-export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25, fruit: 0, smoothie: 60, meat: 0, egg: 80, ticket: 50, obsidian: 0, gem: 150, magma: 0, crystal: 450 };
+export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25, fruit: 0, smoothie: 60, meat: 0, egg: 80, ticket: 50, obsidian: 0, gem: 150, magma: 0, crystal: 450, laundry: 0, towel: 0, grocery: 0, tray: 220 };
 
 /** Build the 3D mesh for one item. Box faces order: +x, -x, +y(top), -y, +z, -z */
 export function makeItem(type: ItemType): THREE.Mesh {
@@ -127,6 +142,27 @@ export function makeItem(type: ItemType): THREE.Mesh {
     m = new THREE.Mesh(geo.egg, mat.egg);
   } else if (type === 'ticket') {
     m = new THREE.Mesh(geo.ticket, mat.ticket);
+  } else if (type === 'laundry') {
+    m = new THREE.Mesh(geo.laundry, mat.laundry);
+    m.rotation.y = Math.random() * 3;
+  } else if (type === 'towel') {
+    // (extra parts ride along as children of the main mesh)
+    m = new THREE.Mesh(geo.towel, mat.towel);
+    const stripe = new THREE.Mesh(geo.towel, mat.towelStripe);
+    stripe.scale.set(1.02, 1.02, 0.25);
+    m.add(stripe);
+  } else if (type === 'grocery') {
+    m = new THREE.Mesh(geo.grocery, mat.grocery);
+    for (const [vx, vz] of [[-0.12, 0], [0.1, 0.05], [0, -0.08]]) {
+      const v = new THREE.Mesh(geo.veg, mat.veg);
+      v.position.set(vx, 0.2, vz);
+      m.add(v);
+    }
+  } else if (type === 'tray') {
+    m = new THREE.Mesh(geo.tray, mat.silver);
+    const lid = new THREE.Mesh(geo.cloche, mat.silver);
+    lid.position.y = 0.02;
+    m.add(lid);
   } else if (type === 'obsidian') {
     m = new THREE.Mesh(geo.rock, mat.obsidian);
     m.rotation.y = Math.random() * 3;

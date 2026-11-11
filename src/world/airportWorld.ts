@@ -97,6 +97,7 @@ export interface DeskOpts {
   interval: number;          // seconds between new arrivals
   queueMax: number;          // most people in line (or on their way to it)
   vips?: boolean;            // check-in: some passengers are 👑 VIPs
+  fee?: number;              // check-in: what each guest pays (default: an airline ticket)
   serve: number;             // seconds between each sale / check-in step
   entry: THREE.Vector3[];    // waypoints from outside to the back of the line
   exit: (from: THREE.Vector3) => THREE.Vector3[]; // where they go when done
@@ -283,10 +284,11 @@ export class Desk {
       if (this.bagPile && !this.bagPile.full && this.flyers.transfer(g.held, this.bagPile)) sfx.drop();
       return; // cart full = the line waits (go load the plane!)
     }
-    this.spawnBill(AIR.ticket);
+    const fee = this.opts.fee ?? AIR.ticket;
+    this.spawnBill(fee);
     if (g.vip) {
       // Served in time: a big tip!
-      const tip = AIR.ticket * VIP.tip;
+      const tip = fee * VIP.tip;
       this.spawnBill(tip);
       this.onVip('tip', Math.round(tip * this.valueMult()), g.model.root.position.clone());
       g.vip.tag.sprite.removeFromParent();

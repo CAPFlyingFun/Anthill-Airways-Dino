@@ -1,6 +1,6 @@
 # 🐜✈️🦖 Anthill Airways
 
-**Start as an ant. End up running an airline to an island full of dinosaurs… and a volcano.**
+**Start as an ant. End up running an airline to an island full of dinosaurs, a volcano… and a 5-star resort.**
 
 An idle arcade tycoon (walk around, stack stuff on your back, unlock new land) with
 **gate runs**: send your goods down a lane through `+ / x / - / ÷ / ?` gates to grow
@@ -91,6 +91,38 @@ You keep the colony, the airport, your level, stats and the Queen.
 Spend shards at the **💎 Obsidian Shrine** (tap your level): permanent upgrades that survive
 every eruption: 💰 Obsidian Riches (+10% all cash), 👟 Lava Legs (+6% speed), 🍀 Lucky Ash
 (better gates), 🚀 Head Start (+$100k after each eruption) and 💤 Night Shift (+10% offline).
+
+## Act 5 — The Anthill Grand Resort 🏨⭐
+
+Buy **Big Order: Resort** at the volcano and the 🌍 menu gets a 🏨 Resort stop. Everyone your
+airline flies in needs a bed:
+
+- 🛎️ **Front desk**: guests check in (they pay a fee) and leave 🧳 luggage on the BAGS cart
+- 🛗 **Elevator**: carry the luggage to the glass elevator. Each bag = a guest in a room
+- 🛏️ **Rooms**: occupied rooms pay every night. Guests check out after a while, leaving a
+  dirty room and 🧺 laundry down the chute
+- 🧺 **Laundry**: laundry → WASHERS → clean 🧻 towels → LINEN (each towel makes up a room)
+- 🍽️ **Kitchen & Buffet**: 🥬 groceries → KITCHEN → 🍽️ trays → sell at the BUFFET
+- 🏊 **Pool & Spa** (3★): keep the towel rack stocked and the loungers pay
+- 🌟 **Celebrity Penthouse** (4★) and the ✨ **5-Star Grand Gala** (5★, every price ×1.5 for good)
+- ⭐ **Stars (1–5)**: clean rooms, a short line at the desk and no luggage pile-up (plus the
+  kitchen and pool) raise your rating. Every star raises every price at the resort
+- 🏗️ **The tower grows a floor (3 more rooms) with every unlock** you buy
+- 🛒 **Bellhop Dash**: with 5+ bags on the cart, race them down the hotel hallways on a brass
+  luggage trolley: dodge wet-floor signs and room-service carts, pass guests at open doors for
+  💵 tips, and a celebrity at the finish tips ×1.25. Dashed bags check straight into rooms
+- **Trouble:** 😡 complaints (sort them at the CONCIERGE desk in time or lose a star), ⚡ power
+  outages (the elevator stops: fix it at the GENERATOR), 🐜 ants raiding the kitchen (walk over
+  them!), and a 🦤 Dodo that escaped from the island (catch it!)
+- Crew: Clerk, Bellhop, Housekeeper, Linen Runner, Chef, Waiter, Buffet Server, Pool Attendant,
+  Engineer, Concierge, and your personal assistant (Sarah's model)
+- Eruptions don't touch the resort: it's yours for good
+
+## Game speed 🐢🐇
+
+Settings has a **Game speed** slider: slow motion from 0.2x up to fast forward at 3x (1x is
+normal, and there's a button to snap back). Everyone and everything moves at that speed. It's
+saved on your device, and offline earnings work the same at any speed.
 
 ## Challenges ⚠️
 

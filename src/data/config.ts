@@ -362,6 +362,8 @@ export const VOLCANO_UNLOCKS: UnlockDef[] = [
   { id: 'v4-haulers',   name: 'Fire Ant Haulers',   icon: '🔥', cost: 1800000, pos: [28, 18],  requires: ['v4-kingdom'] },
   { id: 'v4-trader',    name: 'Crystal Trader',     icon: '💱', cost: 2100000, pos: [6, 10],   requires: ['v4-kingdom'] },
   { id: 'v4-treasurer', name: 'Personal Assistant', icon: '👩‍💼', cost: 2500000, pos: [-2, 8],   requires: ['v4-trader', 'v4-pilot', 'v4-clerk'] },
+  // Opens ACT 5 (the hotel). The hotel is yours for good: eruptions don't reset it.
+  { id: 'v4-resort',    name: 'Big Order: Resort',  icon: '🏨', cost: 4000000, pos: [-14, 20], requires: ['v4-treasurer'] },
   { id: 'v4-eruption',  name: 'THE BIG ERUPTION',   icon: '🌋', cost: 6000000, pos: [-8, -30],  requires: ['v4-treasurer', 'v4-haulers'] },
 ];
 
@@ -391,3 +393,77 @@ export const SHARD_UPS: ShardUpDef[] = [
 ];
 /** Shard price of the next level of an upgrade (3, 5, 7, ...). */
 export const shardCost = (level: number) => 3 + level * 2;
+
+// ============================================================================
+// ACT 5: THE ANTHILL GRAND RESORT (human scale). Everyone your airline flies
+// in needs somewhere to stay. The loop:
+//   🛎️ FRONT DESK  guests check in (fee) and leave 🧳 luggage on the BAGS cart
+//   🛗 ELEVATOR    carry the luggage to the elevator: each bag = a guest in a room
+//   🛏️ ROOMS       occupied rooms pay every night; guests check out after a while,
+//                  leaving a dirty room + 🧺 laundry down the chute
+//   🧺 LAUNDRY     laundry -> WASHERS -> clean 🧻 towels -> LINEN (cleans a room)
+//   🍽️ KITCHEN     🥬 groceries -> KITCHEN -> 🍽️ trays -> the BUFFET
+//   🏊 POOL & SPA  keep it stocked with towels: the loungers pay
+//   ⭐ STARS       clean rooms, a short line and no luggage pile-up = more stars;
+//                  stars raise every price and unlock the fancy stuff
+// The tower grows a floor (3 more rooms) with every unlock.
+// Trouble: complaints, power outages, ants raiding the kitchen, an escaped Dodo.
+// Bellhop Dash: a luggage-cart gate run down the hallways for tips.
+// ============================================================================
+/** Game speed slider (Settings): 1 = normal. */
+export const GAME_SPEED = { min: 0.2, max: 3, step: 0.1, key: 'anthill-airways-speed' };
+
+export const HOTEL_CFG = {
+  checkinEvery: 4.5,    // seconds between new guests at the front desk
+  queueMax: 5,
+  serve: 0.5,
+  fee: 150,             // check-in fee per guest (x stars x cash boosts)
+  roomsPerFloor: 3,
+  baseFloors: 2,        // floors before any unlock (each unlock adds one)
+  roomRate: 60,         // each occupied room pays this...
+  roomPayEvery: 8,      // ...every ... seconds
+  stay: 60,             // average seconds a guest stays before checking out
+  laundryPerCheckout: 2,
+  elevatorLoad: 4,      // bags per elevator trip
+  elevatorBase: 2.5,    // seconds per trip (+ a little per floor)
+  washTime: 0.9,        // seconds per towel in the washers
+  kitchenTime: 1.1,     // seconds per tray
+  groceryEvery: 1.0,    // the pantry restocks one crate every ... seconds
+  buffetInterval: 2.2,  // seconds between buffet customers
+  poolDrain: 45,        // seconds for a full towel stock to run out
+  poolPerTowel: 0.15,
+  poolPay: 160,         // the loungers pay this...
+  poolPayEvery: 2,      // ...every ... seconds while there are towels
+  penthousePay: 900,    // the celebrity penthouse pays this...
+  penthouseEvery: 6,    // ...every ... seconds
+  bellhopMin: 5,        // bags needed on the cart for a Bellhop Dash
+  bellhopTip: 8,        // a dashed bag pays this many times a bag's value
+  eventEvery: [70, 120] as [number, number], // seconds between trouble events
+  complaintTime: 25,    // seconds to sort out a complaint at the CONCIERGE desk
+  outageLength: 35,     // a power outage lasts this long unless you fix it
+  fixTime: 2.5,         // seconds standing at the GENERATOR to fix it
+  antsLength: 40,       // the kitchen ants leave after this long
+  dodoLength: 45,       // the escaped Dodo leaves after this long
+  crewCarry: 14,
+  crewSpeed: 5.6,
+};
+
+/** Act 5 unlock tiles (ids start with h5-; the "h5-starN" ids are star milestones). */
+export const HOTEL_UNLOCKS: UnlockDef[] = [
+  { id: 'h5-clerk',      name: 'Front Desk Clerk',   icon: '🛎️', cost: 900000,   pos: [-19, -13], requires: [] },
+  { id: 'h5-bellhop',    name: 'Bellhop',            icon: '🧳', cost: 1100000,  pos: [-4, -4],   requires: [] },
+  { id: 'h5-housekeeper',name: 'Housekeeper',        icon: '🧹', cost: 1300000,  pos: [12, -10],  requires: ['h5-bellhop'] },
+  { id: 'h5-dash',       name: 'Bellhop Dash',       icon: '🛒', cost: 1600000,  pos: [-20, 6],   requires: ['h5-bellhop'] },
+  { id: 'h5-linen',      name: 'Linen Runner',       icon: '🧻', cost: 1700000,  pos: [14, -2],   requires: ['h5-housekeeper'] },
+  { id: 'h5-kitchen',    name: 'Kitchen & Buffet',   icon: '🍽️', cost: 2200000,  pos: [-14, 14],  requires: ['h5-clerk'] },
+  { id: 'h5-chef',       name: 'Chef',               icon: '👨‍🍳', cost: 2600000, pos: [-26, 18], requires: ['h5-kitchen'] },
+  { id: 'h5-server',     name: 'Buffet Server',      icon: '🥗', cost: 2800000,  pos: [-2, 20],   requires: ['h5-kitchen'] },
+  { id: 'h5-waiter',     name: 'Waiter',             icon: '🍽️', cost: 3000000,  pos: [-14, 22],  requires: ['h5-chef'] },
+  { id: 'h5-engineer',   name: 'Engineer',           icon: '🔧', cost: 3200000,  pos: [26, -12],  requires: ['h5-kitchen'] },
+  { id: 'h5-pool',       name: 'Pool & Spa',         icon: '🏊', cost: 3600000,  pos: [8, 6],     requires: ['h5-linen', 'h5-star3'] },
+  { id: 'h5-attendant',  name: 'Pool Attendant',     icon: '🩱', cost: 4200000,  pos: [26, 4],    requires: ['h5-pool'] },
+  { id: 'h5-concierge',  name: 'Concierge',          icon: '🎩', cost: 4600000,  pos: [4, -2],    requires: ['h5-pool', 'h5-waiter'] },
+  { id: 'h5-assistant',  name: 'Personal Assistant', icon: '👩‍💼', cost: 5200000, pos: [-6, 6],  requires: ['h5-concierge', 'h5-server', 'h5-attendant'] },
+  { id: 'h5-penthouse',  name: 'Celebrity Penthouse',icon: '🌟', cost: 7000000,  pos: [0, -8],    requires: ['h5-concierge', 'h5-star4'] },
+  { id: 'h5-gala',       name: '5-Star Grand Gala',  icon: '✨', cost: 12000000, pos: [0, 12],    requires: ['h5-penthouse', 'h5-assistant', 'h5-star5'] },
+];

@@ -64,7 +64,8 @@ function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y
 
 // ----------------------------------------------------------------------------
 export type PileStyle = 'bread' | 'plant' | 'vending' | 'crate' | 'fruit' | 'supply' | 'nest'
-  | 'rock' | 'vent' | 'vault'; // Act 4: obsidian outcrop, lava vent, Fire Crystal vault
+  | 'rock' | 'vent' | 'vault'  // Act 4: obsidian outcrop, lava vent, Fire Crystal vault
+  | 'chute' | 'pantry';        // Act 5: the laundry chute, the grocery delivery
 
 export class ResourcePile {
   group = new THREE.Group();
@@ -169,6 +170,24 @@ export class ResourcePile {
         c.rotation.z = (i - 2.5) * 0.12;
         source.add(c);
       }
+    } else if (style === 'chute') {
+      // Act 5: the laundry chute (a steel pipe down from the rooms into a bin)
+      source.add(box(2.4, 1.1, 1.4, mat(0x8a949e, 0.4), 0, 0.55, 0));
+      const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 4, 14), mat(0xc9ccd1, 0.3));
+      pipe.position.set(0, 3, -0.2);
+      source.add(pipe);
+      const stamp = new TextSprite(0.42, '#ffffff');
+      stamp.setText('🧺 LAUNDRY CHUTE');
+      stamp.sprite.position.set(0, 1.6, 0.4);
+      source.add(stamp.sprite);
+    } else if (style === 'pantry') {
+      // Act 5: the grocery delivery (crates on a pallet)
+      source.add(box(2.6, 0.2, 1.5, mat(0x8a5a2b, 0.9), 0, 0.1, 0));
+      for (const [px, py] of [[-0.65, 0.55], [0.65, 0.55], [0, 1.25]]) source.add(box(1.2, 0.7, 1.2, mat(0xc89b5e, 0.9), px, py, 0));
+      const stamp = new TextSprite(0.42, '#ffe7b0');
+      stamp.setText('🥬 FRESH DELIVERY');
+      stamp.sprite.position.set(0, 2.1, 0.2);
+      source.add(stamp.sprite);
     } else if (style === 'crate') {
       // Act 2: the colony's shipping crate (stenciled, with a little ant flag)
       source.add(box(2.4, 1.3, 1.3, mat(0xc89b5e, 0.9), 0, 0.65, 0));
@@ -537,7 +556,7 @@ export class CashPad {
 }
 
 // ----------------------------------------------------------------------------
-export type RunTheme = 'grass' | 'gutter' | 'ocean' | 'lava'; // lava = Act 4's heli tour (gateRun builds the helicopter)
+export type RunTheme = 'grass' | 'gutter' | 'ocean' | 'lava' | 'hotel'; // hotel = Act 5's Bellhop Dash // lava = Act 4's heli tour (gateRun builds the helicopter)
 
 /** The vehicle a gate run uses: a wheeled cart (grass), a leaf raft (gutter) or a safari boat (ocean). */
 export function makeVehicle(theme: RunTheme): { group: THREE.Group; deckY: number } {

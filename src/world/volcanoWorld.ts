@@ -670,6 +670,8 @@ export class VolcanoWorld {
   onTour: (count: number) => void = () => {};
   /** Set by main.ts: you stepped on the ERUPT altar (prestige). */
   onErupt: () => void = () => {};
+  /** Set by main.ts: "Big Order: Resort" was just bought (opens Act 5). */
+  onAct5: () => void = () => {};
 
   // Eruptions
   phase: 'calm' | 'rumble' | 'erupt' = 'calm';
@@ -1163,6 +1165,11 @@ export class VolcanoWorld {
         if (animate) this.hud.banner('👩‍💼 Personal Assistant', 'She collects the cash from every pad for you', 3500);
         break;
       }
+      case 'v4-resort':
+        // ACT 5. 'h5-open' is what keeps the hotel open (eruptions don't wipe h5- ids)
+        if (!this.save.unlocked.includes('h5-open')) this.save.unlocked.push('h5-open');
+        if (animate) this.onAct5();
+        break;
       case 'v4-eruption': {
         // The ERUPT altar at the foot of the volcano
         const ring = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.5, 8, 20), mat(0x2a2422, 0.95));
@@ -1198,7 +1205,9 @@ export class VolcanoWorld {
 
   private refreshTiles(animate: boolean) {
     for (const t of this.tiles) {
-      const show = !this.save.unlocked.includes(t.def.id) && t.def.requires.every((r) => this.save.unlocked.includes(r));
+      // (once the resort is built, its Big Order never comes back, even after an eruption)
+      const done = t.def.id === 'v4-resort' && this.save.unlocked.includes('h5-open');
+      const show = !done && !this.save.unlocked.includes(t.def.id) && t.def.requires.every((r) => this.save.unlocked.includes(r));
       if (show && !t.mesh.visible && animate) this.flyers.grow(t.mesh);
       t.mesh.visible = show;
     }

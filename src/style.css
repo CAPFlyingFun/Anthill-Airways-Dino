@@ -501,3 +501,10 @@ html, body {
 .erupt-btn { background: linear-gradient(#ff8a3d, #e0401a) !important; }
 .shrine-btn { background: linear-gradient(#cdb8ff, #8f6ae6) !important; color: #fff !important; }
 .shard-buy { min-width: 58px; font-size: 13px !important; }
+
+/* ---- Game speed slider (Settings) ---- */
+.speed-row { margin: 6px 0 10px; }
+.speed-label { font-weight: 800; font-size: 15px; margin-bottom: 4px; }
+.speed-row input[type='range'] { width: 100%; accent-color: #2d6cdf; height: 28px; }
+.speed-ends { display: flex; justify-content: space-between; align-items: center; font-size: 12px; opacity: 0.85; }
+.speed-reset { border: none; border-radius: 10px; padding: 3px 10px; font: inherit; font-weight: 800; background: #e8eefc; color: #2d6cdf; }
