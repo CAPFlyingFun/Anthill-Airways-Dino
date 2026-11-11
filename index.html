@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#2b7a3d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Anthill Air" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="icons/icon-192.png" />
+    <title>Anthill Airways</title>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="hud">
+      <div class="top-left">
+        <div id="zone" class="pill">Nest Entrance</div>
+        <button id="settingsBtn" class="round-btn" aria-label="Settings">⚙️</button>
+      </div>
+      <div class="top-right">
+        <div id="cash" class="pill cash"><span class="bill">💵</span><span id="cashValue">0</span></div>
+      </div>
+
+      <div id="hint" class="hint hidden"></div>
+      <button id="launchBtn" class="big-btn hidden">🚀 LAUNCH RUN</button>
+
+      <div id="banner" class="banner hidden">
+        <div id="bannerTitle"></div>
+        <div id="bannerSub"></div>
+      </div>
+
+      <div id="results" class="overlay hidden">
+        <div class="card">
+          <h2>Run complete!</h2>
+          <div id="resGrade" class="grade"></div>
+          <div class="res-row"><span>Loaded</span><b id="resStart">0</b></div>
+          <div class="res-row"><span>Made it to the finish</span><b id="resEnd">0</b></div>
+          <div class="res-row total"><span>Cash earned</span><b id="resEarned">$0</b></div>
+          <button id="collectBtn" class="big-btn">Collect</button>
+        </div>
+      </div>
+
+      <div id="settings" class="overlay hidden">
+        <div class="card">
+          <h2>Settings</h2>
+          <button id="soundBtn" class="menu-btn">Sound: On</button>
+          <button id="resetBtn" class="menu-btn danger">Reset progress</button>
+          <button id="closeSettings" class="menu-btn">Close</button>
+          <p class="ver">Anthill Airways · Phase 1 prototype</p>
+        </div>
+      </div>
+
+      <div id="floats"></div>
+      <div id="joyBase" class="joy hidden"><div id="joyKnob"></div></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
