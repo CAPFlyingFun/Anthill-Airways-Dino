@@ -5,7 +5,7 @@
 // (carry weight, speed, work speed, haggling, luck), and the rest of the game
 // reads the bonuses from the getters at the bottom.
 // ============================================================================
-import { CONFIG, STATS, StatDef } from '../data/config';
+import { CONFIG, QUEEN_STATS, QueenStatDef, STATS, StatDef } from '../data/config';
 import { SaveData } from './save';
 
 export class Progress {
@@ -75,5 +75,67 @@ export class Progress {
       case 'haggle': return `+${n * 5}% cash`;
       case 'luck': return n ? `-${Math.min(70, n * 6)}% puddle loss, ${Math.round(Math.min(80, 50 + n * 4))}% ? win` : 'No bonus yet';
     }
+  }
+}
+
+// ============================================================================
+// The Queen's progress: she gains 1 XP per $10 she collects, levels up, and
+// each level gives a point for her stats (Royal Stride, Grab Speed, Tribute).
+// ============================================================================
+export class QueenProgress {
+  onChange: () => void = () => {};
+  onLevelUp: (level: number) => void = () => {};
+
+  constructor(public save: SaveData) {
+    for (const s of QUEEN_STATS) save.queen.stats[s.id] ??= 0;
+  }
+
+  get q() {
+    return this.save.queen;
+  }
+
+  xpToNext(level = this.q.level) {
+    return Math.round(25 * Math.pow(level, 1.5));
+  }
+
+  /** Called with the cash she just collected. */
+  addCash(amount: number) {
+    this.q.xp += amount / 10;
+    while (this.q.xp >= this.xpToNext()) {
+      this.q.xp -= this.xpToNext();
+      this.q.level++;
+      this.q.points++;
+      this.onLevelUp(this.q.level);
+    }
+    this.onChange();
+  }
+
+  spend(id: QueenStatDef['id']) {
+    if (this.q.points <= 0) return false;
+    this.q.points--;
+    this.q.stats[id]++;
+    this.onChange();
+    return true;
+  }
+
+  stat(id: QueenStatDef['id']) {
+    return this.q.stats[id] ?? 0;
+  }
+
+  get speedMult() {
+    return 1 + this.stat('speed') * 0.12;
+  }
+  get grabMult() {
+    return 1 + this.stat('grab') * 0.2;
+  }
+  get tributeMult() {
+    return 1 + this.stat('tribute') * 0.05;
+  }
+
+  describe(id: QueenStatDef['id']) {
+    const n = this.stat(id);
+    if (id === 'speed') return `+${n * 12}% speed`;
+    if (id === 'grab') return `+${n * 20}% grab`;
+    return `+${n * 5}% cash`;
   }
 }

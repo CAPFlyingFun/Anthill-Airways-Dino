@@ -251,6 +251,45 @@ html, body {
 
 .hidden { display: none !important; }
 
+/* ARK-style inventory panel (bottom-left). pointer-events: none so the joystick still works under it. */
+.inv {
+  position: absolute;
+  left: calc(10px + var(--safe-l));
+  bottom: calc(12px + var(--safe-b));
+  background: rgba(20, 26, 32, 0.72);
+  border: 2px solid rgba(160, 220, 255, 0.35);
+  border-radius: 12px;
+  padding: 7px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+}
+.inv-slots { display: flex; gap: 5px; }
+.inv-slot {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: linear-gradient(rgba(70, 110, 140, 0.55), rgba(30, 50, 70, 0.75));
+  border: 1px solid rgba(160, 220, 255, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.inv-slot b {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font-size: 13px;
+  color: #fff;
+  text-shadow: 0 1px 0 #000, 0 0 3px #000;
+}
+.inv-weight { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #fff; font-size: 13px; }
+.inv-weight span:first-child { font-size: 15px; }
+.inv-bar { flex: 1; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.18); overflow: hidden; min-width: 60px; }
+.inv-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #7df9a0, #ffd166); border-radius: 4px; }
+.inv-bar i.full { background: #ff6b6b; }
+.inv-weight b { text-shadow: 0 1px 0 #000; min-width: 38px; text-align: right; }
+
 @media (max-height: 430px) {
   .pill { font-size: 15px; padding: 6px 12px; }
   .pill.cash { font-size: 18px; }
@@ -280,6 +319,10 @@ html, body {
   box-shadow: 0 3px 0 #2a9a4a;
 }
 .stat-row button:disabled { background: #d8cbb8; box-shadow: none; }
+
+.queen-section { margin-top: 16px; padding-top: 10px; border-top: 3px solid #ead9bf; }
+.queen-section h2 { color: #b8860b; }
+.queen-section.locked { opacity: 0.6; }
 
 /* Loading screen */
 .overlay.loading { background: #7cc35a; }

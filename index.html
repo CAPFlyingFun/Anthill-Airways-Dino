@@ -33,6 +33,12 @@
       </div>
 
       <div id="hint" class="hint hidden"></div>
+
+      <!-- ARK-style inventory: one slot per item type you're carrying + a weight bar -->
+      <div id="inv" class="inv hidden">
+        <div id="invSlots" class="inv-slots"></div>
+        <div class="inv-weight"><span>🎒</span><span class="inv-bar"><i id="invFill"></i></span><b id="invText">0/8</b></div>
+      </div>
       <button id="launchBtn" class="big-btn hidden">🚀 LAUNCH RUN</button>
 
       <div id="banner" class="banner hidden">
@@ -67,6 +73,13 @@
           <div class="xp-line"><span class="xpbar big"><i id="statsXpFill"></i></span><span id="statsXpText">0 / 15 XP</span></div>
           <div id="statsPoints" class="points-line">0 points to spend</div>
           <div id="statRows"></div>
+          <!-- The Queen's own stats (shown once she's active at Lv 20) -->
+          <div id="queenSection" class="queen-section">
+            <h2 id="queenTitle">👑 Queen</h2>
+            <div class="xp-line"><span class="xpbar big"><i id="queenXpFill"></i></span><span id="queenXpText"></span></div>
+            <div id="queenPoints" class="points-line"></div>
+            <div id="queenRows"></div>
+          </div>
           <button id="closeStats" class="menu-btn">Close</button>
         </div>
       </div>

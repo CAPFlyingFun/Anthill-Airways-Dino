@@ -108,6 +108,30 @@ export class Stack {
   pop(): StackItem | undefined {
     return this.canPop() ? this.items.pop() : undefined;
   }
+  /** Does the stack hold a landed item of this type (anywhere, not just the top)? */
+  has(type: ItemType) {
+    return this.items.some((it) => it.type === type && !it.flying);
+  }
+  /** How many of each type (for the inventory panel). */
+  counts() {
+    const out = new Map<ItemType, number>();
+    for (const it of this.items) out.set(it.type, (out.get(it.type) ?? 0) + 1);
+    return out;
+  }
+  /**
+   * Take the highest landed item of `type` out of the stack, wherever it is.
+   * (The items above it slide down; the owner re-lays them out each frame.)
+   */
+  popType(type: ItemType): StackItem | undefined {
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const it = this.items[i];
+      if (it.type === type && !it.flying) {
+        this.items.splice(i, 1);
+        return it;
+      }
+    }
+    return undefined;
+  }
   /** World position of slot i (for flying items to aim at). */
   slotWorld(i: number, type: ItemType, out: THREE.Vector3) {
     this.layout(i, type, out);
@@ -184,6 +208,15 @@ export class Flyers {
   transfer(from: Stack, to: Stack): StackItem | null {
     if (to.full) return null;
     const it = from.pop();
+    if (!it) return null;
+    this.pushInto(it, to);
+    return it;
+  }
+
+  /** Move one item of a given type (from anywhere in `from`) onto `to`. */
+  transferType(from: Stack, to: Stack, type: ItemType): StackItem | null {
+    if (to.full) return null;
+    const it = from.popType(type);
     if (!it) return null;
     this.pushInto(it, to);
     return it;

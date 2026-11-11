@@ -8,7 +8,8 @@ import './style.css';
 import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { clearSave, loadSave, writeSave } from './core/save';
-import { Progress } from './core/progress';
+import { Progress, QueenProgress } from './core/progress';
+import { QUEEN_UNLOCK_LEVEL } from './data/config';
 import { Hud } from './ui/hud';
 import { BaseWorld } from './world/baseWorld';
 import { GateRun } from './runs/gateRun';
@@ -29,6 +30,7 @@ sfx.enabled = save.sound;
 const input = new Input(renderer.domElement);
 input.onFirstTouch(() => sfx.unlock());
 const progress = new Progress(save);
+const queenProgress = new QueenProgress(save);
 
 hud.initSettings({
   sound: save.sound,
@@ -48,16 +50,18 @@ async function start() {
   await loadModels((done, total) => hud.setLoading(done / total));
 
   // 2) Build both game modes.
-  const base = new BaseWorld(hud, sfx, save, progress);
+  const base = new BaseWorld(hud, sfx, save, progress, queenProgress);
   const run = new GateRun(hud, sfx);
   let mode: 'base' | 'run' = 'base';
 
   // 3) XP + level-ups
-  hud.initStats(progress);
+  hud.initStats(progress, queenProgress);
   progress.onChange = () => hud.renderLevel();
+  queenProgress.onChange = () => hud.renderLevel();
   progress.onLevelUp = (level) => {
     sfx.unlocked();
     hud.banner(`LEVEL UP! Lv ${level}`, 'Tap your level (top left) to spend your point', 2600);
+    if (level >= QUEEN_UNLOCK_LEVEL) base.activateQueen(true);
     writeSave(save);
   };
 
@@ -103,11 +107,13 @@ async function start() {
   // 6) Auto quality. If the game can't keep up (slower than ~40 fps for a
   // couple of seconds), step down one level: fewer pixels, softer shadows.
   // It only ever steps DOWN, so it never flickers back and forth.
+  // Shadows get cheaper first; resolution only drops a little (text stays sharp).
+  const dpr = Math.min(window.devicePixelRatio, 2);
   const QUALITY = [
-    { pixelRatio: Math.min(window.devicePixelRatio, 2), shadow: 2048 },
-    { pixelRatio: Math.min(window.devicePixelRatio, 1.5), shadow: 1024 },
-    { pixelRatio: 1.25, shadow: 1024 },
-    { pixelRatio: 1, shadow: 512 },
+    { pixelRatio: dpr, shadow: 2048 },
+    { pixelRatio: dpr, shadow: 1024 },
+    { pixelRatio: Math.min(dpr, 1.75), shadow: 1024 },
+    { pixelRatio: Math.min(dpr, 1.5), shadow: 512 },
   ];
   let quality = 0;
   let frameSum = 0;

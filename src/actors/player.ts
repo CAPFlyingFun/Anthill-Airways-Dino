@@ -3,7 +3,7 @@
 // ============================================================================
 import * as THREE from 'three';
 import { CONFIG } from '../data/config';
-import { ITEM_H, Layout, Stack } from '../world/items';
+import { ITEM_H, ItemType, Layout, Stack } from '../world/items';
 import { TextSprite } from '../world/labels';
 import { Blocker } from '../world/stations';
 import { CreatureModel, animateCreature, faceToward, makeAnt } from './models';
@@ -12,12 +12,18 @@ import { spawnCreature } from './creatures';
 /**
  * Items stacked on a bug's back, starting at height `y0` and `z0` along its
  * body. `lean` makes tall stacks sway backward while walking.
+ * Pass `items` when the stack can hold MIXED item types: each item then sits
+ * on top of the real heights of the ones below it (leaves are thin, sugar
+ * cubes are tall).
  */
-export function backLayout(getLean: () => number, y0: number, z0: number): Layout {
+export function backLayout(getLean: () => number, y0: number, z0: number, items?: () => { type: ItemType }[]): Layout {
   return (i, type, out) => {
-    const h = ITEM_H[type];
     const lean = getLean();
-    return out.set(0, y0 + i * h + h / 2, z0 - lean * i * i * 0.006);
+    let y = y0;
+    const list = items?.();
+    if (list) for (let k = 0; k < i && k < list.length; k++) y += ITEM_H[list[k].type];
+    else y += i * ITEM_H[type];
+    return out.set(0, y + ITEM_H[type] / 2, z0 - lean * i * i * 0.006);
   };
 }
 
@@ -69,7 +75,7 @@ export class Player {
     }
     scene.add(this.model.root);
     const spot = backSpot(this.model);
-    this.stack = new Stack(this.model.bob, backLayout(() => this.lean, spot.y0, spot.z0), this.carryMax);
+    this.stack = new Stack(this.model.bob, backLayout(() => this.lean, spot.y0, spot.z0, () => this.stack.items), this.carryMax);
     this.maxLabel.setText('MAX');
     this.maxLabel.sprite.visible = false;
     scene.add(this.maxLabel.sprite);
@@ -79,9 +85,9 @@ export class Player {
     return this.model.root.position;
   }
 
-  /** Can the ant pick up one more item of this type? (One type at a time.) */
-  canTake(type: string) {
-    return !this.stack.full && (this.stack.count === 0 || this.stack.topType === type);
+  /** Can the ant pick up one more item? (Any mix of types, up to the carry limit.) */
+  canTake(_type?: string) {
+    return !this.stack.full;
   }
 
   /** `canWalk(x, z)` says whether a spot is inside an open zone. */

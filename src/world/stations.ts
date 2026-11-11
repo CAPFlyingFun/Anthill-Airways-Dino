@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { CONFIG, UnlockDef } from '../data/config';
 import { Flyers, ITEM_H, ITEM_VALUE, ItemType, Layout, Stack, StackItem, makeItem } from './items';
-import { GAME_FONT, TextSprite, gameText, makePad, roundRect } from './labels';
+import { GAME_FONT, TEXT_RES, TextSprite, gameText, makePad, roundRect, sharpTexture } from './labels';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
 import { CreatureKind, spawnCreature } from '../actors/creatures';
 import { lod } from '../core/lod';
@@ -660,12 +660,10 @@ export class UnlockTile {
 
   constructor(scene: THREE.Scene, public def: UnlockDef, paid: number) {
     this.paid = paid;
-    this.canvas.width = 256;
-    this.canvas.height = 256;
+    this.canvas.width = 256 * TEXT_RES;
+    this.canvas.height = 256 * TEXT_RES;
     this.ctx = this.canvas.getContext('2d')!;
-    this.tex = new THREE.CanvasTexture(this.canvas);
-    this.tex.colorSpace = THREE.SRGBColorSpace;
-    this.tex.anisotropy = 4;
+    this.tex = sharpTexture(this.canvas);
     this.mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(2.6, 2.6),
       new THREE.MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false }),
@@ -687,6 +685,7 @@ export class UnlockTile {
     if (key === this.shown) return;
     this.shown = key;
     const c = this.ctx;
+    c.setTransform(TEXT_RES, 0, 0, TEXT_RES, 0, 0); // draw in 256x256 "units", sharp at TEXT_RES
     c.clearRect(0, 0, 256, 256);
     roundRect(c, 10, 10, 236, 236, 34);
     c.fillStyle = 'rgba(30, 40, 50, 0.5)';

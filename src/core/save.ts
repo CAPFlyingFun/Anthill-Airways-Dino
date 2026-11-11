@@ -16,10 +16,19 @@ export interface SaveData {
   points: number;                     // unspent stat points
   stats: Record<string, number>;      // points spent per stat id
   hatched: number;                    // worker ants born in the Hatchery
+  queen: QueenSave;                   // the Queen's own level + stats (she collects cash from Lv 20)
+}
+
+export interface QueenSave {
+  active: boolean;
+  level: number;
+  xp: number;
+  points: number;
+  stats: Record<string, number>;
 }
 
 export function newSave(): SaveData {
-  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0 };
+  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} } };
 }
 
 export function loadSave(): SaveData {

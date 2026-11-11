@@ -15,7 +15,7 @@ import { CreatureModel, animateCreature, makeBeetle } from '../actors/models';
 import { spawnCreature } from '../actors/creatures';
 import { ITEM_VALUE, ItemType, makeItem } from '../world/items';
 import { RunTheme, makeVehicle } from '../world/stations';
-import { TextSprite, gameText, roundRect } from '../world/labels';
+import { TEXT_RES, TextSprite, gameText, roundRect, sharpTexture } from '../world/labels';
 
 type OpKind = '+' | '-' | 'x' | '/' | '?';
 interface Op {
@@ -271,15 +271,15 @@ export class GateRun {
 
     // Big label on the gate
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 160;
+    canvas.width = 256 * TEXT_RES;
+    canvas.height = 160 * TEXT_RES;
     const ctx = canvas.getContext('2d')!;
+    ctx.scale(TEXT_RES, TEXT_RES);
     roundRect(ctx, 8, 8, 240, 144, 26);
     ctx.fillStyle = 'rgba(0,0,0,0.0)';
     ctx.fill();
     gameText(ctx, opLabel(op), 128, 84, 104);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = sharpTexture(canvas);
     const label = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.625), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
     label.position.set(0, 1.4, 0.02);
     group.add(label);

@@ -15,10 +15,11 @@
 // between stacks one at a time on a timer.
 // ============================================================================
 import * as THREE from 'three';
-import { CONFIG, TUTORIAL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
+import { CONFIG, QUEEN_UNLOCK_LEVEL, TUTORIAL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
 import { Sfx } from '../core/audio';
 import { SaveData } from '../core/save';
-import { Progress } from '../core/progress';
+import { Progress, QueenProgress } from '../core/progress';
+import { QueenCollector } from '../actors/queen';
 import { Hud } from '../ui/hud';
 import { Player } from '../actors/player';
 import { Route, Worker } from '../actors/worker';
@@ -77,9 +78,14 @@ export class BaseWorld {
   private timers = new Map<object, number>();
   private zoneName = '';
   private impostor: Impostor | null = null;
+  // The Queen: sits in her corner until you reach level 20, then collects cash for you.
+  private queenModel: CreatureModel | null = null;
+  private queenCrown: TextSprite | null = null;
+  private queenBlocker: Blocker | null = null;
+  private queenCollector: QueenCollector | null = null;
   private impostorT = 45 + Math.random() * 30; // seconds until the next sneaky visit
 
-  constructor(private hud: Hud, private sfx: Sfx, public save: SaveData, private progress: Progress) {
+  constructor(private hud: Hud, private sfx: Sfx, public save: SaveData, private progress: Progress, private queenProgress: QueenProgress) {
     this.buildEnvironment();
     this.buildDecor();
     this.scene.add(this.fences);
@@ -90,6 +96,8 @@ export class BaseWorld {
     // Re-apply everything bought in earlier sessions (no animations).
     for (const id of save.unlocked) this.applyUnlock(id, false);
     this.refreshTiles(false);
+
+    if (save.queen.active || save.level >= QUEEN_UNLOCK_LEVEL) this.activateQueen(false);
 
     this.hud.setCash(save.cash);
     this.showTutorial();
@@ -259,7 +267,10 @@ export class BaseWorld {
       crown.setText('👑 QUEEN');
       crown.sprite.position.set(-11, queen.height + 1.2, -10.2);
       this.scene.add(crown.sprite);
-      this.blockers.push({ minX: -12.8, maxX: -9.2, minZ: -12, maxZ: -8.6 });
+      this.queenBlocker = { minX: -12.8, maxX: -9.2, minZ: -12, maxZ: -8.6 };
+      this.blockers.push(this.queenBlocker);
+      this.queenModel = queen;
+      this.queenCrown = crown;
     }
     // Larvae sleeping near the Queen
     for (const [x, z, r] of [[-12.6, -7.6, 0.4], [-9.3, -7.4, -0.8], [-8.6, -10.8, 2.2]]) {
@@ -721,7 +732,7 @@ export class BaseWorld {
     this.conveyor?.update(dt);
 
     const iv = CONFIG.player.pickupInterval / prog.workMult;
-    const top = me.stack.topType;
+    const has = (t: ItemType) => me.stack.has(t); // carrying this type anywhere in the stack?
 
     // 1) Resource piles -> player
     for (const pile of this.piles) {
@@ -737,8 +748,8 @@ export class BaseWorld {
     // 2) Processors: drop raw items on IN, pick goods up from OUT
     for (const proc of this.processors) {
       const { inType, outType } = proc.opts;
-      this.every(proc.inZone, dt, proc.inZone.contains(p) && top === inType, iv, () => {
-        if (me.stack.topType === inType && this.flyers.transfer(me.stack, proc.input)) {
+      this.every(proc.inZone, dt, proc.inZone.contains(p) && has(inType), iv, () => {
+        if (this.flyers.transferType(me.stack, proc.input, inType)) {
           this.sfx.drop();
           prog.addXp(xp.drop);
           this.tutorialDone(1);
@@ -756,8 +767,8 @@ export class BaseWorld {
     // 3) Goods -> counter shelves
     for (const c of this.counters) {
       const type = c.opts.itemType;
-      this.every(c.sellZone, dt, c.sellZone.contains(p) && top === type, iv, () => {
-        if (me.stack.topType === type && this.flyers.transfer(me.stack, c.shelf)) {
+      this.every(c.sellZone, dt, c.sellZone.contains(p) && has(type), iv, () => {
+        if (this.flyers.transferType(me.stack, c.shelf, type)) {
           this.sfx.drop();
           prog.addXp(xp.drop);
         }
@@ -798,8 +809,8 @@ export class BaseWorld {
     // 5) Hatchery: feed it leaf wraps
     const hatch = this.hatchery;
     if (hatch) {
-      this.every(hatch.zone, dt, hatch.zone.contains(p) && top === 'wrap' && hatch.hatched < hatch.maxHatch, iv, () => {
-        if (me.stack.topType === 'wrap' && this.flyers.transfer(me.stack, hatch.input)) {
+      this.every(hatch.zone, dt, hatch.zone.contains(p) && has('wrap') && hatch.hatched < hatch.maxHatch, iv, () => {
+        if (this.flyers.transferType(me.stack, hatch.input, 'wrap')) {
           this.sfx.drop();
           prog.addXp(xp.drop);
         }
@@ -810,8 +821,8 @@ export class BaseWorld {
     let launchFrom: DispatchPad | null = null;
     for (const d of this.dispatches) {
       const here = d.zone.contains(p);
-      this.every(d.zone, dt, here && top === d.itemType, iv, () => {
-        if (me.stack.topType === d.itemType && this.flyers.transfer(me.stack, d.cargo)) {
+      this.every(d.zone, dt, here && has(d.itemType), iv, () => {
+        if (this.flyers.transferType(me.stack, d.cargo, d.itemType)) {
           this.sfx.drop();
           prog.addXp(xp.drop);
         }
@@ -850,6 +861,12 @@ export class BaseWorld {
     // 8) The Ant-Mimicking Spider sneaks in now and then to steal
     this.updateImpostor(dt);
 
+    // 9) The Queen collects cash from every pad (once she's active)
+    this.queenCollector?.update(dt, this.cashPads, this.flyers);
+
+    // Inventory panel
+    this.hud.setInventory(me.stack.counts(), me.stack.count, me.carryMax);
+
     // Zone name in the HUD follows where you're standing
     const here = ZONES.find((zd) => this.open.has(zd.id) && p.x >= zd.rect.minX - 0.7 && p.x <= zd.rect.maxX + 0.7 && p.z >= zd.rect.minZ - 0.7 && p.z <= zd.rect.maxZ + 0.7);
     const name = this.save.unlocked.includes('expand3') ? `${here?.name ?? ''} · Act 1 done!` : here?.name ?? '';
@@ -860,6 +877,27 @@ export class BaseWorld {
 
     this.flyers.update(dt);
     this.updateCamera(dt);
+  }
+
+  /** Level 20: the Queen leaves her corner and starts collecting your cash. */
+  activateQueen(announce: boolean) {
+    if (this.queenCollector || !this.queenModel || !this.queenCrown) return;
+    this.save.queen.active = true;
+    this.idlers = this.idlers.filter((m) => m !== this.queenModel);
+    this.blockers = this.blockers.filter((b) => b !== this.queenBlocker); // her corner is open now
+    this.queenCrown.setText('👑 QUEEN · Lv ' + this.save.queen.level);
+    this.queenCollector = new QueenCollector(this.queenModel, this.queenCrown, new THREE.Vector3(-11, 0, -9), this.queenProgress, (amount) =>
+      this.addCash(amount),
+    );
+    this.queenProgress.onLevelUp = (lv) => {
+      this.queenCrown?.setText('👑 QUEEN · Lv ' + lv);
+      this.sfx.unlocked();
+      this.hud.banner(`👑 The Queen reached Lv ${lv}!`, 'Tap your level (top left) to give her a point', 2600);
+    };
+    if (announce) {
+      this.sfx.unlocked();
+      this.hud.banner('👑 The Queen joins the economy!', 'She now walks the colony collecting your cash', 4500);
+    }
   }
 
   /** Spawn, run and reward the impostor spider. */

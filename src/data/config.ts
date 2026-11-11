@@ -137,6 +137,22 @@ export const STATS: StatDef[] = [
   { id: 'luck', name: 'Luck', icon: '🍀', per: 'Fewer puddle losses, better ? gates' },
 ];
 
+/** The Queen joins the economy at this player level. */
+export const QUEEN_UNLOCK_LEVEL = 20;
+
+/** The Queen's own stats (she earns XP from the cash she collects, like an ARK tame). */
+export interface QueenStatDef {
+  id: 'speed' | 'grab' | 'tribute';
+  name: string;
+  icon: string;
+  per: string;
+}
+export const QUEEN_STATS: QueenStatDef[] = [
+  { id: 'speed', name: 'Royal Stride', icon: '👟', per: '+12% walk speed' },
+  { id: 'grab', name: 'Grab Speed', icon: '✋', per: '+20% faster cash pickup' },
+  { id: 'tribute', name: 'Tribute', icon: '💰', per: '+5% on all cash she collects' },
+];
+
 /** Tutorial hints, shown one at a time until the player does each thing. */
 export const TUTORIAL = [
   'Drag anywhere to walk. Grab crumbs from the crumb pile 🍞',

@@ -4,8 +4,8 @@
 // The 3D game never touches the DOM directly; it calls these methods.
 // ============================================================================
 import * as THREE from 'three';
-import { STATS } from '../data/config';
-import { Progress } from '../core/progress';
+import { QUEEN_STATS, QUEEN_UNLOCK_LEVEL, STATS } from '../data/config';
+import { Progress, QueenProgress } from '../core/progress';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
@@ -113,6 +113,25 @@ export class Hud {
     });
   }
 
+  // ---- Inventory (ARK style) ----------------------------------------------
+  private invKey = '';
+  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵' };
+
+  /** Show what you're carrying: one slot per item type + a weight bar. */
+  setInventory(counts: Map<string, number>, used: number, max: number) {
+    const key = [...counts].map(([t, n]) => `${t}${n}`).join() + `|${used}/${max}`;
+    if (key === this.invKey) return; // nothing changed: skip the DOM work
+    this.invKey = key;
+    $('inv').classList.toggle('hidden', used === 0);
+    $('invSlots').innerHTML = [...counts]
+      .map(([t, n]) => `<div class="inv-slot">${Hud.ICONS[t] ?? '❔'}<b>${n}</b></div>`)
+      .join('');
+    const fill = $('invFill');
+    fill.style.width = `${Math.min(100, (used / max) * 100)}%`;
+    fill.classList.toggle('full', used >= max);
+    $('invText').textContent = `${used}/${max}`;
+  }
+
   // ---- Loading screen ------------------------------------------------------
   setLoading(fraction: number) {
     $('loadFill').style.width = `${Math.round(fraction * 100)}%`;
@@ -123,10 +142,25 @@ export class Hud {
 
   // ---- Level + stats (ARK style) ------------------------------------------
   private progress: Progress | null = null;
+  private queen: QueenProgress | null = null;
 
-  /** Hook up the level pill and the stats screen. */
-  initStats(progress: Progress) {
+  /** Hook up the level pill and the stats screen (yours + the Queen's). */
+  initStats(progress: Progress, queen: QueenProgress) {
     this.progress = progress;
+    this.queen = queen;
+    const qRows = $('queenRows');
+    for (const def of QUEEN_STATS) {
+      const row = document.createElement('div');
+      row.className = 'stat-row';
+      row.innerHTML = `<div class="ic">${def.icon}</div>
+        <div class="txt"><div class="nm">${def.name}</div><div class="ds" id="qds-${def.id}"></div></div>
+        <div class="lv" id="qlv-${def.id}">0</div>
+        <button id="qadd-${def.id}" aria-label="Give the Queen a point in ${def.name}">+</button>`;
+      qRows.appendChild(row);
+      row.querySelector('button')!.addEventListener('click', () => {
+        if (queen.spend(def.id)) this.renderStats();
+      });
+    }
     const panel = $('stats');
     $('levelBtn').addEventListener('click', () => {
       this.renderStats();
@@ -158,8 +192,9 @@ export class Hud {
     $('lvlText').textContent = `Lv ${s.level}`;
     $('xpFill').style.width = `${Math.min(100, (s.xp / p.xpToNext()) * 100)}%`;
     const badge = $('ptsBadge');
-    badge.textContent = `+${s.points}`;
-    badge.classList.toggle('hidden', s.points <= 0);
+    const pts = s.points + (s.queen.active ? s.queen.points : 0);
+    badge.textContent = `+${pts}`;
+    badge.classList.toggle('hidden', pts <= 0);
     if (!$('stats').classList.contains('hidden')) this.renderStats();
   }
 
@@ -174,6 +209,26 @@ export class Hud {
       $(`lv-${def.id}`).textContent = String(p.stat(def.id));
       $(`ds-${def.id}`).textContent = `${def.per} · now ${p.describe(def.id)}`;
       ($(`add-${def.id}`) as HTMLButtonElement).disabled = s.points <= 0;
+    }
+    // The Queen's section
+    const q = this.queen!;
+    const qs = s.queen;
+    $('queenSection').classList.toggle('locked', !qs.active);
+    if (!qs.active) {
+      $('queenTitle').textContent = '👑 Queen (locked)';
+      $('queenXpFill').style.width = `${Math.min(100, (s.level / QUEEN_UNLOCK_LEVEL) * 100)}%`;
+      $('queenXpText').textContent = `Lv ${s.level} / ${QUEEN_UNLOCK_LEVEL}`;
+      $('queenPoints').textContent = `Reach Level ${QUEEN_UNLOCK_LEVEL} and the Queen starts collecting your cash!`;
+    } else {
+      $('queenTitle').textContent = `👑 Queen · Level ${qs.level}`;
+      $('queenXpFill').style.width = `${Math.min(100, (qs.xp / q.xpToNext()) * 100)}%`;
+      $('queenXpText').textContent = `${Math.floor(qs.xp)} / ${q.xpToNext()} XP`;
+      $('queenPoints').textContent = qs.points > 0 ? `${qs.points} royal point${qs.points > 1 ? 's' : ''} to spend!` : 'She earns XP from the cash she collects';
+    }
+    for (const def of QUEEN_STATS) {
+      $(`qlv-${def.id}`).textContent = String(q.stat(def.id));
+      $(`qds-${def.id}`).textContent = `${def.per} · now ${q.describe(def.id)}`;
+      ($(`qadd-${def.id}`) as HTMLButtonElement).disabled = !qs.active || qs.points <= 0;
     }
   }
 
