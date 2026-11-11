@@ -21,12 +21,30 @@ On iPhone: open in Safari → Share → **Add to Home Screen** to install it as 
   Movement Speed, Work Speed, Haggling or Luck (tap your level, top left)
 - Autosaves to the browser; Settings has sound + reset
 
+## Act 2 — The Airport (human scale)
+
+Finish Act 1 (**Big Order: Airstrip**) and a 🧍 button appears top left. The camera zooms out
+from your colony (now a planter box in the terminal) to human scale. Tap 🐜 to go back.
+Both worlds keep running while you're in the other one, and the Queen keeps collecting.
+
+- You're **Jack**. Passengers check in (ticket cash + suitcases) → carry 🧳 bags to the
+  **TO PLANE** belt → the plane takes off when its hold is full and pays per bag when it lands
+- **The fleet:** Cessna 172 → Twin Prop → Learjet → Airliner, plus a **Helipad** 🚁
+  (small hold, quick trips, big fares)
+- **Ant Café:** the colony ships 🍱 snack boxes (faster the more of Act 1 you built) →
+  carry them to the café → travellers buy them
+- **Crew:** Check-in Agent, Baggage Handler, Barista, Café Host (the Anthill Airways
+  flight crew), and **Sarah**, your personal assistant, who collects the cash
+- The people (~11 MB) only download once you reach Act 2
+
 ## 3D models
 
 Real rigged bug models, compressed for phones (`public/models`), legs animated in code:
 fire ant **Major** (you), **Worker**, **Queen** and larvae, aphid, housefly, earthworm and
 props from *Thronemound Colony Sim*; **Black Widow** and **Jumping Spider** from the
-*TRADDOMIUM* releases.
+*TRADDOMIUM* releases; Huntsman, Wolf Spider, Ant-Mimicking Spider and the 10 people
+(Jack, Sarah, the Director, passengers and flight crew) from TRADDOMIUM's "Modelsv1"
+release. People walk with code-driven arms + legs too.
 
 ## Project layout
 

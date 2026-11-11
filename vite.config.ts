@@ -60,7 +60,17 @@ export default defineConfig({
       workbox: {
         // version.json is deliberately NOT cached, so update checks always see the live one.
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,glb}'],
+        // The people (models/h-*.glb, ~11 MB) aren't pre-downloaded: they load
+        // when you reach Act 2 and are cached then (see runtimeCaching).
+        globIgnores: ['**/models/h-*.glb'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // the 3D bug models are up to ~1.5 MB each
+        runtimeCaching: [
+          {
+            urlPattern: /\/models\/h-[\w-]+\.glb$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'human-models', expiration: { maxEntries: 20 } },
+          },
+        ],
       },
     }),
   ],

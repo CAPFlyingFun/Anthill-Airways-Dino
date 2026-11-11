@@ -14,6 +14,8 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- Fades the screen while switching between the ant and human worlds -->
+    <div id="fade" class="fade"></div>
 
     <div id="hud">
       <!-- Top bar: settings + level on the left, cash on the right -->
@@ -26,6 +28,8 @@
               <span class="xpbar"><i id="xpFill"></i></span>
               <b id="ptsBadge" class="pts hidden">+1</b>
             </button>
+            <!-- Act 2: hop between the ant colony and the human airport -->
+            <button id="modeBtn" class="round-btn mode hidden" aria-label="Switch world">🧍</button>
           </div>
           <div id="zone" class="zone-label">Nest Entrance</div>
         </div>

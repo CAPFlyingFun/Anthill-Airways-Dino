@@ -64,8 +64,16 @@ export class BaseWorld {
   candyPress: Bakery | null = null;
   shop: Counter | null = null;
 
+  /**
+   * False while you're at the airport (Act 2): the colony keeps working by
+   * itself (workers, cashiers, bankers, the Queen) but the Major waits.
+   */
+  active = true;
+
   /** Set by main.ts: called when the player taps LAUNCH RUN. */
   onLaunch: (count: number, from: DispatchPad) => void = () => {};
+  /** Set by main.ts: Act 1 finished (Big Order: Airstrip bought) -> open the airport. */
+  onAct2: () => void = () => {};
 
   private backpack = false;            // "Bigger Backpack" unlock bought?
   private blockers: Blocker[] = [];    // solid things the player bumps into
@@ -661,7 +669,7 @@ export class BaseWorld {
         if (this.shop) this.hireBanker(this.cashPads[this.counters.indexOf(this.shop)], animate);
         break;
       case 'expand3':
-        if (animate) this.hud.banner('Act 1 complete! ✈️🏆', 'The Old Airstrip (Act 2: The Airport) is next!', 6000);
+        if (animate) this.onAct2();
         break;
     }
   }
@@ -747,17 +755,24 @@ export class BaseWorld {
     const me = this.player;
     this.player.carryMax = CONFIG.player.baseCarry + (this.backpack ? CONFIG.player.carryPerUpgrade : 0) + prog.carryBonus;
     this.player.speedMult = prog.speedMult;
-    this.player.update(dt, move, this.blockers, this.canWalk);
+    if (this.active) this.player.update(dt, move, this.blockers, this.canWalk);
     for (const m of this.idlers) animateCreature(m, dt, 0);
 
     for (const pile of this.piles) pile.update(dt);
     for (const proc of this.processors) proc.update(dt);
-    for (const c of this.counters) c.update(dt, c.sellZone.contains(p), this.sfx, p);
+    for (const c of this.counters) c.update(dt, this.active && c.sellZone.contains(p), this.sfx, p);
     for (const d of this.dispatches) d.update(dt);
     for (const w of this.workers) w.update(dt, this.flyers);
     for (const b of this.bankers) b.update(dt, this.flyers);
     this.hatchery?.update(dt);
     this.conveyor?.update(dt);
+
+    if (!this.active) {
+      // In the background: no player, no HUD, no impostor. The Queen still works.
+      this.queenCollector?.update(dt, this.cashPads, this.flyers);
+      this.flyers.update(dt);
+      return;
+    }
 
     const iv = CONFIG.player.pickupInterval / prog.workMult;
     const has = (t: ItemType) => me.stack.has(t); // carrying this type anywhere in the stack?
@@ -905,6 +920,14 @@ export class BaseWorld {
 
     this.flyers.update(dt);
     this.updateCamera(dt);
+  }
+
+  /** Coming back from the airport: refresh the HUD for the colony. */
+  enter() {
+    this.active = true;
+    this.zoneName = '';
+    this.showTutorial();
+    this.hud.setCash(this.save.cash);
   }
 
   /** Level 20: the Queen leaves her corner and starts collecting your cash. */

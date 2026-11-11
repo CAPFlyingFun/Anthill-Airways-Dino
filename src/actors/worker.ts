@@ -55,12 +55,19 @@ export class Worker {
    * @param pickRoute called at the start of each trip; returns where to go.
    * @param hat       hat color, and `flat` for a headband-style cap.
    */
-  constructor(scene: THREE.Scene, x: number, z: number, private pickRoute: () => Route, hat: { color: number; flat?: boolean }, length = 2.1) {
-    this.model = spawnCreature('worker', length) ?? makeAnt(0x5a3a22);
-    addHat(this.model, hat.color, hat.flat);
+  /**
+   * @param person  Act 2: a crew member (human model) instead of an ant; no hat,
+   *                and they carry in front of them (`spot`).
+   */
+  constructor(
+    scene: THREE.Scene, x: number, z: number, private pickRoute: () => Route, hat: { color: number; flat?: boolean }, length = 2.1,
+    person?: { model: CreatureModel; spot: { y0: number; z0: number } },
+  ) {
+    this.model = person?.model ?? spawnCreature('worker', length) ?? makeAnt(0x5a3a22);
+    if (!person) addHat(this.model, hat.color, hat.flat);
     this.model.root.position.set(x, 0, z);
     scene.add(this.model.root);
-    const spot = backSpot(this.model);
+    const spot = person?.spot ?? backSpot(this.model);
     this.stack = new Stack(this.model.bob, backLayout(() => 0.6, spot.y0, spot.z0), CONFIG.worker.carry);
   }
 

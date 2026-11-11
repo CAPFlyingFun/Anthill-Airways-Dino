@@ -112,6 +112,60 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'expand3',     name: 'Big Order: Airstrip', icon: '✈️', cost: 12000, pos: [-10, 34], requires: ['candy2', 'candyrunner'] },
 ];
 
+// ============================================================================
+// ACT 2: THE AIRPORT (human scale). Jack runs the terminal for Anthill Airways:
+//   passengers check in (ticket cash + a suitcase) -> carry bags to the plane
+//   -> the plane flies when its hold is full (pays per bag)
+//   the ant colony ships snack boxes -> carry them to the café -> travellers buy
+// Units here: a person is AIR.humanH tall (so stations are a familiar size).
+// ============================================================================
+export const AIR = {
+  humanH: 2.8,             // how tall people are in airport units
+  speedMult: 1.15,         // Jack walks a touch faster than the ant Major did
+  ticket: 30,              // cash per passenger checked in
+  passengerInterval: 2.6,  // seconds between new passengers at check-in
+  cafeInterval: 3.2,       // seconds between new café customers
+  queueMax: 4,
+  serveInterval: 0.55,     // seconds between each check-in / café sale
+  crateMax: 18,            // snack boxes the colony's export crate holds
+  crateSlowest: 2.8,       // seconds per box with only the first colony unlocks...
+  crateFastest: 0.45,      // ...down to this with the whole colony built
+  trolleyCarry: 6,         // extra carry from the Luggage Trolley
+  colonyAnts: 46,          // tiny ants walking around the planter box at most
+};
+
+/**
+ * The Anthill Airways fleet. You start with a Cessna 172 and upgrade it;
+ * the helicopter flies from its own helipad, alongside the plane.
+ *   hold   = bags that fill it (it takes off when full)
+ *   fare   = cash multiplier on every bag it flies
+ *   flight = seconds it's away before it lands and pays
+ */
+export type AircraftKind = 'cessna' | 'twin' | 'jet' | 'liner' | 'heli';
+export const FLEET: Record<AircraftKind, { name: string; hold: number; fare: number; flight: number }> = {
+  cessna: { name: 'Cessna 172', hold: 6, fare: 1.0, flight: 10 },
+  twin:   { name: 'Twin Prop',  hold: 10, fare: 1.4, flight: 12 },
+  jet:    { name: 'Learjet',    hold: 14, fare: 2.0, flight: 9 },
+  liner:  { name: 'Airliner',   hold: 24, fare: 2.6, flight: 16 },
+  heli:   { name: 'Helicopter', hold: 4, fare: 2.2, flight: 7 },
+};
+
+/** Act 2 unlock tiles (inside the terminal). Same shape as UNLOCKS. */
+export const AIR_UNLOCKS: UnlockDef[] = [
+  { id: 'a2-agent',   name: 'Check-in Agent',  icon: '🛂', cost: 2000,  pos: [2.5, -5],    requires: [] },
+  { id: 'a2-trolley', name: 'Luggage Trolley', icon: '🛒', cost: 2500,  pos: [0, 2],       requires: ['a2-agent'] },
+  { id: 'a2-cafe',    name: 'Ant Café',        icon: '☕', cost: 3500,  pos: [-9, 4],      requires: ['a2-agent'] },
+  { id: 'a2-handler', name: 'Baggage Handler', icon: '🧳', cost: 5000,  pos: [8.5, -6.2],  requires: ['a2-agent'] },
+  { id: 'a2-barista', name: 'Barista',         icon: '🧋', cost: 6500,  pos: [-13.5, 0.5], requires: ['a2-cafe'] },
+  { id: 'a2-host',    name: 'Café Host',       icon: '🍱', cost: 8000,  pos: [-4.5, -6],   requires: ['a2-cafe'] },
+  { id: 'a2-twin',    name: 'Plane: Twin Prop', icon: '🛩️', cost: 6000,  pos: [8.5, -10.5], requires: ['a2-handler'] },
+  { id: 'a2-heli',    name: 'Helipad',          icon: '🚁', cost: 9000,  pos: [-15.5, -10.2], requires: ['a2-handler'] },
+  { id: 'a2-jet',     name: 'Plane: Learjet',   icon: '🛫', cost: 14000, pos: [8.5, -10.5], requires: ['a2-twin'] },
+  { id: 'a2-sarah',   name: 'Sarah: Assistant', icon: '👩‍💼', cost: 18000, pos: [3, 6.5],  requires: ['a2-barista', 'a2-host', 'a2-handler'] },
+  { id: 'a2-liner',   name: 'Plane: Airliner',  icon: '✈️', cost: 26000, pos: [8.5, -10.5], requires: ['a2-jet', 'a2-sarah'] },
+  { id: 'a2-island',  name: 'Big Order: Island', icon: '🏝️', cost: 45000, pos: [-2.5, 9.6], requires: ['a2-liner', 'a2-heli'] },
+];
+
 /** The map grows zone by zone. A zone opens when its `unlock` is bought. */
 export interface ZoneDef {
   id: string;

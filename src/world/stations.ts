@@ -62,12 +62,14 @@ function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y
 }
 
 // ----------------------------------------------------------------------------
-export type PileStyle = 'bread' | 'plant' | 'vending';
+export type PileStyle = 'bread' | 'plant' | 'vending' | 'crate';
 
 export class ResourcePile {
   group = new THREE.Group();
   stack: Stack;
   zone: Zone;
+  /** Seconds to regrow one item (the airport's export crate speeds up as the colony grows). */
+  spawnEvery: () => number = () => CONFIG.crumbPile.spawnInterval;
   private spawnT = 0;
 
   constructor(scene: THREE.Scene, x: number, z: number, private flyers: Flyers, public type: ItemType = 'crumb', style: PileStyle = 'bread') {
@@ -103,6 +105,17 @@ export class ResourcePile {
         leaf.castShadow = true;
         source.add(leaf);
       }
+    } else if (style === 'crate') {
+      // Act 2: the colony's shipping crate (stenciled, with a little ant flag)
+      source.add(box(2.4, 1.3, 1.3, mat(0xc89b5e, 0.9), 0, 0.65, 0));
+      for (const y of [0.25, 1.05]) source.add(box(2.5, 0.14, 1.36, mat(0x8a5a2b, 0.9), 0, y, 0));
+      source.add(box(0.06, 1.2, 0.06, mat(0x444444), 1.0, 1.9, 0));
+      const flag = box(0.6, 0.38, 0.03, mat(0xc0392b, 0.6), 1.31, 2.3, 0);
+      source.add(flag);
+      const stamp = new TextSprite(0.42, '#ffe7b0');
+      stamp.setText('🐜 ANT EXPORTS');
+      stamp.sprite.position.set(0, 1.75, 0.2);
+      source.add(stamp.sprite);
     } else {
       // A vending machine (giant, from an ant's point of view)
       source.add(box(2.4, 3.4, 1.2, mat(0x2f6fd6, 0.5), 0, 1.7, -0.3));
@@ -120,7 +133,8 @@ export class ResourcePile {
     this.group.add(pad);
 
     this.zone = new Zone(x, z, 1.6, 1.6);
-    this.stack = new Stack(this.group, gridLayout(3, 3, 0.48, 0.48, 0.22), CONFIG.crumbPile.max);
+    const big = style === 'crate'; // snack boxes are bigger than crumbs
+    this.stack = new Stack(this.group, big ? gridLayout(3, 3, 0.68, 0.52, 0.22) : gridLayout(3, 3, 0.48, 0.48, 0.22), CONFIG.crumbPile.max);
     for (let i = 0; i < CONFIG.crumbPile.max; i++) this.stack.addInstant(type);
   }
 
@@ -130,7 +144,7 @@ export class ResourcePile {
       return;
     }
     this.spawnT += dt;
-    if (this.spawnT >= CONFIG.crumbPile.spawnInterval) {
+    if (this.spawnT >= this.spawnEvery()) {
       this.spawnT = 0;
       this.flyers.grow(this.stack.addInstant(this.type).mesh, 0.25);
     }

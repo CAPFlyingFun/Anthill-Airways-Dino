@@ -32,6 +32,11 @@ export function backSpot(m: CreatureModel) {
   return { y0: m.height * 0.9, z0: -m.length * 0.12 };
 }
 
+/** People carry things in front of them, starting at hand height (Township style). */
+export function handsSpot(m: CreatureModel) {
+  return { y0: m.height * 0.4, z0: m.height * 0.17 };
+}
+
 /** The blue pilot cap + goggles, sized for a head about `size` wide. */
 export function makePilotCap(size: number) {
   const g = new THREE.Group();
@@ -61,9 +66,15 @@ export class Player {
   private lean = 0;
   private maxLabel = new TextSprite(0.6, '#ff6b6b');
 
-  constructor(scene: THREE.Scene) {
-    const major = spawnCreature('major', 2.6);
-    if (major) {
+  /**
+   * Default: the fire ant Major in a pilot cap, carrying on its back.
+   * Act 2 passes a person (`model`) who carries in front (`spot`).
+   */
+  constructor(scene: THREE.Scene, opts?: { model: CreatureModel; spot: { y0: number; z0: number } }) {
+    const major = opts ? null : spawnCreature('major', 2.6);
+    if (opts) {
+      this.model = opts.model;
+    } else if (major) {
       this.model = major;
       // Cap sits on the Major's big head (front ~third of the body).
       const cap = makePilotCap(major.length * 0.3);
@@ -74,11 +85,22 @@ export class Player {
       this.model = makeAnt(0x8e2f14, true);
     }
     scene.add(this.model.root);
-    const spot = backSpot(this.model);
-    this.stack = new Stack(this.model.bob, backLayout(() => this.lean, spot.y0, spot.z0, () => this.stack.items), this.carryMax);
+    const spot = opts?.spot ?? backSpot(this.model);
+    // Back stacks sway backward; front stacks (people) lean in toward the chest.
+    const sway = opts ? () => -this.lean * 0.5 : () => this.lean;
+    this.stack = new Stack(this.model.bob, backLayout(sway, spot.y0, spot.z0, () => this.stack.items), this.carryMax);
     this.maxLabel.setText('MAX');
     this.maxLabel.sprite.visible = false;
     scene.add(this.maxLabel.sprite);
+  }
+
+  /** Height of the top of the carried stack. */
+  private stackTop() {
+    const items = this.stack.items;
+    const tmp = new THREE.Vector3();
+    if (!items.length) return 0;
+    this.stack.layout(items.length - 1, items[items.length - 1].type, tmp);
+    return tmp.y + 0.3;
   }
 
   get pos() {
@@ -132,7 +154,7 @@ export class Player {
     const full = this.stack.full;
     this.maxLabel.sprite.visible = full;
     if (full) {
-      const top = this.model.height + 0.6 + this.stack.count * 0.31;
+      const top = Math.max(this.model.height + 0.6, this.stackTop() + 0.7);
       this.maxLabel.sprite.position.set(p.x, top, p.z);
     }
   }

@@ -17,6 +17,8 @@ export interface CreatureModel {
   legAxis: THREE.Vector3[];   // axis each leg swings around (in the leg's own space)
   legPhase: number[];         // 0 or PI (alternating gait)
   legAmp: number;             // how far legs swing (radians)
+  legAmps?: number[];         // per-limb swing (humans: legs swing more than arms)
+  stride?: number;            // body lengths per stride (humans take long strides)
   walkT: number;
   walkBlend: number;          // 0 = standing, 1 = full walk cycle
   height: number;             // world height of the body (for stacking things on top)
@@ -196,7 +198,7 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
   m.walkBlend += ((moving ? 1 : 0) - m.walkBlend) * Math.min(1, dt * 10);
   // The gait runs on DISTANCE walked (TRADDOMIUM's rule): stop walking = feet stop.
   const bl = speed / m.length;
-  if (moving) m.walkT += dt * ((Math.PI * 2 * bl) / strideLengths(bl));
+  if (moving) m.walkT += dt * ((Math.PI * 2 * bl) / (m.stride ?? strideLengths(bl)));
 
   // Wings: open + buzz while flying, fold back down when landed.
   m.wingOpen += ((m.flying ? 1 : 0) - m.wingOpen) * Math.min(1, dt * 12);
@@ -209,7 +211,7 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
     }
   }
   m.legs.forEach((leg, i) => {
-    const angle = Math.sin(m.walkT + m.legPhase[i]) * m.legAmp * m.walkBlend;
+    const angle = Math.sin(m.walkT + m.legPhase[i]) * (m.legAmps?.[i] ?? m.legAmp) * m.walkBlend;
     swingQ.setFromAxisAngle(m.legAxis[i], angle);
     leg.quaternion.copy(m.legBase[i]).multiply(swingQ);
   });

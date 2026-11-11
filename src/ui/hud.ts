@@ -115,7 +115,7 @@ export class Hud {
 
   // ---- Inventory (ARK style) ----------------------------------------------
   private invKey = '';
-  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵' };
+  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱' };
 
   /** Show what you're carrying: one slot per item type + a weight bar. */
   setInventory(counts: Map<string, number>, used: number, max: number) {
