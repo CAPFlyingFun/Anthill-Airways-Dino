@@ -118,3 +118,42 @@ export class Worker {
     }
   }
 }
+
+// ============================================================================
+// Banker Ant (gold cap): stands beside a zone's cash pad and sweeps every bill
+// straight into your wallet, so the zone keeps paying you while you're away.
+// ============================================================================
+export class Banker {
+  model: CreatureModel;
+  private t = 0;
+
+  constructor(scene: THREE.Scene, private pad: { stack: Stack; zone: Zone }, private onCash: (amount: number) => void) {
+    this.model = spawnCreature('worker', 2.0) ?? makeAnt(0x5a3a22);
+    addHat(this.model, 0xffd166, true);
+    // Stand just behind the pad, facing it.
+    this.model.root.position.set(pad.zone.x + pad.zone.halfW + 0.9, 0, pad.zone.z);
+    this.model.root.rotation.y = -Math.PI / 2;
+    scene.add(this.model.root);
+  }
+
+  update(dt: number, flyers: Flyers) {
+    animateCreature(this.model, dt, 0);
+    this.t += dt;
+    if (this.t < 0.12) return;
+    this.t = 0;
+    const bill = this.pad.stack.pop();
+    if (!bill) return;
+    const target = new THREE.Vector3();
+    this.model.root.getWorldPosition(target).setY(this.model.height + 0.4);
+    flyers.fly(
+      bill.mesh,
+      () => target,
+      () => {
+        bill.mesh.removeFromParent();
+        this.onCash(bill.value);
+      },
+      0.25,
+      0.7,
+    );
+  }
+}

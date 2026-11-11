@@ -232,6 +232,15 @@ export class Hud {
     }
   }
 
+  /** Version line + "Check for updates" button in Settings. */
+  initVersion(label: string, onCheck: () => void) {
+    $('versionText').textContent = label;
+    $('updateBtn').addEventListener('click', onCheck);
+  }
+  setUpdateStatus(text: string) {
+    $('updateStatus').textContent = text;
+  }
+
   /** Settings panel: sound toggle + reset (tap reset twice to confirm). */
   initSettings(opts: { sound: boolean; onSound: (on: boolean) => void; onReset: () => void }) {
     const panel = $('settings');

@@ -22,7 +22,7 @@ import { Progress, QueenProgress } from '../core/progress';
 import { QueenCollector } from '../actors/queen';
 import { Hud } from '../ui/hud';
 import { Player } from '../actors/player';
-import { Route, Worker } from '../actors/worker';
+import { Banker, Route, Worker } from '../actors/worker';
 import { Impostor } from '../actors/impostor';
 import { spawnCreature, spawnProp } from '../actors/creatures';
 import { animateCreature, CreatureModel } from '../actors/models';
@@ -50,6 +50,7 @@ export class BaseWorld {
   cashPads: CashPad[] = [];
   dispatches: DispatchPad[] = [];
   workers: Worker[] = [];
+  bankers: Banker[] = [];
   tiles: UnlockTile[] = [];
   hatchery: Hatchery | null = null;
   conveyor: Conveyor | null = null;
@@ -512,6 +513,17 @@ export class BaseWorld {
     if (animate) this.flyers.grow(w.model.root);
   }
 
+  /** A Banker Ant for one zone's cash pad. Once the Queen is active, her Tribute bonus applies too. */
+  private hireBanker(pad: CashPad | undefined, animate: boolean) {
+    if (!pad) return;
+    const b = new Banker(this.scene, pad, (amount) => {
+      const tribute = this.save.queen.active ? this.queenProgress.tributeMult : 1;
+      this.addCash(amount * tribute);
+    });
+    this.bankers.push(b);
+    if (animate) this.flyers.grow(b.model.root);
+  }
+
   /** A baby worker from the Hatchery: alternates gathering leaves and delivering wraps. */
   private hatchling(animate: boolean) {
     if (!this.leafPress || !this.market || !this.hatchery) return;
@@ -566,6 +578,9 @@ export class BaseWorld {
       case 'oven2':
         this.bakery.makeFaster();
         break;
+      case 'banker':
+        this.hireBanker(this.cashPads[this.counters.indexOf(this.counter)], animate);
+        break;
       case 'expand':
         this.openZone('brood', animate);
         if (animate) this.hud.banner('Brood Tunnels open! 🐜', 'Head west through the fence', 4000);
@@ -609,6 +624,12 @@ export class BaseWorld {
       case 'press2':
         this.leafPress?.makeFaster();
         break;
+      case 'leafant2':
+        if (this.leafPress) this.hire(x, z, this.gatherRoute('leaf', this.leafPress), { color: 0x7df9a0 }, animate);
+        break;
+      case 'banker2':
+        if (this.market) this.hireBanker(this.cashPads[this.counters.indexOf(this.market)], animate);
+        break;
       case 'expand2':
         this.openZone('hangar', animate);
         if (animate) this.hud.banner('Hangar Floor open! 🏭', 'Head south through the fence', 4000);
@@ -632,6 +653,12 @@ export class BaseWorld {
         break;
       case 'candy2':
         this.candyPress?.makeFaster();
+        break;
+      case 'sugarant2':
+        if (this.candyPress) this.hire(x, z, this.gatherRoute('sugar', this.candyPress), { color: 0xff6fb5 }, animate);
+        break;
+      case 'banker3':
+        if (this.shop) this.hireBanker(this.cashPads[this.counters.indexOf(this.shop)], animate);
         break;
       case 'expand3':
         if (animate) this.hud.banner('Act 1 complete! ✈️🏆', 'The Old Airstrip (Act 2: The Airport) is next!', 6000);
@@ -728,6 +755,7 @@ export class BaseWorld {
     for (const c of this.counters) c.update(dt, c.sellZone.contains(p), this.sfx, p);
     for (const d of this.dispatches) d.update(dt);
     for (const w of this.workers) w.update(dt, this.flyers);
+    for (const b of this.bankers) b.update(dt, this.flyers);
     this.hatchery?.update(dt);
     this.conveyor?.update(dt);
 

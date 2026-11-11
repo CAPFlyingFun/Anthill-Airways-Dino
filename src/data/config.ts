@@ -86,6 +86,7 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'conveyor', name: 'Conveyor Belt',   icon: '⛓️', cost: 150, pos: [6.2, -10.6], requires: ['cashier'] },
   { id: 'runner',   name: 'Runner Ant',      icon: '🏃', cost: 150, pos: [3.6, -2.4], requires: ['cashier'] },
   { id: 'worker2',  name: 'Worker Ant',      icon: '🐜', cost: 200, pos: [-11.5, -1.5], requires: ['worker1', 'pile2'] },
+  { id: 'banker',   name: 'Banker Ant',      icon: '💼', cost: 300, pos: [4.2, 2.4], requires: ['cashier', 'runner'] },
   { id: 'expand',   name: 'Big Order: Tunnels', icon: '🗺️', cost: 500, pos: [11, 7], requires: ['dispatch', 'worker2', 'oven2'] },
 
   // ---- Zone 2: Brood Tunnels (west) — leaves -> leaf press -> leaf wraps ----
@@ -96,6 +97,8 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'hatchery',   name: 'Hatchery',        icon: '🥚', cost: 800,  pos: [-30, 7.5],   requires: ['leafant'] },
   { id: 'raft',       name: 'Raft Runs',       icon: '🚣', cost: 900,  pos: [-24, 8],     requires: ['leaf2'] },
   { id: 'press2',     name: 'Faster Press',    icon: '🔥', cost: 1200, pos: [-35, -10.6], requires: ['leafant'] },
+  { id: 'leafant2',   name: 'Leaf Ant',        icon: '🐜', cost: 1000, pos: [-24, -1.5],  requires: ['leafant'] },
+  { id: 'banker2',    name: 'Banker Ant',      icon: '💼', cost: 1400, pos: [-37.5, 4.6], requires: ['cashier2', 'wraprunner'] },
   { id: 'expand2',    name: 'Big Order: Hangar', icon: '🗺️', cost: 3500, pos: [7, 9.3], requires: ['hatchery', 'raft', 'press2', 'wraprunner'] },
 
   // ---- Zone 3: Hangar Floor (south) — vending machine sugar -> candy press -> candy ----
@@ -104,6 +107,8 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'sugarant',    name: 'Sugar Ant',       icon: '🐜', cost: 2400,  pos: [-3, 24.5], requires: ['sugar2'] },
   { id: 'candyrunner', name: 'Candy Runner',    icon: '🏃', cost: 2800,  pos: [2.5, 24.5], requires: ['cashier3'] },
   { id: 'candy2',      name: 'Faster Press',    icon: '🔥', cost: 4000,  pos: [-3, 33.5], requires: ['sugarant'] },
+  { id: 'sugarant2',   name: 'Sugar Ant',       icon: '🐜', cost: 3200,  pos: [-3, 24.5], requires: ['sugarant'] },
+  { id: 'banker3',     name: 'Banker Ant',      icon: '💼', cost: 4500,  pos: [3.4, 32.2], requires: ['cashier3', 'candyrunner'] },
   { id: 'expand3',     name: 'Big Order: Airstrip', icon: '✈️', cost: 12000, pos: [-10, 34], requires: ['candy2', 'candyrunner'] },
 ];
 

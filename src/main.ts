@@ -15,6 +15,7 @@ import { BaseWorld } from './world/baseWorld';
 import { GateRun } from './runs/gateRun';
 import { loadModels } from './actors/creatures';
 import { lod } from './core/lod';
+import { Updater, versionLabel } from './core/updater';
 
 const app = document.getElementById('app')!;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -103,6 +104,14 @@ async function start() {
   });
 
   hud.hideLoading();
+
+  // Auto-update: checks for a newer build and reloads into it (never mid gate run).
+  const updater = new Updater({
+    canReload: () => mode === 'base',
+    beforeReload: () => writeSave(save),
+    onStatus: (t) => hud.setUpdateStatus(t),
+  });
+  hud.initVersion(versionLabel(), () => updater.check(true));
 
   // 6) Auto quality. If the game can't keep up (slower than ~40 fps for a
   // couple of seconds), step down one level: fewer pixels, softer shadows.
