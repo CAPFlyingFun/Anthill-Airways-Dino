@@ -1,6 +1,6 @@
 # 🐜✈️🦖 Anthill Airways
 
-**Start as an ant. End up running an airline to an island full of dinosaurs.**
+**Start as an ant. End up running an airline to an island full of dinosaurs… and a volcano.**
 
 An idle arcade tycoon (walk around, stack stuff on your back, unlock new land) with
 **gate runs**: send your goods down a lane through `+ / x / - / ÷ / ?` gates to grow
@@ -55,9 +55,44 @@ Colony, the Airport and Dino Island (all three keep earning in the background).
 - The island's models (Dodo, Dilophosaurus, 5 sea creatures, 5 trees) come from the
   Beyond-Extinction repo and only download the first time you fly there
 
+## Act 4 — Mount Anthill 🌋🦖
+
+Buy **Big Order: Volcano** on the island and the 🌍 menu gets a 🌋 Volcano stop. Helicopter
+tours fly in to an active volcano:
+
+- 💎 **Obsidian Mine**: mine 🪨 obsidian → the FORGE → sell polished 💎 gems at the Gem Shop
+- ⚡ **Geothermal Plant**: carry 🔥 magma from the lava vent to MAGMA IN. While it's powered,
+  **all your cash in every world is +25%**, and it sells power to the grid.
+  Magma is hot: carry it too long and it burns away!
+- 🚁 **Heli Tours**: a helicopter gate run over a lava valley: dodge ash clouds and lava bombs,
+  fly past erupting lava fountains for 📸 bonuses, and the **Lava Rex** at the finish pays ×1.25
+- 🦖 **Lava Rex**: a procedural T-Rex with glowing lava cracks. Feed it 🍖 at TAME (24 meat)
+  and it's tamed (saddle and all): it hauls 40 at a time, and it's heat-proof
+- 🐜 **Fire Ant Kingdom**: giant fire ants, your colony's ancient cousins! Bring the Fire
+  Queen 💎 tribute; while she's pleased, her colony fills the vault with 🔶 Fire Crystals
+  ($450 each at the Crystal Exchange)
+- Crew: Gem Shop Clerk, Obsidian Miner, Gem Runner, Tour Pilot, Crystal Trader, Fire Ant
+  Haulers, and a giant fire ant Major as your Treasurer
+- **Dangers:** 🥵 **heat** (stand near the lava lake and the heat bar fills; full = you drop
+  everything; cool off at ❄️ MIST or buy the Heat Suit) and 🌋 **eruptions** (every 4–6 min:
+  lava bombs land on red rings near you, lava flows cross the paths, and the tourists in line
+  need evacuating, or half of them flee)
+
+## Prestige: The Big Eruption 💎
+
+The last volcano tile (**$6M**) opens the ERUPT altar. Stand on it to blow the top off the
+mountain: **Dino Island and the Volcano reset** (unlocks + cash), and you earn
+**💎 Obsidian Shards** (12 × √millions earned since the last eruption, e.g. $30M ≈ 65 shards).
+You keep the colony, the airport, your level, stats and the Queen.
+
+Spend shards at the **💎 Obsidian Shrine** (tap your level): permanent upgrades that survive
+every eruption: 💰 Obsidian Riches (+10% all cash), 👟 Lava Legs (+6% speed), 🍀 Lucky Ash
+(better gates), 🚀 Head Start (+$100k after each eruption) and 💤 Night Shift (+10% offline).
+
 ## Challenges ⚠️
 
-Each act costs more than the last (Act 2 ≈ $290k total, the island ≈ $2.7M), and things go wrong:
+Each act costs more than the last (Act 2 ≈ $290k total, the island ≈ $2.7M, the volcano ≈
+$12.5M + the $6M eruption), and things go wrong:
 
 - ⛈️ **Storms** (airport + island): a 15 s warning, then ~45 s of rain. Flights, safaris and
   island arrivals are grounded, the supply drop stops and fruit grows slower
@@ -79,7 +114,7 @@ While you play, the game measures your income (shown under your cash as +$/min).
 come back after a while, the colony and airport pay **50% of that rate for the time away**
 (up to 8 hours). Collect it, or risk it on a **Bonus Run**: a tougher gate run (more ÷ gates,
 double hazards, gates that 🔀 swap sides at the last second) that multiplies it. You always keep
-at least 25%.
+at least 25%. (💤 Night Shift shards raise the 50%.)
 
 ## First-person view 👁️
 
@@ -93,7 +128,8 @@ fire ant **Major** (you), **Worker**, **Queen** and larvae, aphid, housefly, ear
 props from *Thronemound Colony Sim*; **Black Widow** and **Jumping Spider** from the
 *TRADDOMIUM* releases; Huntsman, Wolf Spider, Ant-Mimicking Spider and the 10 people
 (Jack, Sarah, the Director, passengers and flight crew) from TRADDOMIUM's "Modelsv1"
-release. People walk with code-driven arms + legs too.
+release. People walk with code-driven arms + legs too. The Lava Rex is built from shapes in
+code (`src/actors/rex.ts`) until a real model is ready.
 
 ## Project layout
 

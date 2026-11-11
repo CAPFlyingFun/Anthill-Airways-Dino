@@ -13,10 +13,12 @@ import * as THREE from 'three';
 
 export type ItemType = 'crumb' | 'snack' | 'leaf' | 'wrap' | 'sugar' | 'candy' | 'cash' | 'bag' | 'snackbox'
   // Act 3 (Dino Island)
-  | 'fruit' | 'smoothie' | 'meat' | 'egg' | 'ticket';
+  | 'fruit' | 'smoothie' | 'meat' | 'egg' | 'ticket'
+  // Act 4 (Volcano)
+  | 'obsidian' | 'gem' | 'magma' | 'crystal';
 
 /** Height of one item when stacked. */
-export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, leaf: 0.14, wrap: 0.32, sugar: 0.4, candy: 0.3, cash: 0.11, bag: 0.48, snackbox: 0.36, fruit: 0.4, smoothie: 0.5, meat: 0.32, egg: 0.42, ticket: 0.1 };
+export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, leaf: 0.14, wrap: 0.32, sugar: 0.4, candy: 0.3, cash: 0.11, bag: 0.48, snackbox: 0.36, fruit: 0.4, smoothie: 0.5, meat: 0.32, egg: 0.42, ticket: 0.1, obsidian: 0.36, gem: 0.4, magma: 0.4, crystal: 0.52 };
 
 // Shared geometry + materials: every crumb reuses the same ones (fast).
 const geo = {
@@ -42,6 +44,10 @@ const geo = {
   bone: new THREE.CylinderGeometry(0.05, 0.05, 0.3, 6),
   egg: new THREE.SphereGeometry(0.17, 14, 10).scale(1, 1.3, 1),
   ticket: new THREE.BoxGeometry(0.5, 0.08, 0.3),
+  // Act 4 (Volcano)
+  rock: new THREE.DodecahedronGeometry(0.22).scale(1.15, 0.85, 1),       // a chunk of obsidian / magma
+  gem: new THREE.OctahedronGeometry(0.2).scale(1, 1.25, 1),              // a polished obsidian gem
+  crystal: new THREE.ConeGeometry(0.15, 0.5, 6),                         // a Fire Crystal shard
 };
 const mat = {
   crumb: new THREE.MeshStandardMaterial({ color: 0xdca44a, roughness: 0.9 }),
@@ -66,10 +72,14 @@ const mat = {
   bone: new THREE.MeshStandardMaterial({ color: 0xf2ead8, roughness: 0.6 }),
   egg: new THREE.MeshStandardMaterial({ color: 0xf3e3c3, roughness: 0.5 }),
   ticket: new THREE.MeshStandardMaterial({ color: 0x2ec4b6, roughness: 0.5 }),
+  obsidian: new THREE.MeshStandardMaterial({ color: 0x1b1a24, roughness: 0.15, metalness: 0.35 }),
+  gem: new THREE.MeshStandardMaterial({ color: 0x5b3fa0, roughness: 0.1, metalness: 0.4, emissive: 0x2a1250, emissiveIntensity: 0.6 }),
+  magma: new THREE.MeshStandardMaterial({ color: 0x5a1606, roughness: 0.6, emissive: 0xff4a12, emissiveIntensity: 1.3 }),
+  crystal: new THREE.MeshStandardMaterial({ color: 0xff7a3d, roughness: 0.2, metalness: 0.1, emissive: 0xff3300, emissiveIntensity: 0.9 }),
 };
 
 /** Cash value of each sellable item (counter price; gate runs pay the same per item). */
-export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25, fruit: 0, smoothie: 60, meat: 0, egg: 80, ticket: 50 };
+export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0, bag: 15, snackbox: 25, fruit: 0, smoothie: 60, meat: 0, egg: 80, ticket: 50, obsidian: 0, gem: 150, magma: 0, crystal: 450 };
 
 /** Build the 3D mesh for one item. Box faces order: +x, -x, +y(top), -y, +z, -z */
 export function makeItem(type: ItemType): THREE.Mesh {
@@ -117,6 +127,16 @@ export function makeItem(type: ItemType): THREE.Mesh {
     m = new THREE.Mesh(geo.egg, mat.egg);
   } else if (type === 'ticket') {
     m = new THREE.Mesh(geo.ticket, mat.ticket);
+  } else if (type === 'obsidian') {
+    m = new THREE.Mesh(geo.rock, mat.obsidian);
+    m.rotation.y = Math.random() * 3;
+  } else if (type === 'magma') {
+    m = new THREE.Mesh(geo.rock, mat.magma);
+    m.rotation.y = Math.random() * 3;
+  } else if (type === 'gem') {
+    m = new THREE.Mesh(geo.gem, mat.gem);
+  } else if (type === 'crystal') {
+    m = new THREE.Mesh(geo.crystal, mat.crystal);
   } else if (type === 'snackbox') {
     const s = mat.boxSide;
     m = new THREE.Mesh(geo.snackbox, [s, s, mat.boxTop, s, s, s]);

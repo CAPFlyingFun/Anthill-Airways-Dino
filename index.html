@@ -16,6 +16,8 @@
     <div id="app"></div>
     <!-- Rain + dark sky during a storm (airport + island only) -->
     <div id="storm" class="storm"></div>
+    <!-- Ash + red glow during a volcanic eruption (Act 4) -->
+    <div id="ash" class="ash"></div>
     <!-- Fades the screen while switching between the ant and human worlds -->
     <div id="fade" class="fade"></div>
 
@@ -45,6 +47,8 @@
         <div id="invSlots" class="inv-slots"></div>
         <div class="inv-weight"><span>🎒</span><span class="inv-bar"><i id="invFill"></i></span><b id="invText">0/8</b></div>
       </div>
+      <!-- Act 4: how hot you are near the lava (full = you drop everything) -->
+      <div id="heat" class="heat hidden"><span>🥵</span><span class="heat-bar"><i id="heatFill"></i></span></div>
       <button id="launchBtn" class="big-btn hidden">🚀 LAUNCH RUN</button>
       <!-- First-person / third-person camera (bottom right, under your thumb) -->
       <button id="viewBtn" class="round-btn view-btn" aria-label="Switch to first-person view">👁️</button>
@@ -70,6 +74,32 @@
         <button data-world="base">🐜 Ant Colony</button>
         <button data-world="air">✈️ Airport</button>
         <button data-world="island">🏝️ Dino Island</button>
+        <button data-world="volcano" class="hidden">🌋 Volcano</button>
+      </div>
+
+      <!-- Prestige: erupt the volcano for Obsidian Shards -->
+      <div id="erupt" class="overlay hidden">
+        <div class="card erupt-card">
+          <h2>🌋 The Big Eruption</h2>
+          <p>Blow the top off Mount Anthill! <b>Dino Island and the Volcano reset</b> (their unlocks and your cash).</p>
+          <p>You keep your <b>colony, airport, level, stats</b> and the Queen.</p>
+          <div class="er-gain">You'll earn <b id="erShards">💎 0</b> Obsidian Shards</div>
+          <div id="erEarned" class="er-sub"></div>
+          <p class="er-sub">Shards buy permanent boosts at the 💎 Obsidian Shrine (tap your level).</p>
+          <button id="erYes" class="big-btn erupt-btn">🌋 ERUPT!</button>
+          <button id="erNo" class="menu-btn">Not yet</button>
+        </div>
+      </div>
+
+      <!-- The Obsidian Shrine: permanent upgrades bought with shards -->
+      <div id="shrine" class="overlay hidden">
+        <div class="card stats-card">
+          <h2>💎 Obsidian Shrine</h2>
+          <div id="shrineCount" class="points-line"></div>
+          <p class="er-sub">Permanent: these survive every eruption.</p>
+          <div id="shrineRows"></div>
+          <button id="closeShrine" class="menu-btn">Close</button>
+        </div>
       </div>
 
       <!-- Welcome back: what the colony + airport earned while you were away -->
@@ -113,6 +143,7 @@
             <div id="queenPoints" class="points-line"></div>
             <div id="queenRows"></div>
           </div>
+          <button id="shrineBtn" class="menu-btn shrine-btn hidden">💎 Obsidian Shrine</button>
           <button id="closeStats" class="menu-btn">Close</button>
         </div>
       </div>

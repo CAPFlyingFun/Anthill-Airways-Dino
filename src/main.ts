@@ -9,7 +9,8 @@ import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { SLOTS, Slot, activeSlot, clearSave, eraseSlot, loadSave, slotSummary, switchSlot, writeSave } from './core/save';
 import { Progress, QueenProgress } from './core/progress';
-import { OFFLINE, QUEEN_UNLOCK_LEVEL } from './data/config';
+import { OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
+import { erupt, shardsFor } from './core/prestige';
 import { weather } from './core/weather';
 import { Hud } from './ui/hud';
 import { BaseWorld } from './world/baseWorld';
@@ -17,6 +18,7 @@ import { GateRun } from './runs/gateRun';
 import { loadHumans, loadIsland, loadModels } from './actors/creatures';
 import { AirportWorld } from './world/airportWorld';
 import { IslandWorld } from './world/islandWorld';
+import { VolcanoWorld } from './world/volcanoWorld';
 import { lod } from './core/lod';
 import { Updater, versionLabel } from './core/updater';
 
@@ -75,17 +77,20 @@ async function start() {
   // 2) Build both game modes.
   const base = new BaseWorld(hud, sfx, save, progress, queenProgress);
   const run = new GateRun(hud, sfx);
-  // base = the ant colony, air = the airport (Act 2), run = a gate run
-  // base = the ant colony, air = the airport (Act 2), island = Dino Island (Act 3), run = a gate run
-  let mode: 'base' | 'air' | 'island' | 'run' = 'base';
+  // base = the ant colony, air = the airport (Act 2), island = Dino Island (Act 3),
+  // volcano = Mount Anthill (Act 4), run = a gate run
+  let mode: 'base' | 'air' | 'island' | 'volcano' | 'run' = 'base';
   let airport: AirportWorld | null = null;
   let island: IslandWorld | null = null;
-  type World = 'base' | 'air' | 'island';
+  let volcano: VolcanoWorld | null = null;
+  type World = 'base' | 'air' | 'island' | 'volcano';
   const modeBtn = document.getElementById('modeBtn')!;
   const fade = document.getElementById('fade')!;
 
   // 3) XP + level-ups
   hud.initStats(progress, queenProgress);
+  // 💎 The Obsidian Shrine shows up once you've reached the volcano (or erupted)
+  hud.initShrine(progress, () => save.eruptions > 0 || save.shards > 0 || volcanoOpen());
   progress.onChange = () => hud.renderLevel();
   queenProgress.onChange = () => hud.renderLevel();
   progress.onLevelUp = (level) => {
@@ -152,9 +157,67 @@ async function start() {
         writeSave(save);
       }, 'ocean', 'ticket');
     };
+    hookAct4();
     return island;
   }
   const islandOpen = () => save.unlocked.includes('a2-island');
+  const volcanoOpen = () => save.unlocked.includes('i3-volcano');
+
+  // ACT 4: the Volcano (the Lava Rex is built in code, so nothing new to download).
+  async function openVolcano() {
+    if (volcano) return volcano;
+    await openIsland(); // shares the people + the island's models
+    volcano = new VolcanoWorld(hud, sfx, save, progress);
+    volcano.resize(app.clientWidth, app.clientHeight);
+    volcano.setShadowSize(QUALITY[quality].shadow);
+    volcano.player.setFirstPerson(save.view === 'first');
+    // 🚁 Heli tour: a gate run over the lava, paid per tourist who makes it
+    volcano.onTour = (count) => {
+      mode = 'run';
+      hud.setLaunch(null);
+      hud.setHeat(null);
+      run.luck = progress.luck;
+      run.cashMult = progress.cashMult * VOLCANO_CFG.tourFare;
+      run.start(count, (end) => {
+        mode = 'volcano';
+        volcano!.enter(false);
+        volcano!.receiveTour(end);
+        writeSave(save);
+      }, 'lava', 'ticket');
+    };
+    // 🌋 The Big Eruption (prestige)
+    volcano.onErupt = async () => {
+      const gain = shardsFor(save.cycleEarned);
+      const ok = await hud.confirmEruption(gain, save.cycleEarned, save.eruptions);
+      if (!ok || !volcano) return;
+      volcano.bigBang();
+      hud.banner('🌋 KA-BOOOOM!', `+💎 ${gain} Obsidian Shards`, 4000);
+      ashEl.classList.add('on');
+      sfx.unlocked();
+      await new Promise((r) => setTimeout(r, 3200));
+      erupt(save, gain);
+      writeSave(save);
+      try {
+        sessionStorage.setItem('anthill-erupted', String(gain)); // open the shrine after the restart
+      } catch {
+        /* ignore */
+      }
+      window.location.reload();
+    };
+    refreshModeBtn();
+    return volcano;
+  }
+
+  // Buying "Big Order: Volcano" on the island opens Act 4.
+  function hookAct4() {
+    if (!island) return;
+    island.onAct4 = async () => {
+      hud.banner('🌋 Volcano expedition chartered!', 'Loading Mount Anthill…', 4000);
+      await openVolcano();
+      modeBtn.classList.add('pulse');
+      hud.banner('Mount Anthill is open! 🌋🦖', 'Tap 🌍 (top left) to fly there', 6000);
+    };
+  }
 
   /** Fade out, swap worlds, fade in. The other worlds keep running behind. */
   let switching = false;
@@ -166,12 +229,14 @@ async function start() {
     const from = mode as World;
     if (to === 'air') await openAirport();
     if (to === 'island') await openIsland();
+    if (to === 'volcano') await openVolcano();
     await new Promise((r) => setTimeout(r, 380));
     hud.setLaunch(null);
     // Leave the old world (it keeps running in the background)...
     if (from === 'base') base.active = false;
     else if (from === 'air') airport?.leave();
     else if (from === 'island') island?.leave();
+    else if (from === 'volcano') volcano?.leave();
     // ...and step into the new one.
     if (to === 'base') base.enter();
     else if (to === 'air') {
@@ -180,9 +245,12 @@ async function start() {
         save.airSeen = true;
         hud.banner('✈️ Welcome to the airport!', 'Your colony keeps working in the planter box by the window', 4500);
       }
-    } else {
+    } else if (to === 'island') {
       island!.enter(true); // fly in over the island
       hud.banner('🏝️ Dino Island', 'Tourists fly in on Anthill Airways. Start with the Juice Bar!', 3500);
+    } else {
+      volcano!.enter(true); // swoop down from the crater
+      hud.banner('🌋 Mount Anthill', 'Mine 🪨 obsidian, forge 💎 gems… and watch out for the lava!', 3800);
     }
     mode = to;
     save.world = to === 'base' ? 'ant' : to;
@@ -204,7 +272,10 @@ async function start() {
       modeBtn.textContent = mode === 'air' ? '🐜' : '🧍';
       modeBtn.setAttribute('aria-label', mode === 'air' ? 'Back to the ant colony' : 'Go to the airport (human scale)');
     }
-    worldMenu.querySelectorAll<HTMLButtonElement>('button[data-world]').forEach((b) => b.classList.toggle('here', b.dataset.world === mode));
+    worldMenu.querySelectorAll<HTMLButtonElement>('button[data-world]').forEach((b) => {
+      b.classList.toggle('here', b.dataset.world === mode);
+      if (b.dataset.world === 'volcano') b.classList.toggle('hidden', !volcanoOpen());
+    });
   }
   function closeWorldMenu() {
     worldMenu.classList.add('hidden');
@@ -228,6 +299,7 @@ async function start() {
 
   // ⛈️ Storms (airport + island share the sky; the colony is underground)
   const stormEl = document.getElementById('storm')!;
+  const ashEl = document.getElementById('ash')!;
   const humanWorld = () => mode === 'air' || mode === 'island';
   weather.onChange = (sky) => {
     if (!humanWorld()) return;
@@ -243,6 +315,7 @@ async function start() {
     base.player.setFirstPerson(fp);
     airport?.player.setFirstPerson(fp);
     island?.player.setFirstPerson(fp);
+    volcano?.player.setFirstPerson(fp);
     viewBtn.classList.toggle('on', fp);
     viewBtn.textContent = fp ? '🎥' : '👁️';
     viewBtn.setAttribute('aria-label', fp ? 'Switch to third-person view' : 'Switch to first-person view');
@@ -289,6 +362,7 @@ async function start() {
     run.resize(w, h);
     airport?.resize(w, h);
     island?.resize(w, h);
+    volcano?.resize(w, h);
   }
   window.addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize', resize);
@@ -322,7 +396,10 @@ async function start() {
       return;
     }
     const gained = save.cash - prevCash;
-    if (gained > 0) winEarned += gained;
+    if (gained > 0) {
+      winEarned += gained;
+      save.cycleEarned += gained; // counts toward the next eruption's shards
+    }
     prevCash = save.cash;
     winT += dt;
     if (winT >= 10) {
@@ -344,7 +421,9 @@ async function start() {
       return;
     }
     const capped = Math.min(secs, OFFLINE.maxHours * 3600);
-    const amount = Math.floor(save.rate * capped * OFFLINE.share);
+    // 💤 Night Shift (shard upgrade): +10% share per level
+    const share = Math.min(1, OFFLINE.share + progress.up('night') * 0.1);
+    const amount = Math.floor(save.rate * capped * share);
     if (amount < 1) return; // no income measured yet
     welcomeOpen = true;
     const choice = await hud.showWelcome(capped, amount);
@@ -354,7 +433,7 @@ async function start() {
       return;
     }
     // Bonus run: cash bundles on a tougher course. The finish pays per bundle.
-    const back = mode === 'air' ? 'air' : mode === 'island' ? 'island' : 'base';
+    const back = mode === 'air' ? 'air' : mode === 'island' ? 'island' : mode === 'volcano' ? 'volcano' : 'base';
     mode = 'run';
     hud.setLaunch(null);
     run.luck = progress.luck;
@@ -365,6 +444,7 @@ async function start() {
         mode = back;
         if (back === 'air') airport?.enter(false);
         else if (back === 'island') island?.enter(false);
+        else if (back === 'volcano') volcano?.enter(false);
         else base.enter();
         payOffline(Math.max(amount * OFFLINE.keepMin, end * per));
       },
@@ -423,6 +503,7 @@ async function start() {
       base.setShadowSize(QUALITY[quality].shadow);
       airport?.setShadowSize(QUALITY[quality].shadow);
       island?.setShadowSize(QUALITY[quality].shadow);
+      volcano?.setShadowSize(QUALITY[quality].shadow);
       resize();
       qualityWait = 3;
     }
@@ -430,18 +511,19 @@ async function start() {
 
   // Act 2 already reached in an earlier session: get the airport ready, and
   // go straight back to it if that's where you left off.
-  if (save.world === 'island' && islandOpen()) {
+  if ((save.world === 'island' && islandOpen()) || (save.world === 'volcano' && volcanoOpen())) {
     await loadHumans((d, t) => hud.setLoading((d / t) * 0.5));
     await loadIsland((d, t) => hud.setLoading(0.5 + (d / t) * 0.5));
-    await switchWorld('island');
+    await switchWorld(save.world === 'volcano' ? 'volcano' : 'island');
+    if (volcanoOpen()) void openVolcano(); // keeps running in the background
   } else if (save.unlocked.includes('expand3')) {
     if (save.world === 'air') {
       await loadHumans((d, t) => hud.setLoading(d / t)); // loading bar again, for the people
       await switchWorld('air');
-      if (islandOpen()) void openIsland();
+      if (islandOpen()) void openIsland().then(() => { if (volcanoOpen()) void openVolcano(); });
     } else {
       void openAirport().then(() => {
-        if (islandOpen()) void openIsland(); // the island idles in the background too
+        if (islandOpen()) void openIsland().then(() => { if (volcanoOpen()) void openVolcano(); }); // they idle in the background too
         if (save.airSeen) return;
         // Finished Act 1 before the airport existed: point them to it.
         modeBtn.classList.add('pulse');
@@ -451,6 +533,19 @@ async function start() {
   }
 
   hud.hideLoading();
+  // Just erupted (the game restarted): show what the shards can buy
+  try {
+    const erupted = sessionStorage.getItem('anthill-erupted');
+    if (erupted) {
+      sessionStorage.removeItem('anthill-erupted');
+      window.setTimeout(() => {
+        hud.banner('🌋 The island starts fresh!', `+💎 ${erupted} Obsidian Shards: spend them at the Shrine`, 5000);
+        hud.openShrine();
+      }, 600);
+    }
+  } catch {
+    /* ignore */
+  }
   // Welcome back! (time since you last played)
   window.setTimeout(() => offerOffline(awayAtLaunch), 900);
 
@@ -459,10 +554,10 @@ async function start() {
   // The worlds you're NOT looking at keep running (idle game!), but only every
   // other frame, taking turns, with the time they missed (saves battery).
   const still = new THREE.Vector2();
-  const bgDt = { base: 0, air: 0, island: 0 };
+  const bgDt = { base: 0, air: 0, island: 0, volcano: 0 };
   let bgTurn = 0;
   function background(dt: number) {
-    const others = (['base', 'air', 'island'] as const).filter((w) => w !== mode && (w === 'base' || (w === 'air' ? airport : island)));
+    const others = (['base', 'air', 'island', 'volcano'] as const).filter((w) => w !== mode && (w === 'base' || (w === 'air' ? airport : w === 'island' ? island : volcano)));
     for (const w of others) bgDt[w] += dt;
     if (!others.length || ++bgTurn % 2) return;
     const w = others[(bgTurn >> 1) % others.length];
@@ -470,7 +565,8 @@ async function start() {
     bgDt[w] = 0;
     if (w === 'base') base.update(step, still);
     else if (w === 'air') airport?.update(step, still);
-    else island?.update(step, still);
+    else if (w === 'island') island?.update(step, still);
+    else volcano?.update(step, still);
   }
 
   let last = performance.now();
@@ -482,6 +578,7 @@ async function start() {
     trackIncome(Math.min(1, rawMs / 1000)); // real seconds (income per real second)
     weather.update(dt);
     stormEl.classList.toggle('on', weather.storm && humanWorld());
+    ashEl.classList.toggle('on', mode === 'volcano' && !!volcano?.erupting);
     // Rotating the phone: some browsers report the new size a moment late, so
     // check every frame and resize as soon as it changes (no squashed view).
     if (app.clientWidth !== lastW || app.clientHeight !== lastH) resize();
@@ -491,6 +588,7 @@ async function start() {
     if (mode === 'base') base.player.look(look.dx, look.dy);
     else if (mode === 'air') airport?.player.look(look.dx, look.dy);
     else if (mode === 'island') island?.player.look(look.dx, look.dy);
+    else if (mode === 'volcano') volcano?.player.look(look.dx, look.dy);
     if (mode === 'base') {
       base.update(dt, input.move);
       background(dt);
@@ -506,6 +604,11 @@ async function start() {
       background(dt);
       lod.update(island.scene, island.camera, island.focus);
       renderer.render(island.scene, island.camera);
+    } else if (mode === 'volcano' && volcano) {
+      volcano.update(dt, input.move);
+      background(dt);
+      lod.update(volcano.scene, volcano.camera, volcano.focus);
+      renderer.render(volcano.scene, volcano.camera);
     } else {
       run.update(dt, input.move);
       lod.update(run.scene, run.camera, run.camera.position);
@@ -520,6 +623,8 @@ async function start() {
     base, run, save, progress, lod, renderer, quality: () => quality,
     get airport() { return airport; },
     get island() { return island; },
+    get volcano() { return volcano; },
+    openVolcano,
     weather,
     switchWorld,
   };

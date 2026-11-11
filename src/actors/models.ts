@@ -33,6 +33,8 @@ export interface CreatureModel {
     run: THREE.AnimationAction;
   };
   holding?: boolean;          // people: carrying something (arms go out front)
+  /** Extra per-frame animation (the Lava Rex: knees, tail, head, roar). */
+  extra?: (dt: number) => void;
 }
 
 /** A joint we rotate: its rest rotation + the side-to-side axis (in its own space). */
@@ -266,6 +268,7 @@ export function animateCreature(m: CreatureModel, dt: number, speed: number) {
   });
   const baseY = m.bob.userData.baseY ?? (m.bob.userData.baseY = m.bob.position.y);
   m.bob.position.y = baseY + Math.abs(Math.sin(m.walkT)) * 0.04 * m.walkBlend;
+  m.extra?.(dt);
 }
 
 const jointQ = new THREE.Quaternion();

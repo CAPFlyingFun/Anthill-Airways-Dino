@@ -4,7 +4,7 @@
 // The 3D game never touches the DOM directly; it calls these methods.
 // ============================================================================
 import * as THREE from 'three';
-import { QUEEN_STATS, QUEEN_UNLOCK_LEVEL, STATS } from '../data/config';
+import { QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STATS, shardCost } from '../data/config';
 import { Progress, QueenProgress } from '../core/progress';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -150,9 +150,92 @@ export class Hud {
     });
   }
 
+  // ---- 🌋 Act 4: heat, the eruption card, the Obsidian Shrine ---------------
+  private heatShown = -1;
+  /** The heat bar (volcano). null hides it. */
+  setHeat(v: number | null) {
+    const el = $('heat');
+    if (v === null) {
+      if (this.heatShown !== -1) el.classList.add('hidden');
+      this.heatShown = -1;
+      return;
+    }
+    const pct = Math.round(v * 100);
+    if (pct === this.heatShown) return;
+    if (this.heatShown === -1) el.classList.remove('hidden');
+    this.heatShown = pct;
+    $('heatFill').style.width = `${pct}%`;
+    el.classList.toggle('danger', v > 0.7);
+  }
+
+  /** "Erupt the volcano?" Resolves true if you confirm. */
+  confirmEruption(shards: number, earned: number, eruptions: number): Promise<boolean> {
+    $('erShards').textContent = `💎 ${shards}`;
+    $('erEarned').textContent = `$${short(earned)} earned since ${eruptions ? 'the last eruption' : 'you started'}`;
+    const overlay = $('erupt');
+    overlay.classList.remove('hidden');
+    return new Promise((resolve) => {
+      const yes = $('erYes');
+      const no = $('erNo');
+      const done = (v: boolean) => () => {
+        yes.onclick = no.onclick = null;
+        overlay.classList.add('hidden');
+        resolve(v);
+      };
+      yes.onclick = done(true);
+      no.onclick = done(false);
+    });
+  }
+
+  /** The Obsidian Shrine: spend 💎 shards on permanent upgrades. */
+  initShrine(progress: Progress, visible: () => boolean) {
+    const panel = $('shrine');
+    const rows = $('shrineRows');
+    for (const def of SHARD_UPS) {
+      const row = document.createElement('div');
+      row.className = 'stat-row';
+      row.innerHTML = `<div class="ic">${def.icon}</div>
+        <div class="txt"><div class="nm">${def.name}</div><div class="ds" id="sds-${def.id}"></div></div>
+        <div class="lv" id="slv-${def.id}">0</div>
+        <button class="shard-buy" id="sbuy-${def.id}" aria-label="Buy ${def.name}">💎</button>`;
+      rows.appendChild(row);
+      row.querySelector('button')!.addEventListener('click', () => {
+        if (progress.buyUp(def.id)) this.renderShrine();
+      });
+    }
+    this.shrineProgress = progress;
+    this.shrineVisible = visible;
+    $('shrineBtn').addEventListener('click', () => this.openShrine());
+    $('closeShrine').addEventListener('click', () => panel.classList.add('hidden'));
+  }
+  private shrineProgress: Progress | null = null;
+  private shrineVisible: () => boolean = () => false;
+
+  openShrine() {
+    this.renderShrine();
+    $('stats').classList.add('hidden');
+    $('shrine').classList.remove('hidden');
+  }
+
+  private renderShrine() {
+    const p = this.shrineProgress;
+    if (!p) return;
+    const s = p.save;
+    $('shrineCount').textContent = `💎 ${s.shards} shard${s.shards === 1 ? '' : 's'}${s.eruptions ? ` · 🌋 ${s.eruptions} eruption${s.eruptions > 1 ? 's' : ''}` : ''}`;
+    for (const def of SHARD_UPS) {
+      const lv = p.up(def.id);
+      const maxed = lv >= def.max;
+      $(`slv-${def.id}`).textContent = String(lv);
+      $(`sds-${def.id}`).textContent = `${def.per} per level${maxed ? ' · MAX' : ''}`;
+      const btn = $(`sbuy-${def.id}`) as HTMLButtonElement;
+      btn.textContent = maxed ? 'MAX' : `💎 ${shardCost(lv)}`;
+      btn.disabled = maxed || s.shards < shardCost(lv);
+    }
+  }
+
   // ---- Inventory (ARK style) ----------------------------------------------
   private invKey = '';
-  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱', fruit: '🍈', smoothie: '🥤', meat: '🍖', egg: '🥚', ticket: '🎟️' };
+  private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱', fruit: '🍈', smoothie: '🥤', meat: '🍖', egg: '🥚', ticket: '🎟️', obsidian: '🪨', gem: '💎', magma: '🔥', crystal: '🔶' };
 
   /** Show what you're carrying: one slot per item type + a weight bar. */
   setInventory(counts: Map<string, number>, used: number, max: number) {
@@ -242,6 +325,8 @@ export class Hud {
     $('statsXpFill').style.width = `${Math.min(100, (s.xp / p.xpToNext()) * 100)}%`;
     $('statsXpText').textContent = `${Math.floor(s.xp)} / ${p.xpToNext()} XP`;
     $('statsPoints').textContent = s.points > 0 ? `${s.points} point${s.points > 1 ? 's' : ''} to spend!` : 'Level up to earn points';
+    $('shrineBtn').classList.toggle('hidden', !this.shrineVisible());
+    $('shrineBtn').textContent = `💎 Obsidian Shrine · ${s.shards} shard${s.shards === 1 ? '' : 's'}`;
     for (const def of STATS) {
       $(`lv-${def.id}`).textContent = String(p.stat(def.id));
       $(`ds-${def.id}`).textContent = `${def.per} · now ${p.describe(def.id)}`;

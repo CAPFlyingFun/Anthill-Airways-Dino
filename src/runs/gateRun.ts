@@ -16,6 +16,8 @@ import { SeaKind, spawnCreature, spawnSea } from '../actors/creatures';
 import { ITEM_VALUE, ItemType, makeItem } from '../world/items';
 import { RunTheme, makeVehicle } from '../world/stations';
 import { TEXT_RES, TextSprite, gameText, roundRect, sharpTexture } from '../world/labels';
+import { buildAircraftModel } from '../world/aircraft';
+import { makeRex, roar } from '../actors/rex';
 
 type OpKind = '+' | '-' | 'x' | '/' | '?';
 interface Op {
@@ -93,6 +95,8 @@ export class GateRun {
   private puddles: Puddle[] = [];
   private breachers: Breacher[] = [];
   private boss: THREE.Object3D | null = null; // the Megalodon at the Sea Safari finish
+  private rexBoss: ReturnType<typeof makeRex> | null = null; // the Lava Rex at the heli tour finish
+  private heliSpin: THREE.Object3D[] = [];
   private bossT = -1;
   private bossDone = false;
   private dynamic = new THREE.Group(); // everything rebuilt each run
@@ -127,8 +131,16 @@ export class GateRun {
     s.add(this.dynamic);
 
     // Both vehicles live on the cart; start() shows the one for the theme.
-    this.vehicles = { grass: makeVehicle('grass'), gutter: makeVehicle('gutter'), ocean: makeVehicle('ocean') };
-    this.cart.add(this.vehicles.grass.group, this.vehicles.gutter.group, this.vehicles.ocean.group);
+    // Act 4: the tour helicopter (nose turned to -z, hovering low over the lane)
+    const heli = buildAircraftModel('heli');
+    heli.group.scale.setScalar(0.42);
+    heli.group.rotation.y = -Math.PI / 2;
+    heli.group.position.y = 1.1;
+    this.heliSpin = heli.spinners;
+    const lavaVehicle = { group: new THREE.Group(), deckY: 1.6 };
+    lavaVehicle.group.add(heli.group);
+    this.vehicles = { grass: makeVehicle('grass'), gutter: makeVehicle('gutter'), ocean: makeVehicle('ocean'), lava: lavaVehicle };
+    this.cart.add(this.vehicles.grass.group, this.vehicles.gutter.group, this.vehicles.ocean.group, this.vehicles.lava.group);
     this.cart.add(this.cargo);
     this.beetle = spawnCreature('aphid', 1.9) ?? makeBeetle(0x2a9d8f);
     this.beetle.root.position.set(0, 0, -1.9);
@@ -149,8 +161,12 @@ export class GateRun {
     this.vehicles.grass.group.visible = theme === 'grass';
     this.vehicles.gutter.group.visible = theme === 'gutter';
     this.vehicles.ocean.group.visible = theme === 'ocean';
-    this.beetle.root.visible = theme !== 'ocean'; // the safari boat has a motor
-    this.scene.background = new THREE.Color(theme === 'ocean' ? 0x8fd3ff : 0x9fdcff);
+    this.vehicles.lava.group.visible = theme === 'lava';
+    this.beetle.root.visible = theme !== 'ocean' && theme !== 'lava'; // the boat has a motor, the heli has rotors
+    this.cargo.visible = theme !== 'lava'; // tour passengers ride inside the helicopter
+    const sky = theme === 'ocean' ? 0x8fd3ff : theme === 'lava' ? 0x8a6656 : 0x9fdcff;
+    this.scene.background = new THREE.Color(sky);
+    (this.scene.fog as THREE.Fog).color.setHex(sky);
     const deck = this.vehicles[theme].deckY;
     this.cargo.position.y = deck - 0.1;
     // Grass: the aphid pulls the cart. Gutter: it rides at the front of the raft.
@@ -177,9 +193,11 @@ export class GateRun {
     this.puddles = [];
     this.breachers = [];
     this.boss = null;
+    this.rexBoss = null;
     this.bossT = -1;
     this.bossDone = false;
     const { rows, rowSpacing, firstRow, laneHalfWidth } = CONFIG.run;
+    const lava = this.theme === 'lava';
     this.finishZ = -(firstRow + rows * rowSpacing) + 6;
     const length = -this.finishZ + 60;
 
@@ -188,11 +206,11 @@ export class GateRun {
     // Ground: a dirt lane (grass), a rain gutter full of water (gutter), or the open sea (ocean)
     const lane = new THREE.Mesh(
       new THREE.PlaneGeometry(laneHalfWidth * 2 + 0.6, length),
-      new THREE.MeshStandardMaterial(gutter ? { color: 0x4aa8ff, roughness: 0.1, metalness: 0.2 } : ocean ? { color: 0x2f9be0, roughness: 0.15, metalness: 0.15 } : { color: 0xc99561 }),
+      new THREE.MeshStandardMaterial(gutter ? { color: 0x4aa8ff, roughness: 0.1, metalness: 0.2 } : ocean ? { color: 0x2f9be0, roughness: 0.15, metalness: 0.15 } : lava ? { color: 0x4a3e3a, roughness: 0.95 } : { color: 0xc99561 }),
     );
     lane.rotation.x = -Math.PI / 2;
     lane.position.set(0, 0.01, -length / 2 + 20);
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(ocean ? 600 : 120, length + 80), new THREE.MeshStandardMaterial({ color: ocean ? 0x1f7fc4 : 0x79c257, roughness: ocean ? 0.2 : 1 }));
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(ocean ? 600 : 160, length + 80), new THREE.MeshStandardMaterial({ color: ocean ? 0x1f7fc4 : lava ? 0x2b2321 : 0x79c257, roughness: ocean ? 0.2 : 1 }));
     grass.rotation.x = -Math.PI / 2;
     grass.position.set(0, 0, -length / 2 + 20);
     this.dynamic.add(grass, lane);
@@ -223,6 +241,34 @@ export class GateRun {
       }
     }
 
+    if (lava) {
+      // A basalt valley: glowing lava rivers on both sides, black rock spires,
+      // and Mount Anthill smoking at the far end
+      const river = new THREE.MeshBasicMaterial({ color: 0xff5a12 });
+      for (const sx of [-1, 1]) {
+        const r = new THREE.Mesh(new THREE.PlaneGeometry(3.2, length + 60), river);
+        r.rotation.x = -Math.PI / 2;
+        r.position.set(sx * (laneHalfWidth + 3.4), 0.02, -length / 2 + 20);
+        this.dynamic.add(r);
+      }
+      const spireGeo = new THREE.ConeGeometry(1, 1, 6);
+      spireGeo.translate(0, 0.5, 0);
+      const spires = new THREE.InstancedMesh(spireGeo, new THREE.MeshStandardMaterial({ color: 0x2f2826, roughness: 0.95 }), 160);
+      const sm = new THREE.Matrix4();
+      for (let i = 0; i < 160; i++) {
+        const side = i % 2 ? 1 : -1;
+        sm.makeScale(rand(0.8, 2.2), rand(2, 9), rand(0.8, 2.2)).setPosition(side * rand(laneHalfWidth + 6, laneHalfWidth + 40), 0, rand(-length + 20, 20));
+        spires.setMatrixAt(i, sm);
+      }
+      this.dynamic.add(spires);
+      const mountain = new THREE.Mesh(new THREE.CylinderGeometry(12, 70, 60, 28, 1, true), new THREE.MeshStandardMaterial({ color: 0x3a2f2b, roughness: 1 }));
+      mountain.position.set(0, 30, -length - 40);
+      const crater = new THREE.Mesh(new THREE.CircleGeometry(12, 20), new THREE.MeshBasicMaterial({ color: 0xff5a12, fog: false }));
+      crater.rotation.x = -Math.PI / 2;
+      crater.position.set(0, 59.5, -length - 40);
+      this.dynamic.add(mountain, crater);
+    }
+
     // Tall grass walls (instanced for speed)
     const bladeGeo = new THREE.ConeGeometry(0.35, 1, 5);
     bladeGeo.translate(0, 0.5, 0);
@@ -237,7 +283,7 @@ export class GateRun {
       m.makeScale(rand(0.8, 1.6), h, rand(0.8, 1.6)).setPosition(x, 0, z);
       blades.setMatrixAt(i, m);
     }
-    if (!ocean) this.dynamic.add(blades);
+    if (!ocean && !lava) this.dynamic.add(blades);
 
     // Which rows get the special gates
     const xRow = 1 + Math.floor(Math.random() * 3);
@@ -277,7 +323,36 @@ export class GateRun {
       for (let h = 0; h < hazards; h++) {
         const p: Puddle = { x: rand(-laneHalfWidth + 1, laneHalfWidth - 1), z: z - rowSpacing * (hazards === 2 ? (h ? 0.68 : 0.36) : 0.5), r: 1.1, hit: false };
         this.puddles.push(p);
-        if (ocean) {
+        if (lava) {
+          // Every other hazard: an ash cloud hanging in the air, or a lava bomb
+          // that drops out of the sky as you get close (watch the red ring!)
+          if ((r + h) % 2 === 0) {
+            const cloud = new THREE.Group();
+            const ash = new THREE.MeshStandardMaterial({ color: 0x4a4442, roughness: 1, transparent: true, opacity: 0.85 });
+            for (let k = 0; k < 5; k++) {
+              const puff = new THREE.Mesh(new THREE.SphereGeometry(rand(0.6, 1.0), 10, 8), ash);
+              puff.position.set(rand(-0.8, 0.8), rand(1.2, 2.4), rand(-0.6, 0.6));
+              cloud.add(puff);
+            }
+            cloud.position.set(p.x, 0, p.z);
+            cloud.userData.kind = 'ash';
+            p.monster = cloud;
+            this.dynamic.add(cloud);
+          } else {
+            const bomb = new THREE.Group();
+            const ring = new THREE.Mesh(new THREE.RingGeometry(p.r - 0.2, p.r + 0.1, 24), new THREE.MeshBasicMaterial({ color: 0xff2a12, transparent: true, opacity: 0.8 }));
+            ring.rotation.x = -Math.PI / 2;
+            ring.position.y = 0.05;
+            const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7), new THREE.MeshStandardMaterial({ color: 0x5a1606, emissive: 0xff4a12, emissiveIntensity: 1.6 }));
+            rock.position.y = 30;
+            rock.name = 'rock';
+            bomb.add(ring, rock);
+            bomb.position.set(p.x, 0, p.z);
+            bomb.userData.kind = 'bomb';
+            p.monster = bomb;
+            this.dynamic.add(bomb);
+          }
+        } else if (ocean) {
           // A sea creature lurking: its fin cuts the water, then it lunges
           // out as you pass. Steer around it!
           const kinds: SeaKind[] = ['s-megalodon', 's-mosasaurus'];
@@ -305,6 +380,37 @@ export class GateRun {
           this.dynamic.add(puddle);
         }
       }
+    }
+
+    if (lava) {
+      // 📸 Lava fountains erupt beside the lane: be on their side for the photo
+      for (const row of this.rows) {
+        if (Math.random() > 0.6 || row.z - rowSpacing * 0.2 < this.finishZ + 8) continue;
+        const side = Math.random() < 0.5 ? -1 : 1;
+        const f = new THREE.Group();
+        const glow = new THREE.MeshBasicMaterial({ color: 0xffa040 });
+        for (let k = 0; k < 7; k++) {
+          const blob = new THREE.Mesh(new THREE.SphereGeometry(rand(0.25, 0.45), 8, 6), glow);
+          blob.userData.k = k;
+          f.add(blob);
+        }
+        f.scale.setScalar(0.001);
+        const b: Breacher = { m: f, x: side * (laneHalfWidth + 1.4), z: row.z - rowSpacing * 0.2, t: -1, snapped: false };
+        f.position.set(b.x, 0, b.z);
+        this.dynamic.add(f);
+        this.breachers.push(b);
+        const marker = new TextSprite(0.6, '#ffffff');
+        marker.setText('📸');
+        marker.sprite.position.set(side * (laneHalfWidth - 0.6), 1.2, b.z);
+        this.dynamic.add(marker.sprite);
+      }
+      // The Lava Rex waits beside the finish line
+      // (its head looms right over the lane, so it's in the shot as you fly past)
+      const rex = makeRex(11);
+      rex.root.position.set(-laneHalfWidth - 3.2, 0, this.finishZ - 7);
+      rex.root.rotation.y = Math.PI / 2; // facing the lane
+      this.rexBoss = rex;
+      this.dynamic.add(rex.root);
     }
 
     if (ocean) {
@@ -472,9 +578,24 @@ export class GateRun {
       }
     }
 
+    // Lava: bombs fall out of the sky as you get close; ash clouds churn
+    for (const p of this.puddles) {
+      const m = p.monster;
+      if (!m || !m.userData.kind) continue;
+      const near = this.z - p.z;
+      if (m.userData.kind === 'bomb') {
+        const rock = m.getObjectByName('rock')!;
+        const u = THREE.MathUtils.clamp((14 - near) / 12, 0, 1); // lands just before you reach it
+        rock.position.y = 30 * (1 - u * u) + 0.6;
+        rock.rotation.x += dt * 4;
+      } else {
+        m.rotation.y += dt * 0.6;
+      }
+    }
+
     // Ocean: lurking sea creatures surge up as you get close, then sink back
     for (const p of this.puddles) {
-      if (!p.monster) continue;
+      if (!p.monster || p.monster.userData.kind) continue;
       const near = this.z - p.z; // > 0 = still ahead of us
       const surge = near < 9 && near > -6 ? Math.sin(((9 - near) / 15) * Math.PI) : 0;
       p.monster.position.y = -1.6 + surge * 1.9;
@@ -487,15 +608,31 @@ export class GateRun {
       p.hit = true;
       const loss = CONFIG.run.puddleLoss * Math.max(0.3, 1 - this.luck * 0.06);
       const lost = Math.max(1, Math.ceil(this.count * loss));
-      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : this.theme === 'ocean' ? '🦈' : '💦'} -${lost}`, false);
+      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : this.theme === 'ocean' ? '🦈' : this.theme === 'lava' ? (p.monster?.userData.kind === 'ash' ? '💨' : '🌋') : '💦'} -${lost}`, false);
       this.sfx.splash();
     }
 
-    // 📸 Breaching sea creatures (Sea Safari)
+    // 📸 Breaching sea creatures (Sea Safari) / lava fountains (heli tour)
     for (const b of this.breachers) {
       if (b.t < 0 && this.z - b.z < 9) b.t = 0;
       if (b.t < 0 || b.t > 1) continue;
       b.t = Math.min(1.01, b.t + dt / 1.7);
+      if (this.theme === 'lava') {
+        // The fountain shoots up, blobs arcing out, then dies down
+        const arc = Math.sin(Math.min(1, b.t) * Math.PI);
+        b.m.scale.setScalar(Math.max(0.001, arc));
+        b.m.children.forEach((c) => {
+          const k = c.userData.k as number;
+          const u = (b.t * 2 + k / 7) % 1;
+          c.position.set(Math.cos(k * 2.3) * u * 1.6, Math.sin(u * Math.PI) * 6 + 0.3, Math.sin(k * 2.3) * u * 1.2);
+        });
+        if (!b.snapped && Math.abs(this.z - b.z) < 1.6 && Math.abs(this.x - Math.sign(b.x) * (CONFIG.run.laneHalfWidth - 0.6)) < 3.0) {
+          b.snapped = true;
+          const bonus = Math.max(3, Math.round(this.count * 0.12));
+          this.changeCount(this.count + bonus, new THREE.Vector3(this.x, 2.6, this.z), `📸 +${bonus}`, true);
+        }
+        continue;
+      }
       const arc = Math.sin(Math.min(1, b.t) * Math.PI);
       b.m.position.set(b.x - Math.sign(b.x) * b.t * 2.5, -3 + arc * 4.2, b.z);
       b.m.rotation.x = (0.5 - b.t) * 1.4; // nose up, then nose down
@@ -505,6 +642,18 @@ export class GateRun {
         const bonus = Math.max(3, Math.round(this.count * 0.12));
         this.changeCount(this.count + bonus, new THREE.Vector3(this.x, 2.6, this.z), `📸 +${bonus}`, true);
       }
+    }
+    // The Lava Rex roars at the passing helicopter
+    if (this.rexBoss) {
+      if (this.bossT < 0 && this.z - this.finishZ < 18) {
+        this.bossT = 0;
+        roar(this.rexBoss);
+      }
+      animateCreature(this.rexBoss, dt, 0);
+    }
+    for (const s of this.heliSpin) {
+      if (s.userData.tailRotor) s.rotation.z += dt * 30;
+      else s.rotation.y += dt * 30;
     }
     // The Megalodon leaps right over the finish line as you cross it
     if (this.boss && this.bossT < 0 && this.z - this.finishZ < 16) this.bossT = 0;
@@ -521,6 +670,10 @@ export class GateRun {
         // The money shot: everyone got the Megalodon on camera
         this.bossDone = true;
         this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 MEGALODON! ×1.25', true);
+      }
+      if (this.rexBoss && !this.bossDone) {
+        this.bossDone = true;
+        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 LAVA REX! ×1.25', true);
       }
       this.state = 'done';
       this.stateT = 0;
@@ -543,7 +696,7 @@ export class GateRun {
     this.countLabel.sprite.scale.set(this.countLabel.width * s, 1.1 * s, 1);
 
     // Camera: behind and above the cart, looking down the lane
-    const want = new THREE.Vector3(this.x * 0.5, 7.5, this.z + 10);
+    const want = new THREE.Vector3(this.x * 0.5, this.theme === 'lava' ? 8.5 : 7.5, this.z + 10);
     this.camera.position.lerp(want, Math.min(1, dt * 6));
     this.camera.lookAt(this.x * 0.4, 0.5, this.z - 8);
   }

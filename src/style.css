@@ -454,3 +454,50 @@ html, body {
 .slot .info b { font-size: 15px; }
 .slot .tag { font-size: 12px; font-weight: 900; color: #2f8a3a; }
 .slot .erase { border: none; background: none; font-size: 18px; padding: 4px; }
+
+/* ---- Act 4: the volcano ---------------------------------------------------- */
+/* Ash falling + a red glow during an eruption */
+.ash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.8s ease;
+  background:
+    radial-gradient(circle, rgba(60, 50, 48, 0.7) 1.4px, transparent 2px) 0 0 / 34px 46px,
+    radial-gradient(circle, rgba(90, 80, 76, 0.6) 1.1px, transparent 1.7px) 11px 17px / 53px 61px,
+    radial-gradient(ellipse at 50% 0%, rgba(255, 80, 20, 0.38), rgba(60, 20, 10, 0.36) 70%);
+  animation: ashfall 3.2s linear infinite;
+  z-index: 0;
+}
+.ash.on { opacity: 1; }
+@keyframes ashfall {
+  from { background-position: 0 0, 11px 17px, 0 0; }
+  to { background-position: -20px 184px, -9px 261px, 0 0; }
+}
+/* Heat bar (bottom center, above the launch button) */
+.heat {
+  position: absolute;
+  bottom: calc(96px + var(--safe-b));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 14px;
+  background: rgba(30, 18, 14, 0.75);
+  font-size: 18px;
+}
+.heat-bar { width: 120px; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.heat-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffd166, #ff7a1a, #ff2a12); }
+.heat.danger { animation: heatpulse 0.5s ease-in-out infinite alternate; }
+@keyframes heatpulse { to { box-shadow: 0 0 14px 4px rgba(255, 60, 20, 0.7); } }
+/* Eruption card + shrine */
+.erupt-card p { font-size: 14px; line-height: 1.35; margin: 6px 0; }
+.er-gain { font-size: 20px; font-weight: 900; margin: 10px 0 2px; }
+.er-gain b { color: #6a3fd1; }
+.er-sub { font-size: 12px; opacity: 0.8; margin: 2px 0 8px; }
+.erupt-btn { background: linear-gradient(#ff8a3d, #e0401a) !important; }
+.shrine-btn { background: linear-gradient(#cdb8ff, #8f6ae6) !important; color: #fff !important; }
+.shard-buy { min-width: 58px; font-size: 13px !important; }

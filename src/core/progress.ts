@@ -5,7 +5,7 @@
 // (carry weight, speed, work speed, haggling, luck), and the rest of the game
 // reads the bonuses from the getters at the bottom.
 // ============================================================================
-import { CONFIG, QUEEN_STATS, QueenStatDef, STATS, StatDef } from '../data/config';
+import { CONFIG, QUEEN_STATS, QueenStatDef, SHARD_UPS, STATS, ShardUpDef, StatDef, shardCost } from '../data/config';
 import { SaveData } from './save';
 
 export class Progress {
@@ -48,21 +48,45 @@ export class Progress {
     return this.save.stats[id] ?? 0;
   }
 
+  // ---- 💎 Obsidian Shard upgrades (prestige: permanent) ---------------------
+  /** Levels bought in a shard upgrade. */
+  up(id: ShardUpDef['id']) {
+    return this.save.shardUps[id] ?? 0;
+  }
+  /** Buy the next level of a shard upgrade. Returns false if you can't. */
+  buyUp(id: ShardUpDef['id']) {
+    const def = SHARD_UPS.find((d) => d.id === id)!;
+    const lv = this.up(id);
+    const cost = shardCost(lv);
+    if (lv >= def.max || this.save.shards < cost) return false;
+    this.save.shards -= cost;
+    this.save.shardUps[id] = lv + 1;
+    this.onChange();
+    return true;
+  }
+
+  /**
+   * ⚡ Set by the Volcano each frame: 1.25 while its geothermal plant is
+   * powered (boosts ALL cash, in every world), else 1. Not saved.
+   */
+  powerBoost = 1;
+
   // ---- Bonuses the game uses ---------------------------------------------
   get carryBonus() {
     return this.stat('carry') * 2;
   }
   get speedMult() {
-    return 1 + this.stat('speed') * 0.05;
+    return (1 + this.stat('speed') * 0.05) * (1 + this.up('swift') * 0.06);
   }
   get workMult() {
     return 1 + this.stat('work') * 0.08;
   }
+  /** Haggling x Obsidian Riches x geothermal power. */
   get cashMult() {
-    return 1 + this.stat('haggle') * 0.05;
+    return (1 + this.stat('haggle') * 0.05) * (1 + this.up('riches') * 0.1) * this.powerBoost;
   }
   get luck() {
-    return this.stat('luck');
+    return this.stat('luck') + this.up('fortune') * 2;
   }
 
   /** One-line description of a stat's current total bonus. */

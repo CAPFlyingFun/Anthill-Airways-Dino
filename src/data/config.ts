@@ -291,3 +291,103 @@ export const ISLAND_UNLOCKS: UnlockDef[] = [
   { id: 'i3-cashdodo', name: 'Sarah: Assistant', icon: '👩‍💼', cost: 360000,  pos: [4, 14],    requires: ['i3-cashier', 'i3-keeper', 'i3-clerk'] },
   { id: 'i3-volcano',  name: 'Big Order: Volcano', icon: '🌋', cost: 1000000, pos: [0, -20], requires: ['i3-cashdodo', 'i3-captain'] },
 ];
+
+// ============================================================================
+// ACT 4: THE VOLCANO (human scale). Anthill Airways charters helicopter tours
+// over an active volcano. Outside to inside:
+//   💎 OBSIDIAN MINE  black rock -> FORGE -> polished gems -> Gem Shop
+//   ⚡ GEOTHERMAL     carry 🔥 magma (it burns away if you dawdle!) into the
+//                     plant: while it's powered, ALL your cash is boosted
+//   🚁 HELI TOURS     tourists fly in -> a helicopter gate run over the lava
+//   🦖 LAVA REX       feed it 🍖 to tame it; then it hauls for you (heat-proof)
+//   🐜 FIRE ANT KINGDOM  giant fire ants! Bring the Fire Queen 💎 tribute and
+//                     her colony digs 🔥 Fire Crystals (the priciest goods)
+//   🌋 THE BIG ERUPTION  prestige: reset the island + volcano for 💎 Obsidian
+//                     Shards = permanent boosts
+// Dangers: heat (stand too near the lava and you overheat), eruptions (lava
+// bombs + lava flows), and magma that burns through your stack.
+// ============================================================================
+export const VOLCANO_CFG = {
+  arrivalEvery: 20,     // seconds between tourist helicopters landing
+  arrivalTourists: [3, 6] as [number, number],
+  shopInterval: 2.0,    // seconds between Gem Shop customers
+  exchangeInterval: 2.4,// ... and Crystal Exchange customers
+  queueMax: 4,
+  serve: 0.45,
+  forgeTime: 1.0,       // seconds to polish one gem
+  rockEvery: 1.1,       // an obsidian outcrop regrows one rock every ... seconds
+  magmaEvery: 1.2,      // the lava vent spits out one magma rock every ... seconds
+  magmaBurn: 6,         // carrying magma: one rock burns away every ... seconds
+  heatRise: 0.13,       // heat per second near the lava lake (0..1 = overheated)
+  flowHeat: 0.75,       // heat per second standing ON a lava flow (eruptions)
+  heatCool: 0.18,       // heat lost per second away from the lava
+  mistCool: 0.9,        // ... and at the ❄️ MIST station
+  heatRange: 7,         // how close to the lava lake counts as "hot"
+  plantDrain: 70,       // seconds for a full geothermal plant to run dry
+  magmaFill: 0.1,       // one magma rock = this much power
+  powerBoost: 0.25,     // powered plant = +25% on ALL cash, in every world
+  plantPay: 90,         // ...and it sells power to the grid: this much...
+  plantPayEvery: 2.0,   // ...every ... seconds
+  tourMin: 5,           // tourists needed to launch a heli tour
+  tourMax: 40,
+  tourFare: 2.4,        // a heli tour pays this many times a safari ticket
+  tourTime: 25,         // seconds the tour helicopter is away
+  pilotEvery: 30,       // the Tour Pilot flies a tour (1x) every ... seconds
+  rexTameMeat: 24,      // 🍖 it takes to tame the Lava Rex
+  rexCarry: 40,
+  rexSpeed: 4.6,
+  favorDrain: 55,       // seconds for the Fire Queen's favor to run out
+  favorPerGem: 0.1,     // one 💎 tribute = this much favor
+  crystalEvery: 1.6,    // while she's pleased, the vault gets a crystal every ... seconds
+  eruptionEvery: [240, 360] as [number, number], // seconds between eruptions
+  eruptionWarning: 12,  // seconds of rumbling first
+  eruptionLength: 30,
+  bombEvery: 1.7,       // during an eruption, a lava bomb lands near you every ... seconds
+  bombRadius: 2.3,
+  crewCarry: 14,
+  crewSpeed: 5.4,
+};
+
+/** Act 4 unlock tiles. Same shape as UNLOCKS. */
+export const VOLCANO_UNLOCKS: UnlockDef[] = [
+  { id: 'v4-clerk',     name: 'Gem Shop Clerk',     icon: '🛍️', cost: 250000,  pos: [-1, 22],  requires: [] },
+  { id: 'v4-miner',     name: 'Obsidian Miner',     icon: '⛏️', cost: 300000,  pos: [-24, 24], requires: [] },
+  { id: 'v4-runner',    name: 'Gem Runner',         icon: '💎', cost: 380000,  pos: [-9, 2],   requires: ['v4-miner'] },
+  { id: 'v4-plant',     name: 'Geothermal Plant',   icon: '⚡', cost: 550000,  pos: [0, -10],  requires: ['v4-clerk'] },
+  { id: 'v4-suit',      name: 'Heat Suit',          icon: '🦺', cost: 450000,  pos: [2, 2],    requires: ['v4-plant'] },
+  { id: 'v4-heli',      name: 'Volcano Heli Tours', icon: '🚁', cost: 750000,  pos: [8, 20],   requires: ['v4-plant'] },
+  { id: 'v4-pilot',     name: 'Tour Pilot',         icon: '🧑‍✈️', cost: 1000000, pos: [-2, 26], requires: ['v4-heli'] },
+  { id: 'v4-lair',      name: 'Lava Rex Lair',      icon: '🦖', cost: 900000,  pos: [-10, -12], requires: ['v4-plant'] },
+  { id: 'v4-kingdom',   name: 'Fire Ant Kingdom',   icon: '🐜', cost: 1500000, pos: [20, 2],   requires: ['v4-lair', 'v4-runner'] },
+  { id: 'v4-haulers',   name: 'Fire Ant Haulers',   icon: '🔥', cost: 1800000, pos: [28, 18],  requires: ['v4-kingdom'] },
+  { id: 'v4-trader',    name: 'Crystal Trader',     icon: '💱', cost: 2100000, pos: [6, 10],   requires: ['v4-kingdom'] },
+  { id: 'v4-treasurer', name: 'Ant Treasurer',      icon: '🐜', cost: 2500000, pos: [-2, 8],   requires: ['v4-trader', 'v4-pilot', 'v4-clerk'] },
+  { id: 'v4-eruption',  name: 'THE BIG ERUPTION',   icon: '🌋', cost: 6000000, pos: [-8, -30],  requires: ['v4-treasurer', 'v4-haulers'] },
+];
+
+// ============================================================================
+// PRESTIGE: The Big Eruption. Resets Dino Island + the Volcano (their unlocks
+// and your cash) and pays 💎 Obsidian Shards, which buy PERMANENT boosts.
+// You keep the colony, the airport, your level, stats and the Queen.
+// ============================================================================
+export const PRESTIGE = {
+  /** Shards for the cash earned since the last eruption: 12 x sqrt(millions). */
+  shardsPerSqrtMillion: 12,
+  minShards: 5,
+};
+export interface ShardUpDef {
+  id: 'riches' | 'swift' | 'fortune' | 'head' | 'night';
+  name: string;
+  icon: string;
+  per: string;
+  max: number;
+}
+export const SHARD_UPS: ShardUpDef[] = [
+  { id: 'riches',  name: 'Obsidian Riches', icon: '💰', per: '+10% on ALL cash',            max: 50 },
+  { id: 'swift',   name: 'Lava Legs',       icon: '👟', per: '+6% walk speed',              max: 10 },
+  { id: 'fortune', name: 'Lucky Ash',       icon: '🍀', per: 'Better ? gates, fewer losses', max: 10 },
+  { id: 'head',    name: 'Head Start',      icon: '🚀', per: '+$100k cash after each eruption', max: 20 },
+  { id: 'night',   name: 'Night Shift',     icon: '💤', per: '+10% offline earnings',        max: 5 },
+];
+/** Shard price of the next level of an upgrade (3, 5, 7, ...). */
+export const shardCost = (level: number) => 3 + level * 2;

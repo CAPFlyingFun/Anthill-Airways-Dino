@@ -22,11 +22,16 @@ export interface SaveData {
   stats: Record<string, number>;      // points spent per stat id
   hatched: number;                    // worker ants born in the Hatchery
   queen: QueenSave;                   // the Queen's own level + stats (she collects cash from Lv 20)
-  world: 'ant' | 'air' | 'island';    // which world you're playing (Act 2: airport, Act 3: island)
+  world: 'ant' | 'air' | 'island' | 'volcano'; // which world you're playing (Act 2: airport, Act 3: island, Act 4: volcano)
   airSeen: boolean;                   // seen the airport intro?
   view: 'third' | 'first';            // camera: behind you, or through your eyes
   lastSeen: number;                   // when the game last saved (ms) -> offline earnings
   rate: number;                       // measured income ($ per second) while playing
+  // Prestige (The Big Eruption)
+  shards: number;                     // 💎 Obsidian Shards to spend
+  eruptions: number;                  // how many times you've erupted the volcano
+  shardUps: Record<string, number>;   // levels bought in each shard upgrade
+  cycleEarned: number;                // cash earned since the last eruption (sets the shard payout)
 }
 
 export interface QueenSave {
@@ -38,7 +43,7 @@ export interface QueenSave {
 }
 
 export function newSave(): SaveData {
-  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} }, world: 'ant', airSeen: false, view: 'third', lastSeen: 0, rate: 0 };
+  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} }, world: 'ant', airSeen: false, view: 'third', lastSeen: 0, rate: 0, shards: 0, eruptions: 0, shardUps: {}, cycleEarned: 0 };
 }
 
 export const SLOTS = [1, 2, 3] as const;
@@ -69,8 +74,8 @@ export function slotSummary(slot: Slot) {
     const raw = localStorage.getItem(keyFor(slot));
     if (!raw) return null;
     const d = { ...newSave(), ...JSON.parse(raw) } as SaveData;
-    const act = d.unlocked.includes('a2-island') ? '🏝️ Act 3' : d.unlocked.includes('expand3') ? '✈️ Act 2' : '🐜 Act 1';
-    return { level: d.level, cash: d.cash, act, lastSeen: d.lastSeen };
+    const act = d.unlocked.includes('i3-volcano') ? '🌋 Act 4' : d.unlocked.includes('a2-island') ? '🏝️ Act 3' : d.unlocked.includes('expand3') ? '✈️ Act 2' : '🐜 Act 1';
+    return { level: d.level, cash: d.cash, act: d.eruptions ? `${act} · 🌋×${d.eruptions}` : act, lastSeen: d.lastSeen };
   } catch {
     return null;
   }

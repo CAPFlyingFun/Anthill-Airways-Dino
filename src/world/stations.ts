@@ -63,7 +63,8 @@ function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y
 }
 
 // ----------------------------------------------------------------------------
-export type PileStyle = 'bread' | 'plant' | 'vending' | 'crate' | 'fruit' | 'supply' | 'nest';
+export type PileStyle = 'bread' | 'plant' | 'vending' | 'crate' | 'fruit' | 'supply' | 'nest'
+  | 'rock' | 'vent' | 'vault'; // Act 4: obsidian outcrop, lava vent, Fire Crystal vault
 
 export class ResourcePile {
   group = new THREE.Group();
@@ -139,6 +140,35 @@ export class ResourcePile {
       ring.position.y = 0.3;
       ring.castShadow = true;
       source.add(ring);
+    } else if (style === 'rock') {
+      // Act 4: a glossy black obsidian outcrop
+      const glass = new THREE.MeshStandardMaterial({ color: 0x15141c, roughness: 0.12, metalness: 0.4 });
+      for (const [px, py, pz, r] of [[0, 0.9, 0, 1.1], [-0.9, 0.5, 0.3, 0.7], [0.85, 0.6, -0.2, 0.8], [0.2, 1.8, -0.2, 0.6]]) {
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(r), glass);
+        rock.position.set(px, py, pz);
+        rock.rotation.set(px, pz, py);
+        rock.castShadow = true;
+        source.add(rock);
+      }
+    } else if (style === 'vent') {
+      // Act 4: a lava vent (a little cone with a glowing, bubbling mouth)
+      const coneMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1.6, 1.4, 14), mat(0x2b2422, 1));
+      coneMesh.position.y = 0.7;
+      coneMesh.castShadow = true;
+      const mouth = new THREE.Mesh(new THREE.CircleGeometry(0.58, 14), new THREE.MeshStandardMaterial({ color: 0xff5a12, emissive: 0xff4a12, emissiveIntensity: 1.6 }));
+      mouth.rotation.x = -Math.PI / 2;
+      mouth.position.y = 1.41;
+      source.add(coneMesh, mouth);
+    } else if (style === 'vault') {
+      // Act 4: the Fire Crystal vault (glowing red-orange crystals in the rock)
+      source.add(box(2.6, 1.2, 1.4, mat(0x2b2422, 1), 0, 0.6, 0));
+      const glow = new THREE.MeshStandardMaterial({ color: 0xff7a3d, emissive: 0xff3300, emissiveIntensity: 1.1, roughness: 0.2 });
+      for (let i = 0; i < 6; i++) {
+        const c = new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.1 + (i % 3) * 0.4, 6), glow);
+        c.position.set(-1 + i * 0.4, 1.4 + (i % 3) * 0.2, (i % 2) * 0.3 - 0.15);
+        c.rotation.z = (i - 2.5) * 0.12;
+        source.add(c);
+      }
     } else if (style === 'crate') {
       // Act 2: the colony's shipping crate (stenciled, with a little ant flag)
       source.add(box(2.4, 1.3, 1.3, mat(0xc89b5e, 0.9), 0, 0.65, 0));
@@ -506,7 +536,7 @@ export class CashPad {
 }
 
 // ----------------------------------------------------------------------------
-export type RunTheme = 'grass' | 'gutter' | 'ocean';
+export type RunTheme = 'grass' | 'gutter' | 'ocean' | 'lava'; // lava = Act 4's heli tour (gateRun builds the helicopter)
 
 /** The vehicle a gate run uses: a wheeled cart (grass), a leaf raft (gutter) or a safari boat (ocean). */
 export function makeVehicle(theme: RunTheme): { group: THREE.Group; deckY: number } {

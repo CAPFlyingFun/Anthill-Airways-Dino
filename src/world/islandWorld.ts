@@ -687,6 +687,8 @@ export class IslandWorld {
   active = false;
   /** Set by main.ts: launch a Sea Safari gate run with `count` tourists. */
   onSafari: (count: number) => void = () => {};
+  /** Set by main.ts: "Big Order: Volcano" was just bought (opens Act 4). */
+  onAct4: () => void = () => {};
 
   private piles: ResourcePile[] = [];
   private blender: Bakery;
@@ -991,7 +993,8 @@ export class IslandWorld {
         break;
       }
       case 'i3-volcano':
-        if (animate) this.hud.banner('🌋 Volcano expedition chartered!', 'Act 4 is coming next… 🦖🔥', 6000);
+        // ACT 4: main.ts opens the volcano (only when you just bought it)
+        if (animate) this.onAct4();
         break;
     }
   }
