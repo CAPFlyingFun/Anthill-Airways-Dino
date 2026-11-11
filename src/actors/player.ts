@@ -84,15 +84,17 @@ export class Player {
     return !this.stack.full && (this.stack.count === 0 || this.stack.topType === type);
   }
 
-  update(dt: number, move: THREE.Vector2, blockers: Blocker[], bounds: Blocker) {
+  /** `canWalk(x, z)` says whether a spot is inside an open zone. */
+  update(dt: number, move: THREE.Vector2, blockers: Blocker[], canWalk: (x: number, z: number) => boolean) {
     this.stack.max = this.carryMax;
     const speed = CONFIG.player.speed * this.speedMult;
     // Camera looks toward -z, so pushing the stick "up" walks toward -z.
     const vx = move.x * speed;
     const vz = -move.y * speed;
     const p = this.pos;
-    p.x += vx * dt;
-    p.z += vz * dt;
+    // Move one axis at a time so you slide along fences instead of sticking.
+    if (canWalk(p.x + vx * dt, p.z)) p.x += vx * dt;
+    if (canWalk(p.x, p.z + vz * dt)) p.z += vz * dt;
 
     // Push out of anything solid (simple box collision, player radius 0.5).
     const r = 0.5;
@@ -109,8 +111,6 @@ export class Player {
         else p.z = b.maxZ + r;
       }
     }
-    p.x = THREE.MathUtils.clamp(p.x, bounds.minX, bounds.maxX);
-    p.z = THREE.MathUtils.clamp(p.z, bounds.minZ, bounds.maxZ);
 
     const moving = Math.hypot(vx, vz);
     faceToward(this.model, vx, vz, dt);

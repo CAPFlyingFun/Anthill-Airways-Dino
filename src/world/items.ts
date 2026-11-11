@@ -11,16 +11,22 @@
 // ============================================================================
 import * as THREE from 'three';
 
-export type ItemType = 'crumb' | 'snack' | 'cash';
+export type ItemType = 'crumb' | 'snack' | 'leaf' | 'wrap' | 'sugar' | 'candy' | 'cash';
 
 /** Height of one item when stacked. */
-export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, cash: 0.11 };
+export const ITEM_H: Record<ItemType, number> = { crumb: 0.3, snack: 0.32, leaf: 0.14, wrap: 0.32, sugar: 0.4, candy: 0.3, cash: 0.11 };
 
 // Shared geometry + materials: every crumb reuses the same ones (fast).
 const geo = {
   crumb: new THREE.BoxGeometry(0.42, 0.28, 0.42),
   snack: new THREE.BoxGeometry(0.56, 0.3, 0.42),
   cash: new THREE.BoxGeometry(0.62, 0.1, 0.36),
+  // A leaf: a squashed, pointed ellipsoid (scale baked into the geometry)
+  leaf: new THREE.SphereGeometry(0.3, 12, 6).scale(1, 0.22, 1.5),
+  // A leaf wrap: a rolled-up leaf lying on its side
+  wrap: new THREE.CylinderGeometry(0.16, 0.16, 0.56, 12).rotateZ(Math.PI / 2),
+  sugar: new THREE.BoxGeometry(0.4, 0.38, 0.4),
+  candy: new THREE.BoxGeometry(0.5, 0.28, 0.38),
 };
 const mat = {
   crumb: new THREE.MeshStandardMaterial({ color: 0xdca44a, roughness: 0.9 }),
@@ -28,7 +34,16 @@ const mat = {
   snackTop: new THREE.MeshStandardMaterial({ color: 0xffd25a, roughness: 0.6 }),
   cashSide: new THREE.MeshStandardMaterial({ color: 0x3f9d4a, roughness: 0.7 }),
   cashTop: new THREE.MeshStandardMaterial({ color: 0x8be36a, roughness: 0.7 }),
+  leaf: new THREE.MeshStandardMaterial({ color: 0x4caf3a, roughness: 0.7 }),
+  wrapSide: new THREE.MeshStandardMaterial({ color: 0x2f7d32, roughness: 0.6 }),
+  wrapEnd: new THREE.MeshStandardMaterial({ color: 0xa5d66f, roughness: 0.6 }),
+  sugar: new THREE.MeshStandardMaterial({ color: 0xf6f8ff, roughness: 0.35 }),
+  candySide: new THREE.MeshStandardMaterial({ color: 0xff6fb5, roughness: 0.35 }),
+  candyTop: new THREE.MeshStandardMaterial({ color: 0xfff1f8, roughness: 0.35 }),
 };
+
+/** Cash value of each sellable item (counter price; gate runs pay the same per item). */
+export const ITEM_VALUE: Record<ItemType, number> = { crumb: 2, snack: 5, leaf: 3, wrap: 14, sugar: 10, candy: 40, cash: 0 };
 
 /** Build the 3D mesh for one item. Box faces order: +x, -x, +y(top), -y, +z, -z */
 export function makeItem(type: ItemType): THREE.Mesh {
@@ -39,6 +54,16 @@ export function makeItem(type: ItemType): THREE.Mesh {
   } else if (type === 'snack') {
     const s = mat.snackSide;
     m = new THREE.Mesh(geo.snack, [s, s, mat.snackTop, s, s, s]);
+  } else if (type === 'leaf') {
+    m = new THREE.Mesh(geo.leaf, mat.leaf);
+    m.rotation.y = Math.random() * 0.8 - 0.4;
+  } else if (type === 'wrap') {
+    m = new THREE.Mesh(geo.wrap, [mat.wrapSide, mat.wrapEnd, mat.wrapEnd]);
+  } else if (type === 'sugar') {
+    m = new THREE.Mesh(geo.sugar, mat.sugar);
+  } else if (type === 'candy') {
+    const s = mat.candySide;
+    m = new THREE.Mesh(geo.candy, [s, s, mat.candyTop, s, s, s]);
   } else {
     const s = mat.cashSide;
     m = new THREE.Mesh(geo.cash, [s, s, mat.cashTop, s, s, s]);

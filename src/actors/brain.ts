@@ -22,8 +22,8 @@ import * as THREE from 'three';
 import { CreatureModel, animateCreature, faceToward } from './models';
 import { CreatureKind } from './creatures';
 
-export type Behaviour = 'idle' | 'wander' | 'flee' | 'takeoff' | 'fly' | 'hover' | 'land' | 'defend';
-export type Medium = 'ground' | 'plant' | 'air';
+export type Behaviour = 'idle' | 'wander' | 'flee' | 'takeoff' | 'fly' | 'hover' | 'land' | 'defend' | 'surface' | 'burrow';
+export type Medium = 'ground' | 'plant' | 'air' | 'soil';
 export type Temperament = 'passive' | 'skittish' | 'defensive';
 
 export interface BugSpecies {
@@ -40,6 +40,13 @@ export interface BugSpecies {
 }
 
 export const BUGS: Record<string, BugSpecies> = {
+  // TRADDOMIUM EARTHWORM: medium soil, skittish. Comes up out of the ground
+  // (surface), pulls back in when you crowd it, and burrows away when done.
+  // Real worms wander at 0.1 bodies/s; game tuning: 0.5.
+  earthworm: {
+    id: 'earthworm', length: 2.8, medium: 'soil', temperament: 'skittish',
+    walkBLs: 0.5, fleeBLs: 0.8, alarmLengths: 0.9, alarmS: 1.5,
+  },
   // TRADDOMIUM HOUSEFLY: medium air, skittish, alarm 3 s; short hops + brief hover.
   housefly: {
     id: 'housefly', length: 1.9, medium: 'air', temperament: 'skittish',
@@ -125,6 +132,7 @@ export function stepBug(m: CreatureModel, mind: Mind, target: THREE.Vector3, thr
     goal.set(p.x + ((p.x - threat.x) / away) * 2, 0, p.z + ((p.z - threat.z) / away) * 2);
   }
 
+  if (sp.medium === 'soil') return soilStep(m, mind, target, dt, leaving, alarmed);
   if (sp.flight) return flyStep(m, mind, goal, dt, leaving, alarmed);
   if (sp.hops) return hopStep(m, mind, goal, dt, alarmed);
   return walkStep(m, mind, goal, dt, alarmed);
@@ -213,6 +221,29 @@ function flyStep(m: CreatureModel, mind: Mind, goal: THREE.Vector3, dt: number, 
   m.bob.rotation.x = d > 0.3 ? 0.18 : 0;
   animateCreature(m, dt, 0);
   return d <= 0.05 && !alarmed && Math.abs(mind.alt - f.hoverHeight) < 0.25;
+}
+
+/** Earthworm: rise out of the soil, slither along, duck when startled, burrow away. */
+function soilStep(m: CreatureModel, mind: Mind, goal: THREE.Vector3, dt: number, leaving: boolean, alarmed: boolean) {
+  const p = m.root.position;
+  // Depth: fully up normally, half-ducked when startled, all the way down when leaving.
+  const wantY = leaving ? -2 : alarmed ? -0.35 : 0;
+  mind.behaviour = leaving ? 'burrow' : p.y < -0.05 && !alarmed ? 'surface' : mind.behaviour;
+  p.y += (wantY - p.y) * Math.min(1, dt * (leaving ? 1.5 : 3));
+  // Wriggle: the body sways side to side as it crawls.
+  m.bob.rotation.y = Math.sin(mind.t * 4) * 0.18;
+  if (leaving) return p.y < -1.6;
+  if (p.y < -0.6) return false; // still coming up
+  const dx = goal.x - p.x;
+  const dz = goal.z - p.z;
+  const d = Math.hypot(dx, dz);
+  if (d > 0.06) {
+    const step = Math.min(d, mind.species.walkBLs * mind.species.length * dt);
+    p.x += (dx / d) * step;
+    p.z += (dz / d) * step;
+    faceToward(m, dx, dz, dt, 4);
+  }
+  return d <= 0.06 && !alarmed && p.y > -0.05;
 }
 
 /** While waiting: every few seconds glance left or right, then back. */

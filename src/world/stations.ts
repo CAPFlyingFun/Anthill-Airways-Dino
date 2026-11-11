@@ -1,19 +1,24 @@
 // ============================================================================
 // stations.ts — everything you walk up to and interact with:
-//   ResourcePile — crumbs regrow here; walk on it to pick them up
-//   Bakery       — crumbs IN, snack packs OUT
-//   Counter      — drop snacks, customers buy them, cash comes out
+//   ResourcePile — raw items regrow here (crumbs, leaves, sugar cubes)
+//   Bakery       — any processor: raw IN, goods OUT (oven, leaf press, candy press)
+//   Counter      — drop goods, customers buy them, cash comes out
 //   CashPad      — where the cash bills pile up
-//   DispatchPad  — load snack packs onto the beetle cart for a gate run
+//   DispatchPad  — load goods onto a cart / raft for a gate run
+//   Hatchery     — feed it leaf wraps and new worker ants hatch
 //   UnlockTile   — the glowing squares you pour cash into
+//
+// Every station takes options, so each zone can reuse them with new items.
 // ============================================================================
 import * as THREE from 'three';
 import { CONFIG, UnlockDef } from '../data/config';
-import { Flyers, ITEM_H, Layout, Stack, StackItem, makeItem } from './items';
+import { Flyers, ITEM_H, ITEM_VALUE, ItemType, Layout, Stack, StackItem, makeItem } from './items';
 import { GAME_FONT, TextSprite, gameText, makePad, roundRect } from './labels';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
-import { spawnCreature } from '../actors/creatures';
+import { CreatureKind, spawnCreature } from '../actors/creatures';
 import { BUGS, Mind, newMind, stepBug } from '../actors/brain';
+
+const mat = (color: number, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness });
 
 /** Axis-aligned box the player can't walk through. */
 export interface Blocker {
@@ -56,13 +61,15 @@ function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y
 }
 
 // ----------------------------------------------------------------------------
+export type PileStyle = 'bread' | 'plant' | 'vending';
+
 export class ResourcePile {
   group = new THREE.Group();
   stack: Stack;
   zone: Zone;
   private spawnT = 0;
 
-  constructor(scene: THREE.Scene, x: number, z: number, private flyers: Flyers) {
+  constructor(scene: THREE.Scene, x: number, z: number, private flyers: Flyers, public type: ItemType = 'crumb', style: PileStyle = 'bread') {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
 
@@ -74,13 +81,37 @@ export class ResourcePile {
     mound.receiveShadow = true;
     this.group.add(mound);
 
-    // A giant chunk of bread behind the pile (where the crumbs "come from").
-    const loaf = new THREE.Group();
-    loaf.add(box(1.7, 1.0, 1.1, new THREE.MeshStandardMaterial({ color: 0xf0c27a, roughness: 0.95 }), 0, 0.5, 0));
-    loaf.add(box(1.8, 0.25, 1.2, new THREE.MeshStandardMaterial({ color: 0xb5702c, roughness: 0.9 }), 0, 1.08, 0));
-    loaf.position.set(0, 0, -2.0);
-    loaf.rotation.y = 0.35;
-    this.group.add(loaf);
+    // Behind the pile: where the stuff "comes from".
+    const source = new THREE.Group();
+    source.position.set(0, 0, -2.0);
+    if (style === 'bread') {
+      source.add(box(1.7, 1.0, 1.1, mat(0xf0c27a, 0.95), 0, 0.5, 0));
+      source.add(box(1.8, 0.25, 1.2, mat(0xb5702c, 0.9), 0, 1.08, 0));
+      source.rotation.y = 0.35;
+    } else if (style === 'plant') {
+      // A clover-ish plant: a stem and big leaves
+      source.add(box(0.15, 2.2, 0.15, mat(0x3f7f2a), 0, 1.1, 0));
+      const leafMat = mat(0x5cbf43, 0.6);
+      for (let i = 0; i < 5; i++) {
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.6, 14, 8).scale(1, 0.15, 1.6), leafMat);
+        const a = (i / 5) * Math.PI * 2;
+        leaf.position.set(Math.sin(a) * 0.75, 1.0 + i * 0.28, Math.cos(a) * 0.75);
+        leaf.rotation.y = a;
+        leaf.rotation.x = 0.35;
+        leaf.castShadow = true;
+        source.add(leaf);
+      }
+    } else {
+      // A vending machine (giant, from an ant's point of view)
+      source.add(box(2.4, 3.4, 1.2, mat(0x2f6fd6, 0.5), 0, 1.7, -0.3));
+      source.add(box(1.6, 2.2, 0.08, new THREE.MeshStandardMaterial({ color: 0xbfe6ff, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.7 }), -0.25, 2.0, 0.32));
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+        source.add(box(0.35, 0.3, 0.3, mat([0xff6fb5, 0xffd166, 0x7df9a0][(r + c) % 3], 0.4), -0.75 + c * 0.5, 1.3 + r * 0.6, 0.1));
+      }
+      source.add(box(0.5, 0.25, 0.1, mat(0x222222), 0.75, 0.7, 0.32)); // coin slot / tray
+      source.position.z = -2.2;
+    }
+    this.group.add(source);
 
     const pad = makePad(3.2, 3.2, '', '#ffe07a');
     pad.position.y = 0.235;
@@ -88,7 +119,7 @@ export class ResourcePile {
 
     this.zone = new Zone(x, z, 1.6, 1.6);
     this.stack = new Stack(this.group, gridLayout(3, 3, 0.48, 0.48, 0.22), CONFIG.crumbPile.max);
-    for (let i = 0; i < CONFIG.crumbPile.max; i++) this.stack.addInstant('crumb');
+    for (let i = 0; i < CONFIG.crumbPile.max; i++) this.stack.addInstant(type);
   }
 
   update(dt: number) {
@@ -99,12 +130,23 @@ export class ResourcePile {
     this.spawnT += dt;
     if (this.spawnT >= CONFIG.crumbPile.spawnInterval) {
       this.spawnT = 0;
-      this.flyers.grow(this.stack.addInstant('crumb').mesh, 0.25);
+      this.flyers.grow(this.stack.addInstant(this.type).mesh, 0.25);
     }
   }
 }
 
 // ----------------------------------------------------------------------------
+export interface ProcessorOpts {
+  inType: ItemType;
+  outType: ItemType;
+  label: string;
+  cookTime: number;
+  body: number;   // main color
+  trim: number;   // roof / chimney color
+  glow: number;   // door glow color
+}
+export const OVEN: ProcessorOpts = { inType: 'crumb', outType: 'snack', label: 'OVEN', cookTime: 1.3, body: 0xc8553d, trim: 0x8c3426, glow: 0xff7a1a };
+
 export class Bakery {
   group = new THREE.Group();
   input: Stack;
@@ -112,19 +154,20 @@ export class Bakery {
   inZone: Zone;
   outZone: Zone;
   blocker: Blocker;
-  cookTime = CONFIG.bakery.cookTime;
+  cookTime: number;
   private cooking = false;
   private cookT = 0;
   private mouth = new THREE.Object3D();
   private doorMat: THREE.MeshStandardMaterial;
   private flame: THREE.Mesh;
 
-  constructor(private scene: THREE.Scene, x: number, z: number, private flyers: Flyers) {
+  constructor(private scene: THREE.Scene, x: number, z: number, private flyers: Flyers, public opts: ProcessorOpts = OVEN) {
+    this.cookTime = opts.cookTime;
     this.group.position.set(x, 0, z);
     scene.add(this.group);
 
-    const brick = new THREE.MeshStandardMaterial({ color: 0xc8553d, roughness: 0.85 });
-    const trim = new THREE.MeshStandardMaterial({ color: 0x8c3426, roughness: 0.85 });
+    const brick = new THREE.MeshStandardMaterial({ color: opts.body, roughness: 0.85 });
+    const trim = new THREE.MeshStandardMaterial({ color: opts.trim, roughness: 0.85 });
     this.group.add(box(3.2, 2.0, 2.0, brick, 0, 1.0, 0));
     this.group.add(box(3.4, 0.3, 2.2, trim, 0, 2.15, 0));
     // A rounded "dome" top
@@ -137,7 +180,7 @@ export class Bakery {
     this.group.add(chimney);
 
     // Glowing oven door
-    this.doorMat = new THREE.MeshStandardMaterial({ color: 0x331a0f, emissive: 0xff7a1a, emissiveIntensity: 0.4 });
+    this.doorMat = new THREE.MeshStandardMaterial({ color: 0x331a0f, emissive: opts.glow, emissiveIntensity: 0.4 });
     const door = new THREE.Mesh(new THREE.CircleGeometry(0.6, 20, 0, Math.PI), this.doorMat);
     door.position.set(0, 0.55, 1.01);
     this.group.add(door);
@@ -158,7 +201,8 @@ export class Bakery {
       this.group.add(box(1.5, 0.4, 1.5, woodMat, s * 2.3, 0.2, 0.6));
     }
     this.input = new Stack(this.group, gridLayout(3, 3, 0.46, 0.46, 0.4, -2.3, 0.6), CONFIG.bakery.inputMax);
-    this.output = new Stack(this.group, gridLayout(2, 3, 0.62, 0.46, 0.4, 2.3, 0.6), CONFIG.bakery.outputMax);
+    const wide = opts.outType === 'wrap' || opts.outType === 'snack' || opts.outType === 'candy';
+    this.output = new Stack(this.group, gridLayout(wide ? 2 : 3, 3, wide ? 0.62 : 0.46, 0.46, 0.4, 2.3, 0.6), CONFIG.bakery.outputMax);
 
     const inPad = makePad(2.2, 2.2, 'IN');
     inPad.position.set(-2.3, 0.03, 2.6);
@@ -170,13 +214,13 @@ export class Bakery {
     this.blocker = { minX: x - 3.05, maxX: x + 3.05, minZ: z - 1.1, maxZ: z + 1.4 };
 
     const sign = new TextSprite(0.9);
-    sign.setText('OVEN');
+    sign.setText(opts.label);
     sign.sprite.position.set(0, 4.2, 0);
     this.group.add(sign.sprite);
   }
 
   makeFaster() {
-    this.cookTime = CONFIG.bakery.cookTime / CONFIG.bakery.fastOvenMultiplier;
+    this.cookTime = this.opts.cookTime / CONFIG.bakery.fastOvenMultiplier;
     this.flame.visible = true;
   }
 
@@ -197,7 +241,7 @@ export class Bakery {
       this.doorMat.emissiveIntensity = 0.6 + Math.sin(this.cookT * 18) * 0.3;
       if (this.cookT >= this.cookTime) {
         this.cooking = false;
-        const it: StackItem = { mesh: makeItem('snack'), type: 'snack', value: 0, flying: false };
+        const it: StackItem = { mesh: makeItem(this.opts.outType), type: this.opts.outType, value: 0, flying: false };
         it.mesh.position.copy(mouthWorld);
         this.scene.add(it.mesh);
         this.flyers.pushInto(it, this.output, 0.3);
@@ -212,7 +256,13 @@ export class Bakery {
 // ----------------------------------------------------------------------------
 const BEETLE_COLORS = [0xe63946, 0x2a9d8f, 0xf4a261, 0x6a4c93, 0x1d70a2, 0xffb703];
 // Customers are the other bugs of the backyard; their brains live in actors/brain.ts.
-const CUSTOMER_KINDS = ['black-widow', 'jumping-spider', 'housefly', 'aphid'] as const;
+export interface CounterOpts {
+  itemType: ItemType;           // what this counter sells
+  facing: 1 | -1;               // +1: customers line up to the east, -1: to the west
+  customers: CreatureKind[];    // which bugs shop here
+  color: number;
+}
+export const SNACK_COUNTER: CounterOpts = { itemType: 'snack', facing: 1, customers: ['black-widow', 'jumping-spider', 'housefly', 'aphid'], color: 0x3d6fb6 };
 
 interface Customer {
   model: CreatureModel;
@@ -241,12 +291,16 @@ export class Counter {
   private cashier: CreatureModel | null = null;
   private tmp = new THREE.Vector3();
 
-  constructor(private scene: THREE.Scene, private x: number, private z: number, private flyers: Flyers, private cashPad: CashPad) {
+  constructor(
+    private scene: THREE.Scene, private x: number, private z: number, private flyers: Flyers, private cashPad: CashPad,
+    public opts: CounterOpts = SNACK_COUNTER,
+  ) {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
+    const f = opts.facing;
 
-    const blue = new THREE.MeshStandardMaterial({ color: 0x3d6fb6, roughness: 0.6 });
-    const blueTop = new THREE.MeshStandardMaterial({ color: 0x5b8fd6, roughness: 0.5 });
+    const blue = new THREE.MeshStandardMaterial({ color: opts.color, roughness: 0.6 });
+    const blueTop = new THREE.MeshStandardMaterial({ color: new THREE.Color(opts.color).offsetHSL(0, 0, 0.12), roughness: 0.5 });
     this.group.add(box(1.3, 0.9, 3.4, blue, 0, 0.45, 0));
     this.group.add(box(1.45, 0.12, 3.55, blueTop, 0, 0.96, 0));
     // Cash register (purple, like the reference screenshot)
@@ -258,9 +312,9 @@ export class Counter {
     this.shelf = new Stack(this.group, gridLayout(2, 4, 0.6, 0.5, 1.02, 0, -0.35), CONFIG.counter.shelfMax);
 
     const sellPad = makePad(2.4, 3.2, 'SELL');
-    sellPad.position.set(-2.3, 0.03, 0);
+    sellPad.position.set(-2.3 * f, 0.03, 0);
     this.group.add(sellPad);
-    this.sellZone = new Zone(x - 2.3, z, 1.2, 1.6);
+    this.sellZone = new Zone(x - 2.3 * f, z, 1.2, 1.6);
     this.blocker = { minX: x - 0.75, maxX: x + 0.75, minZ: z - 1.8, maxZ: z + 1.8 };
   }
 
@@ -276,21 +330,28 @@ export class Counter {
     );
     visor.position.set(0, m.height * 0.85, m.length * 0.38);
     this.cashier.bob.add(visor);
-    this.cashier.root.position.set(this.x - 1.15, 0, this.z + 1.0);
-    this.cashier.root.rotation.y = Math.PI / 2; // face +x (toward customers)
+    this.cashier.root.position.set(this.x - 1.15 * this.opts.facing, 0, this.z + 1.0);
+    this.cashier.root.rotation.y = (Math.PI / 2) * this.opts.facing; // face the customers
     this.scene.add(this.cashier.root);
     if (animate) this.flyers.grow(this.cashier.root);
   }
 
   private slot(i: number, out: THREE.Vector3) {
-    return out.set(this.x + 2.0 + i * 2.3, 0, this.z - 0.4);
+    return out.set(this.x + this.opts.facing * (2.0 + i * 2.3), 0, this.z - 0.4);
   }
 
   private spawnCustomer() {
-    const kind = CUSTOMER_KINDS[Math.floor(Math.random() * CUSTOMER_KINDS.length)];
+    const kinds = this.opts.customers;
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
     const species = BUGS[kind];
     const model = spawnCreature(kind, species.length) ?? makeBeetle(BEETLE_COLORS[Math.floor(Math.random() * BEETLE_COLORS.length)]);
-    model.root.position.set(this.x + 15, 0, this.z - 0.4);
+    if (species.medium === 'soil') {
+      // Earthworms pop up out of the ground right at the back of the line.
+      this.slot(this.queue.length, model.root.position);
+      model.root.position.y = -1.5;
+    } else {
+      model.root.position.set(this.x + this.opts.facing * 15, 0, this.z - 0.4);
+    }
     this.scene.add(model.root);
     const top = model.height * 0.9;
     const held = new Stack(model.bob, (i, type, out) => out.set(0, top + i * ITEM_H[type] + ITEM_H[type] / 2, -model.length * 0.1), 4);
@@ -309,8 +370,7 @@ export class Counter {
     // spiders hop or rear up at you, flies hover in line, aphids just plod.
     this.queue.forEach((c, i) => {
       c.ready = stepBug(c.model, c.mind, this.slot(i, this.tmp), playerPos, dt);
-      if (c.ready && c.mind.species.medium !== 'air') faceToward(c.model, -1, 0, dt); // look at the counter
-      if (c.ready && c.mind.species.medium === 'air') faceToward(c.model, -1, 0, dt, 4);
+      if (c.ready) faceToward(c.model, -this.opts.facing, 0, dt, c.mind.species.medium === 'air' ? 4 : 12); // look at the counter
     });
 
     // The front customer buys if someone is at the register.
@@ -332,9 +392,13 @@ export class Counter {
       // Happy customer leaves. Fliers literally fly away with their snacks!
       this.queue.shift();
       const p = front.model.root.position;
-      front.path = front.mind.species.medium === 'air'
-        ? [new THREE.Vector3(this.x + 20, 0, this.z - 8)]
-        : [new THREE.Vector3(p.x, 0, this.z + 2.3), new THREE.Vector3(this.x + 16, 0, this.z + 2.3)];
+      const f = this.opts.facing;
+      const medium = front.mind.species.medium;
+      front.path = medium === 'air'
+        ? [new THREE.Vector3(this.x + f * 20, 0, this.z - 8)]
+        : medium === 'soil'
+          ? [p.clone()] // worms burrow straight down where they are
+          : [new THREE.Vector3(p.x, 0, this.z + 2.3), new THREE.Vector3(this.x + f * 16, 0, this.z + 2.3)];
       this.leaving.push(front);
     }
 
@@ -356,7 +420,7 @@ export class Counter {
 
   /** A cash bill pops out of the register and lands on the cash pad. */
   private spawnBill() {
-    const value = Math.round(CONFIG.counter.saleValue * this.valueMult());
+    const value = Math.round(ITEM_VALUE[this.opts.itemType] * this.valueMult());
     if (this.cashPad.stack.full) {
       // Pad is full: add the value to the top bill instead.
       this.cashPad.stack.items[this.cashPad.stack.count - 1].value += value;
@@ -389,6 +453,35 @@ export class CashPad {
 }
 
 // ----------------------------------------------------------------------------
+export type RunTheme = 'grass' | 'gutter';
+
+/** The vehicle a gate run uses: a wheeled cart (grass) or a leaf raft (gutter). */
+export function makeVehicle(theme: RunTheme): { group: THREE.Group; deckY: number } {
+  const g = new THREE.Group();
+  if (theme === 'gutter') {
+    const raft = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 10).scale(1.1, 0.12, 1.6), mat(0x4caf3a, 0.6));
+    raft.position.y = 0.2;
+    raft.castShadow = true;
+    g.add(raft);
+    g.add(box(0.08, 0.06, 3.0, mat(0x2f7d32), 0, 0.33, 0)); // the leaf's middle vein
+    return { group: g, deckY: 0.36 };
+  }
+  g.add(box(1.7, 0.5, 2.0, woodMat, 0, 0.55, 0));
+  g.add(box(1.8, 0.12, 2.1, darkWoodMat, 0, 0.85, 0));
+  const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.15, 14);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1a });
+  for (const sx of [-1, 1]) {
+    for (const sz of [-0.6, 0.6]) {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.rotation.z = Math.PI / 2;
+      w.position.set(sx * 0.92, 0.35, sz);
+      w.castShadow = true;
+      g.add(w);
+    }
+  }
+  return { group: g, deckY: 0.91 };
+}
+
 export class DispatchPad {
   group = new THREE.Group();
   cargo: Stack;
@@ -396,7 +489,7 @@ export class DispatchPad {
   blocker: Blocker;
   beetle: CreatureModel;
 
-  constructor(scene: THREE.Scene, x: number, z: number) {
+  constructor(scene: THREE.Scene, x: number, z: number, public itemType: ItemType = 'snack', public theme: RunTheme = 'grass') {
     this.group.position.set(x, 0, z);
     scene.add(this.group);
 
@@ -404,25 +497,21 @@ export class DispatchPad {
     this.group.add(pad);
     this.zone = new Zone(x, z, 1.2, 1.2);
 
-    // The beetle cart, parked to the right and facing +x.
+    // The vehicle, parked to the right and facing +x.
     const cart = new THREE.Group();
     cart.position.set(3.4, 0, 0);
     cart.rotation.y = Math.PI / 2;
     this.group.add(cart);
-    cart.add(box(1.7, 0.5, 2.0, woodMat, 0, 0.55, 0));
-    cart.add(box(1.8, 0.12, 2.1, darkWoodMat, 0, 0.85, 0));
-    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.15, 14);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1a });
-    for (const sx of [-1, 1]) {
-      for (const sz of [-0.6, 0.6]) {
-        const w = new THREE.Mesh(wheelGeo, wheelMat);
-        w.rotation.z = Math.PI / 2;
-        w.position.set(sx * 0.92, 0.35, sz);
-        w.castShadow = true;
-        cart.add(w);
-      }
+    if (theme === 'gutter') {
+      // A little puddle for the raft to float in
+      const water = new THREE.Mesh(new THREE.CircleGeometry(2.2, 24), new THREE.MeshStandardMaterial({ color: 0x4aa8ff, roughness: 0.1, transparent: true, opacity: 0.85 }));
+      water.rotation.x = -Math.PI / 2;
+      water.position.y = 0.04;
+      cart.add(water);
     }
-    this.cargo = new Stack(cart, gridLayout(3, 4, 0.56, 0.46, 0.91), CONFIG.cart.max);
+    const v = makeVehicle(theme);
+    cart.add(v.group);
+    this.cargo = new Stack(cart, gridLayout(3, 4, 0.56, 0.46, v.deckY), CONFIG.cart.max);
     this.beetle = spawnCreature('aphid', 1.9) ?? makeBeetle(0x2a9d8f);
     this.beetle.root.position.set(0, 0, 1.9);
     cart.add(this.beetle.root);
@@ -444,7 +533,7 @@ export class DispatchPad {
     this.group.add(pole, flag);
 
     const sign = new TextSprite(0.8, '#ffd166');
-    sign.setText('GATE RUNS');
+    sign.setText(theme === 'gutter' ? 'RAFT RUNS' : 'GATE RUNS');
     sign.sprite.position.set(3.4, 2.8, 0);
     this.group.add(sign.sprite);
 
@@ -453,6 +542,100 @@ export class DispatchPad {
 
   update(dt: number) {
     animateCreature(this.beetle, dt, 0);
+  }
+}
+
+// ----------------------------------------------------------------------------
+/**
+ * The Hatchery: feed it leaf wraps. Every few wraps an egg hatches into a
+ * new worker ant, who joins the Brood Tunnels' crew for free.
+ */
+export class Hatchery {
+  group = new THREE.Group();
+  input: Stack;
+  zone: Zone;
+  /** Wraps fed toward the next hatch. */
+  progress = 0;
+  /** Called when an egg hatches; `index` = how many have hatched so far. */
+  onHatch: () => void = () => {};
+  private sign = new TextSprite(0.75, '#fff3b0');
+  private eggs: THREE.Mesh[] = [];
+  private eatT = 0;
+
+  constructor(private scene: THREE.Scene, x: number, z: number, private flyers: Flyers, public hatched: number, public maxHatch: number) {
+    this.group.position.set(x, 0, z);
+    scene.add(this.group);
+    const mound = new THREE.Mesh(new THREE.SphereGeometry(1.7, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.55, 1), mat(0x6b4a2f, 1));
+    mound.position.z = -2.9;
+    mound.receiveShadow = true;
+    mound.castShadow = true;
+    this.group.add(mound);
+    const eggMat = new THREE.MeshStandardMaterial({ color: 0xfffbea, roughness: 0.4, emissive: 0xfff3b0, emissiveIntensity: 0.15 });
+    for (let i = 0; i < 6; i++) {
+      const egg = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8).scale(1, 1.4, 1), eggMat);
+      const a = (i / 6) * Math.PI * 2;
+      egg.position.set(Math.sin(a) * 0.8, 0.95, -2.9 + Math.cos(a) * 0.6);
+      egg.castShadow = true;
+      this.group.add(egg);
+      this.eggs.push(egg);
+    }
+    const pad = makePad(2.4, 2.4, 'FEED', '#fff3b0');
+    this.group.add(pad);
+    this.zone = new Zone(x, z, 1.2, 1.2);
+    this.input = new Stack(this.group, gridLayout(3, 2, 0.6, 0.5, 0.05, 0, -0.3), 12);
+    this.sign.sprite.position.set(0, 2.9, -2.9);
+    this.group.add(this.sign.sprite);
+  }
+
+  /** Wraps needed for the next egg (each hatch needs a few more). */
+  get needed() {
+    return 6 + this.hatched * 4;
+  }
+
+  update(dt: number) {
+    const full = this.hatched >= this.maxHatch;
+    this.sign.setText(full ? '🥚 NURSERY FULL' : `🥚 ${this.progress}/${this.needed}`);
+    this.eggs.forEach((e, i) => (e.scale.y = 1 + Math.sin(performance.now() * 0.004 + i) * 0.06));
+    if (full) return;
+    // Eat one wrap at a time off the pad.
+    this.eatT += dt;
+    if (this.eatT > 0.4 && this.input.canPop()) {
+      this.eatT = 0;
+      const it = this.input.pop()!;
+      const target = new THREE.Vector3();
+      this.eggs[Math.floor(Math.random() * this.eggs.length)].getWorldPosition(target);
+      this.flyers.fly(it.mesh, () => target, () => it.mesh.removeFromParent(), 0.35, 1.2);
+      this.progress++;
+      if (this.progress >= this.needed) {
+        this.progress = 0;
+        this.hatched++;
+        this.onHatch();
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+/** Trash bin: stand on it to dump whatever you're carrying (one type at a time!). */
+export class TrashBin {
+  group = new THREE.Group();
+  zone: Zone;
+  mouth = new THREE.Vector3();
+
+  constructor(scene: THREE.Scene, x: number, z: number) {
+    this.group.position.set(x, 0, z);
+    scene.add(this.group);
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.6, 1.6, 18, 1, true), new THREE.MeshStandardMaterial({ color: 0x8a949e, roughness: 0.4, metalness: 0.5, side: THREE.DoubleSide }));
+    can.position.set(0, 0.8, -1.7);
+    can.castShadow = true;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.07, 8, 24), mat(0x6b747d, 0.4));
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(0, 1.6, -1.7);
+    this.group.add(can, rim);
+    const pad = makePad(2.0, 2.0, '🗑️', '#c9d1d9');
+    this.group.add(pad);
+    this.zone = new Zone(x, z, 1.0, 1.0);
+    this.mouth.set(x, 1.4, z - 1.7);
   }
 }
 

@@ -1,29 +1,34 @@
 // ============================================================================
-// worker.ts — hired worker fire ants. Each one has a job:
+// worker.ts — hired worker fire ants. Each one is given a ROUTE: where to
+// pick up from and where to drop off. Examples:
 //
-//   'crumbs' (yellow hard hat): crumb piles  -> oven IN
-//   'snacks' (red headband, the Runner Ant): oven OUT -> SELL counter shelf
+//   Worker Ant   (yellow hard hat): crumb piles  -> oven IN
+//   Runner Ant   (red headband):    oven OUT     -> counter shelf
+//   Leaf Ant     (green hard hat):  leaf patches -> leaf press IN
+//   Hatchlings   (white cap):       born in the Hatchery, swap jobs each trip
 //
-// Both run the same little "state machine":
+// All of them run the same little "state machine":
 //   toSource -> load (until full or empty) -> toDest -> unload -> repeat
+// A fresh route is picked at the start of every trip, so a worker always
+// heads for the fullest pile.
 // ============================================================================
 import * as THREE from 'three';
 import { CONFIG } from '../data/config';
 import { Flyers, Stack } from '../world/items';
-import { Bakery, Counter, ResourcePile, Zone } from '../world/stations';
+import { Zone } from '../world/stations';
 import { CreatureModel, animateCreature, faceToward, makeAnt } from './models';
 import { spawnCreature } from './creatures';
 import { backLayout, backSpot } from './player';
 
-export type Job = 'crumbs' | 'snacks';
-type State = 'toSource' | 'load' | 'toDest' | 'unload';
-
-export interface WorkCtx {
-  piles: ResourcePile[];
-  bakery: Bakery;
-  counter: Counter;
-  flyers: Flyers;
+/** One trip: pick up from `src` (standing in `srcZone`), drop at `dst`. */
+export interface Route {
+  src: Stack;
+  srcZone: Zone;
+  dst: Stack;
+  dstZone: Zone;
 }
+
+type State = 'toSource' | 'load' | 'toDest' | 'unload';
 
 /** A little hat on top of a bug's head. */
 export function addHat(m: CreatureModel, color: number, flat = false) {
@@ -41,27 +46,22 @@ export class Worker {
   model: CreatureModel;
   stack: Stack;
   private state: State = 'toSource';
-  private pile: ResourcePile | null = null;
+  private route: Route | null = null;
   private target = new THREE.Vector3();
   private timer = 0;
   private offset = new THREE.Vector3((Math.random() - 0.5) * 1.0, 0, (Math.random() - 0.5) * 1.0);
 
-  constructor(scene: THREE.Scene, x: number, z: number, public job: Job) {
-    this.model = spawnCreature('worker', 2.1) ?? makeAnt(0x5a3a22);
-    addHat(this.model, job === 'crumbs' ? 0xffc928 : 0xe63946, job === 'snacks');
+  /**
+   * @param pickRoute called at the start of each trip; returns where to go.
+   * @param hat       hat color, and `flat` for a headband-style cap.
+   */
+  constructor(scene: THREE.Scene, x: number, z: number, private pickRoute: () => Route, hat: { color: number; flat?: boolean }, length = 2.1) {
+    this.model = spawnCreature('worker', length) ?? makeAnt(0x5a3a22);
+    addHat(this.model, hat.color, hat.flat);
     this.model.root.position.set(x, 0, z);
     scene.add(this.model.root);
     const spot = backSpot(this.model);
     this.stack = new Stack(this.model.bob, backLayout(() => 0.6, spot.y0, spot.z0), CONFIG.worker.carry);
-  }
-
-  /** Where this worker picks up from and drops off to. */
-  private route(ctx: WorkCtx): { src: Stack; srcZone: Zone; dst: Stack; dstZone: Zone } {
-    if (this.job === 'snacks') {
-      return { src: ctx.bakery.output, srcZone: ctx.bakery.outZone, dst: ctx.counter.shelf, dstZone: ctx.counter.sellZone };
-    }
-    if (!this.pile) this.pile = ctx.piles.reduce((best, p) => (p.stack.count > best.stack.count ? p : best), ctx.piles[0]);
-    return { src: this.pile.stack, srcZone: this.pile.zone, dst: ctx.bakery.input, dstZone: ctx.bakery.inZone };
   }
 
   /** Walk toward `target`; returns true when there. */
@@ -82,8 +82,9 @@ export class Worker {
     return false;
   }
 
-  update(dt: number, ctx: WorkCtx) {
-    const r = this.route(ctx);
+  update(dt: number, flyers: Flyers) {
+    if (!this.route) this.route = this.pickRoute();
+    const r = this.route;
     switch (this.state) {
       case 'toSource':
         this.target.set(r.srcZone.x, 0, r.srcZone.z).add(this.offset);
@@ -94,7 +95,7 @@ export class Worker {
         this.timer += dt;
         if (this.timer < CONFIG.worker.pickupInterval) break;
         this.timer = 0;
-        if (!this.stack.full && r.src.canPop()) ctx.flyers.transfer(r.src, this.stack);
+        if (!this.stack.full && r.src.canPop()) flyers.transfer(r.src, this.stack);
         else if (this.stack.full || (r.src.count === 0 && this.stack.count > 0)) this.state = 'toDest';
         break;
       }
@@ -108,10 +109,10 @@ export class Worker {
         if (this.timer < CONFIG.worker.pickupInterval) break;
         this.timer = 0;
         if (this.stack.count === 0) {
-          this.pile = null;
+          this.route = null; // pick a fresh route next trip
           this.state = 'toSource';
         } else if (!r.dst.full) {
-          ctx.flyers.transfer(this.stack, r.dst);
+          flyers.transfer(this.stack, r.dst);
         }
         break;
     }

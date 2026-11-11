@@ -61,15 +61,20 @@ async function start() {
   };
 
   // 4) Tapping LAUNCH RUN switches to the gate run; finishing switches back.
-  base.onLaunch = (count) => {
+  base.onLaunch = (count, from) => {
     mode = 'run';
     run.luck = progress.luck;
     run.cashMult = progress.cashMult;
-    run.start(count, (endCount) => {
-      mode = 'base';
-      base.receiveRunPayout(endCount);
-      writeSave(save);
-    });
+    run.start(
+      count,
+      (endCount) => {
+        mode = 'base';
+        base.receiveRunPayout(endCount, from.itemType);
+        writeSave(save);
+      },
+      from.theme,
+      from.itemType,
+    );
   };
 
   // 5) Size the canvas to the full screen. We measure the #app box (which is

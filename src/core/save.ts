@@ -15,10 +15,11 @@ export interface SaveData {
   level: number;
   points: number;                     // unspent stat points
   stats: Record<string, number>;      // points spent per stat id
+  hatched: number;                    // worker ants born in the Hatchery
 }
 
 export function newSave(): SaveData {
-  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {} };
+  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0 };
 }
 
 export function loadSave(): SaveData {

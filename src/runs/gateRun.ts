@@ -13,7 +13,8 @@ import { Sfx } from '../core/audio';
 import { Hud } from '../ui/hud';
 import { CreatureModel, animateCreature, makeBeetle } from '../actors/models';
 import { spawnCreature } from '../actors/creatures';
-import { makeItem } from '../world/items';
+import { ITEM_VALUE, ItemType, makeItem } from '../world/items';
+import { RunTheme, makeVehicle } from '../world/stations';
 import { TextSprite, gameText, roundRect } from '../world/labels';
 
 type OpKind = '+' | '-' | 'x' | '/' | '?';
@@ -86,6 +87,9 @@ export class GateRun {
   private finishZ = 0;
   private onDone: (endCount: number) => void = () => {};
   private labelPop = 0;
+  private theme: RunTheme = 'grass';
+  private itemType: ItemType = 'snack';
+  private vehicles: Record<RunTheme, { group: THREE.Group; deckY: number }>;
 
   constructor(private hud: Hud, private sfx: Sfx) {
     const s = this.scene;
@@ -97,20 +101,9 @@ export class GateRun {
     s.add(sun);
     s.add(this.dynamic);
 
-    // The cart: a beetle pulling a wooden crate
-    const wood = new THREE.MeshStandardMaterial({ color: 0xa8743f, roughness: 0.8 });
-    const crate = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 1.9), wood);
-    crate.position.y = 0.55;
-    this.cart.add(crate);
-    const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.15, 14);
-    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1a });
-    for (const sx of [-1, 1]) for (const sz of [-0.6, 0.6]) {
-      const w = new THREE.Mesh(wheelGeo, wheelMat);
-      w.rotation.z = Math.PI / 2;
-      w.position.set(sx * 0.97, 0.35, sz);
-      this.cart.add(w);
-    }
-    this.cargo.position.y = 0.8;
+    // Both vehicles live on the cart; start() shows the one for the theme.
+    this.vehicles = { grass: makeVehicle('grass'), gutter: makeVehicle('gutter') };
+    this.cart.add(this.vehicles.grass.group, this.vehicles.gutter.group);
     this.cart.add(this.cargo);
     this.beetle = spawnCreature('aphid', 1.9) ?? makeBeetle(0x2a9d8f);
     this.beetle.root.position.set(0, 0, -1.9);
@@ -123,8 +116,16 @@ export class GateRun {
 
   // --------------------------------------------------------------------------
   /** Build a fresh course and start the run. */
-  start(count: number, onDone: (endCount: number) => void) {
+  start(count: number, onDone: (endCount: number) => void, theme: RunTheme = 'grass', itemType: ItemType = 'snack') {
     this.onDone = onDone;
+    this.theme = theme;
+    this.itemType = itemType;
+    this.vehicles.grass.group.visible = theme === 'grass';
+    this.vehicles.gutter.group.visible = theme === 'gutter';
+    const deck = this.vehicles[theme].deckY;
+    this.cargo.position.y = deck - 0.1;
+    // Grass: the aphid pulls the cart. Gutter: it rides at the front of the raft.
+    this.beetle.root.position.set(0, theme === 'gutter' ? deck - 0.1 : 0, theme === 'gutter' ? -1.0 : -1.9);
     this.startCount = this.count = count;
     this.shownCargo = -1;
     this.x = 0;
@@ -137,7 +138,8 @@ export class GateRun {
     this.cart.position.set(0, 0, 0);
     this.updateLabel();
     this.hud.setHint('Drag left / right to steer through the best gates!');
-    this.hud.banner('Ready…', `${count} snack packs loaded`, 1100);
+    const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies' };
+    this.hud.banner('Ready…', `${count} ${names[itemType] ?? 'items'} loaded`, 1100);
   }
 
   private buildCourse(S: number) {
@@ -148,14 +150,27 @@ export class GateRun {
     this.finishZ = -(firstRow + rows * rowSpacing) + 6;
     const length = -this.finishZ + 60;
 
-    // Ground: dirt lane with grass on both sides
-    const lane = new THREE.Mesh(new THREE.PlaneGeometry(laneHalfWidth * 2 + 0.6, length), new THREE.MeshStandardMaterial({ color: 0xc99561 }));
+    const gutter = this.theme === 'gutter';
+    // Ground: a dirt lane (grass theme) or a rain gutter full of water (gutter theme)
+    const lane = new THREE.Mesh(
+      new THREE.PlaneGeometry(laneHalfWidth * 2 + 0.6, length),
+      new THREE.MeshStandardMaterial(gutter ? { color: 0x4aa8ff, roughness: 0.1, metalness: 0.2 } : { color: 0xc99561 }),
+    );
     lane.rotation.x = -Math.PI / 2;
     lane.position.set(0, 0.01, -length / 2 + 20);
     const grass = new THREE.Mesh(new THREE.PlaneGeometry(120, length + 80), new THREE.MeshStandardMaterial({ color: 0x79c257 }));
     grass.rotation.x = -Math.PI / 2;
     grass.position.set(0, 0, -length / 2 + 20);
     this.dynamic.add(grass, lane);
+    if (gutter) {
+      // Metal gutter walls on both sides
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0xb8bec6, roughness: 0.35, metalness: 0.5 });
+      for (const sx of [-1, 1]) {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, length), wallMat);
+        wall.position.set(sx * (laneHalfWidth + 0.6), 0.7, -length / 2 + 20);
+        this.dynamic.add(wall);
+      }
+    }
 
     // Tall grass walls (instanced for speed)
     const bladeGeo = new THREE.ConeGeometry(0.35, 1, 5);
@@ -198,13 +213,22 @@ export class GateRun {
       if (r < rows - 1 && Math.random() < 0.6) {
         const p: Puddle = { x: rand(-laneHalfWidth + 1, laneHalfWidth - 1), z: z - rowSpacing / 2, r: 1.1, hit: false };
         this.puddles.push(p);
-        const puddle = new THREE.Mesh(
-          new THREE.CircleGeometry(p.r, 24),
-          new THREE.MeshStandardMaterial({ color: 0x4aa8ff, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.85 }),
-        );
-        puddle.rotation.x = -Math.PI / 2;
-        puddle.position.set(p.x, 0.03, p.z);
-        this.dynamic.add(puddle);
+        if (gutter) {
+          // A floating twig to steer around
+          const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, p.r * 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x6b4a2f }));
+          twig.rotation.z = Math.PI / 2;
+          twig.rotation.y = rand(-0.4, 0.4);
+          twig.position.set(p.x, 0.15, p.z);
+          this.dynamic.add(twig);
+        } else {
+          const puddle = new THREE.Mesh(
+            new THREE.CircleGeometry(p.r, 24),
+            new THREE.MeshStandardMaterial({ color: 0x4aa8ff, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.85 }),
+          );
+          puddle.rotation.x = -Math.PI / 2;
+          puddle.position.set(p.x, 0.03, p.z);
+          this.dynamic.add(puddle);
+        }
       }
     }
 
@@ -272,7 +296,7 @@ export class GateRun {
     this.shownCargo = show;
     this.cargo.clear();
     for (let i = 0; i < show; i++) {
-      const it = makeItem('snack');
+      const it = makeItem(this.itemType);
       const layer = Math.floor(i / 9);
       const k = i % 9;
       it.position.set(((k % 3) - 1) * 0.56, layer * 0.32, (Math.floor(k / 3) - 1) * 0.5);
@@ -338,7 +362,7 @@ export class GateRun {
       p.hit = true;
       const loss = CONFIG.run.puddleLoss * Math.max(0.3, 1 - this.luck * 0.06);
       const lost = Math.max(1, Math.ceil(this.count * loss));
-      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `💦 -${lost}`, false);
+      this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : '💦'} -${lost}`, false);
       this.sfx.splash();
     }
 
@@ -347,7 +371,7 @@ export class GateRun {
       this.state = 'done';
       this.stateT = 0;
       this.hud.setHint(null);
-      const earned = Math.round(this.count * CONFIG.run.valuePerItem * this.cashMult);
+      const earned = Math.round(this.count * ITEM_VALUE[this.itemType] * this.cashMult);
       window.setTimeout(() => {
         this.hud.showResults(this.startCount, this.count, earned).then(() => {
           this.active = false;

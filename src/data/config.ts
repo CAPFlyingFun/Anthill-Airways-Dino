@@ -87,6 +87,39 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'runner',   name: 'Runner Ant',      icon: '🏃', cost: 150, pos: [3.6, -2.4], requires: ['cashier'] },
   { id: 'worker2',  name: 'Worker Ant',      icon: '🐜', cost: 200, pos: [-11.5, -1.5], requires: ['worker1', 'pile2'] },
   { id: 'expand',   name: 'Big Order: Tunnels', icon: '🗺️', cost: 500, pos: [11, 7], requires: ['dispatch', 'worker2', 'oven2'] },
+
+  // ---- Zone 2: Brood Tunnels (west) — leaves -> leaf press -> leaf wraps ----
+  { id: 'leaf2',      name: 'Leaf Patch',      icon: '🌿', cost: 300,  pos: [-20, 4],     requires: ['expand'] },
+  { id: 'cashier2',   name: 'Hire Cashier',    icon: '🧾', cost: 450,  pos: [-36, -6.4],  requires: ['expand'] },
+  { id: 'leafant',    name: 'Leaf Ant',        icon: '🐜', cost: 550,  pos: [-24, -1.5],  requires: ['leaf2'] },
+  { id: 'wraprunner', name: 'Wrap Runner',     icon: '🏃', cost: 650,  pos: [-30.5, 1.5], requires: ['cashier2'] },
+  { id: 'hatchery',   name: 'Hatchery',        icon: '🥚', cost: 800,  pos: [-30, 7.5],   requires: ['leafant'] },
+  { id: 'raft',       name: 'Raft Runs',       icon: '🚣', cost: 900,  pos: [-24, 8],     requires: ['leaf2'] },
+  { id: 'press2',     name: 'Faster Press',    icon: '🔥', cost: 1200, pos: [-35, -10.6], requires: ['leafant'] },
+  { id: 'expand2',    name: 'Big Order: Hangar', icon: '🗺️', cost: 3500, pos: [7, 9.3], requires: ['hatchery', 'raft', 'press2', 'wraprunner'] },
+
+  // ---- Zone 3: Hangar Floor (south) — vending machine sugar -> candy press -> candy ----
+  { id: 'sugar2',      name: 'Vending Machine', icon: '🍬', cost: 1500,  pos: [-8, 28],   requires: ['expand2'] },
+  { id: 'cashier3',    name: 'Hire Cashier',    icon: '🧾', cost: 2000,  pos: [11, 33.5], requires: ['expand2'] },
+  { id: 'sugarant',    name: 'Sugar Ant',       icon: '🐜', cost: 2400,  pos: [-3, 24.5], requires: ['sugar2'] },
+  { id: 'candyrunner', name: 'Candy Runner',    icon: '🏃', cost: 2800,  pos: [2.5, 24.5], requires: ['cashier3'] },
+  { id: 'candy2',      name: 'Faster Press',    icon: '🔥', cost: 4000,  pos: [-3, 33.5], requires: ['sugarant'] },
+  { id: 'expand3',     name: 'Big Order: Airstrip', icon: '✈️', cost: 12000, pos: [-10, 34], requires: ['candy2', 'candyrunner'] },
+];
+
+/** The map grows zone by zone. A zone opens when its `unlock` is bought. */
+export interface ZoneDef {
+  id: string;
+  name: string;
+  rect: { minX: number; maxX: number; minZ: number; maxZ: number };
+  unlock: string | null;      // unlock id that opens it (null = open from the start)
+  ground: 'dirt' | 'tunnel' | 'concrete';
+  gaps: { side: 'n' | 's' | 'e' | 'w'; from: number; to: number }[]; // fence openings for customers
+}
+export const ZONES: ZoneDef[] = [
+  { id: 'nest', name: 'Nest Entrance', rect: { minX: -14, maxX: 14, minZ: -13, maxZ: 11 }, unlock: null, ground: 'dirt', gaps: [{ side: 'e', from: -6.2, to: 1.2 }] },
+  { id: 'brood', name: 'Brood Tunnels', rect: { minX: -42, maxX: -14, minZ: -13, maxZ: 11 }, unlock: 'expand', ground: 'tunnel', gaps: [{ side: 'w', from: -4.2, to: 3.0 }] },
+  { id: 'hangar', name: 'Hangar Floor', rect: { minX: -14, maxX: 14, minZ: 11, maxZ: 37 }, unlock: 'expand2', ground: 'concrete', gaps: [{ side: 'e', from: 22.8, to: 30.2 }] },
 ];
 
 /** ARK-style stats: each level-up gives 1 point to spend on one of these. */
