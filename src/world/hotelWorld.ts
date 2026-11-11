@@ -19,6 +19,7 @@
 // escaped 🦤 Dodo running round the lobby. 🛒 Bellhop Dash: a luggage-cart gate
 // run down the hallways for tips.
 // ============================================================================
+import { autoCash } from '../core/income';
 import * as THREE from 'three';
 import { CONFIG, HOTEL_CFG as C, HOTEL_UNLOCKS } from '../data/config';
 import { Sfx } from '../core/audio';
@@ -597,7 +598,7 @@ export class HotelWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 ASSISTANT');
         this.scene.add(tag.sprite);
-        this.assistant = new Assistant(m, new THREE.Vector3(-6, 0, 6), tag, (v) => this.addCash(v));
+        this.assistant = new Assistant(m, new THREE.Vector3(-6, 0, 6), tag, (v) => { this.addCash(v); autoCash(v); });
         this.assistant.speed = 5.5;
         if (animate) this.hud.banner('👩‍💼 Personal Assistant', 'She collects the cash from every pad for you', 3500);
         break;

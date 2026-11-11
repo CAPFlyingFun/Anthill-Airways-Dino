@@ -14,6 +14,7 @@
 // The interaction rule is always the same: stand in a zone and items hop
 // between stacks one at a time on a timer.
 // ============================================================================
+import { autoCash } from '../core/income';
 import * as THREE from 'three';
 import { CONFIG, QUEEN_UNLOCK_LEVEL, TUTORIAL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
 import { Sfx } from '../core/audio';
@@ -933,9 +934,10 @@ export class BaseWorld {
     this.idlers = this.idlers.filter((m) => m !== this.queenModel);
     this.blockers = this.blockers.filter((b) => b !== this.queenBlocker); // her corner is open now
     this.queenCrown.setText('👑 QUEEN · Lv ' + this.save.queen.level);
-    this.queenCollector = new QueenCollector(this.queenModel, this.queenCrown, new THREE.Vector3(-11, 0, -9), this.queenProgress, (amount) =>
-      this.addCash(amount),
-    );
+    this.queenCollector = new QueenCollector(this.queenModel, this.queenCrown, new THREE.Vector3(-11, 0, -9), this.queenProgress, (amount) => {
+      this.addCash(amount);
+      autoCash(amount); // automated income: counts toward +$/min and offline pay
+    });
     this.queenProgress.onLevelUp = (lv) => {
       this.queenCrown?.setText('👑 QUEEN · Lv ' + lv);
       this.sfx.unlocked();

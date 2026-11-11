@@ -18,6 +18,7 @@
 // Unlock tiles hire crew (people from the Anthill Airways flight crew) until
 // it all runs by itself, and your personal assistant (Sarah's model) collects cash.
 // ============================================================================
+import { autoCash } from '../core/income';
 import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { AIR, AIR_UNLOCKS, AircraftKind, CONFIG, UNLOCKS } from '../data/config';
@@ -845,7 +846,7 @@ export class AirportWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 ASSISTANT'); // (Sarah's model; she's only named on the island)
         this.scene.add(tag.sprite);
-        this.sarah = new Assistant(m, new THREE.Vector3(3, 0, 7.5), tag, (v) => this.addCash(v));
+        this.sarah = new Assistant(m, new THREE.Vector3(3, 0, 7.5), tag, (v) => { this.addCash(v); autoCash(v); });
         if (animate) this.hud.banner('👩‍💼 You hired a personal assistant!', 'She collects the cash from every pad for you', 3500);
         break;
       }

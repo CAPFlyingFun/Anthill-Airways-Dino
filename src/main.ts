@@ -12,6 +12,7 @@ import { Progress, QueenProgress } from './core/progress';
 import { GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
 import { erupt, shardsFor } from './core/prestige';
 import { pace } from './core/pace';
+import { income } from './core/income';
 import { weather } from './core/weather';
 import { Hud } from './ui/hud';
 import { BaseWorld } from './world/baseWorld';
@@ -38,6 +39,12 @@ if (save.unlocked.includes('conveyor')) {
   save.cash += 150;
 }
 delete save.paid['conveyor'];
+// v0.14.3: the idle rate used to count cash YOU picked up too. Old saves' rate is
+// inflated by that, so start it over once (it re-measures from automated helpers only).
+if (!save.paid['rate-auto']) {
+  save.rate = 0;
+  save.paid['rate-auto'] = 1;
+}
 // How long since the last save (= since you last played), for offline earnings.
 const awayAtLaunch = save.lastSeen ? (Date.now() - save.lastSeen) / 1000 : 0;
 const hud = new Hud();
@@ -443,18 +450,22 @@ async function start() {
   function trackIncome(dt: number) {
     if (mode === 'run') {
       prevCash = save.cash;
+      income.auto = 0;
       return;
     }
     const gained = save.cash - prevCash;
     if (gained > 0) {
-      winEarned += gained;
-      save.cycleEarned += gained; // counts toward the next eruption's shards
+      save.cycleEarned += gained; // ALL cash counts toward the next eruption's shards
     }
+    // The +$/min rate (and offline pay) only counts cash helpers collected on their own
+    winEarned += income.auto;
+    income.auto = 0;
     prevCash = save.cash;
     winT += dt;
     if (winT >= 10) {
       const r = winEarned / winT;
-      save.rate = save.rate > 0 ? save.rate * 0.85 + r * 0.15 : r;
+      save.rate = save.rate * 0.85 + r * 0.15;
+      if (save.rate < 0.02) save.rate = 0; // nobody's earning: show/pay nothing
       hud.setRate(save.rate * 60);
       winEarned = 0;
       winT = 0;

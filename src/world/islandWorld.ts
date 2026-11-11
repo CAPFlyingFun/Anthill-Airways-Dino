@@ -14,6 +14,7 @@
 //
 // Crew unlocks automate each job, and Sarah (your assistant) collects the money. Like the airport, the island keeps working while you're away.
 // ============================================================================
+import { autoCash } from '../core/income';
 import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { CONFIG, ISLAND_CFG as C, ISLAND_UNLOCKS } from '../data/config';
@@ -998,7 +999,7 @@ export class IslandWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 SARAH'); // (the only place she goes by name)
         this.scene.add(tag.sprite);
-        this.cashDodo = new Assistant(m, new THREE.Vector3(4, 0, 12), tag, (v) => this.addCash(v));
+        this.cashDodo = new Assistant(m, new THREE.Vector3(4, 0, 12), tag, (v) => { this.addCash(v); autoCash(v); });
         if (animate) this.hud.banner('👩‍💼 Sarah is on the island!', 'She collects the cash from every pad for you', 3500);
         break;
       }

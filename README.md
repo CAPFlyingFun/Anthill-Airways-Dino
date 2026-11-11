@@ -146,7 +146,8 @@ switching pauses the one you leave, so slots never stack.
 
 ## Idle earnings 💤
 
-While you play, the game measures your income (shown under your cash as +$/min). When you
+While you play, the game measures your **automated** income (shown under your cash as +$/min): only cash
+that helpers collect on their own (the 👑 Queen, your assistants) counts, not bills you pick up yourself. When you
 come back after a while, the colony and airport pay **50% of that rate for the time away**
 (up to 8 hours). Collect it, or risk it on a **Bonus Run**: a tougher gate run (more ÷ gates,
 double hazards, gates that 🔀 swap sides at the last second) that multiplies it. You always keep

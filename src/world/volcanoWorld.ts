@@ -20,6 +20,7 @@
 // drop everything), ERUPTIONS (lava bombs land near you, lava flows cross the
 // paths, tourists must be evacuated) and MAGMA that burns through your stack.
 // ============================================================================
+import { autoCash } from '../core/income';
 import * as THREE from 'three';
 import { CONFIG, VOLCANO_CFG as C, VOLCANO_UNLOCKS } from '../data/config';
 import { Sfx } from '../core/audio';
@@ -1160,7 +1161,7 @@ export class VolcanoWorld {
         const tag = new TextSprite(TITLE.human, '#ffd166');
         tag.setText('💼 ASSISTANT');
         this.scene.add(tag.sprite);
-        this.treasurer = new Assistant(m, new THREE.Vector3(-2, 0, 8), tag, (v) => this.addCash(v));
+        this.treasurer = new Assistant(m, new THREE.Vector3(-2, 0, 8), tag, (v) => { this.addCash(v); autoCash(v); });
         this.treasurer.speed = 5.5;
         if (animate) this.hud.banner('👩‍💼 Personal Assistant', 'She collects the cash from every pad for you', 3500);
         break;
