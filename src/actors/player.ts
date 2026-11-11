@@ -58,6 +58,16 @@ export function makePilotCap(size: number) {
   return g;
 }
 
+/**
+ * First-person field of view (vertical, degrees). Portrait: 70°. Landscape:
+ * keep the side-to-side view at ~85° so wide screens don't stretch everything.
+ */
+export function fpFov(aspect: number) {
+  if (aspect < 1) return 70;
+  const half = THREE.MathUtils.degToRad(85 / 2);
+  return THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(half) / aspect));
+}
+
 export class Player {
   model: CreatureModel;
   stack: Stack;
@@ -68,7 +78,7 @@ export class Player {
   private person: boolean;   // Act 2 (Jack) vs the ant Major
   private eyeH: number;      // eye height above the floor
   private eyeFwd: number;    // eyes sit this far in front of the body's center
-  private pitch: number;     // how far the first-person view looks down (radians)
+  private pitch: number;     // how far the first-person view looks down (radians; - = up)
   private lean = 0;
   private maxLabel = new TextSprite(0.6, '#ff6b6b');
 
@@ -117,7 +127,7 @@ export class Player {
     const m = this.model;
     this.eyeH = opts ? m.height * 0.93 : m.height * 0.95;
     this.eyeFwd = opts ? m.height * 0.07 : m.length * 0.45;
-    this.pitch = opts ? 0.56 : 0.32;
+    this.pitch = 0.12; // nearly level, a touch down (drag on the right half to look around)
     this.maxLabel.setText('MAX');
     this.maxLabel.sprite.visible = false;
     scene.add(this.maxLabel.sprite);
@@ -128,6 +138,13 @@ export class Player {
     this.firstPerson = on;
     const carried = new Set(this.stack.items.map((it) => it.mesh));
     for (const c of this.model.bob.children) if (!carried.has(c as THREE.Mesh)) c.visible = !on;
+  }
+
+  /** First person: turn + tilt your head from a drag (in screen pixels). */
+  look(dx: number, dy: number) {
+    if (!this.firstPerson || (!dx && !dy)) return;
+    this.model.root.rotation.y -= dx * 0.0065;                               // drag right = turn right
+    this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.0045, -0.9, 1.25); // drag up = look up
   }
 
   /** Put the camera at your eyes, looking where you face (a little down, to see pads). */
@@ -165,11 +182,13 @@ export class Player {
     let vx: number;
     let vz: number;
     if (this.firstPerson) {
-      // Through your eyes: left/right turns you, up/down walks forward/back.
-      const r = (this.model.root.rotation.y -= move.x * 2.4 * dt);
+      // Through your eyes: the stick walks (up/down) and strafes (left/right)
+      // relative to where you're looking; the right half of the screen turns you.
+      const r = this.model.root.rotation.y;
       const fwd = move.y * speed;
-      vx = Math.sin(r) * fwd;
-      vz = Math.cos(r) * fwd;
+      const strafe = move.x * speed;
+      vx = Math.sin(r) * fwd - Math.cos(r) * strafe;
+      vz = Math.cos(r) * fwd + Math.sin(r) * strafe;
     } else {
       // Camera looks toward -z, so pushing the stick "up" walks toward -z.
       vx = move.x * speed;

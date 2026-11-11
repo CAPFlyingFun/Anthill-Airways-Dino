@@ -144,7 +144,7 @@ async function start() {
   viewBtn.addEventListener('click', () => {
     save.view = save.view === 'first' ? 'third' : 'first';
     applyView();
-    if (save.view === 'first') hud.banner('👁️ First person', 'Stick left/right turns · up/down walks', 2200);
+    if (save.view === 'first') hud.banner('👁️ First person', 'Left side: walk · Right side: drag to look', 2600);
     writeSave(save);
   });
   applyView();
@@ -159,9 +159,13 @@ async function start() {
   // 5) Size the canvas to the full screen. We measure the #app box (which is
   // fixed to all four screen edges) instead of window.innerHeight, because
   // iPhone home-screen apps can report a shorter innerHeight and leave a gap.
+  let lastW = 0;
+  let lastH = 0;
   function resize() {
     const w = app.clientWidth;
     const h = app.clientHeight;
+    lastW = w;
+    lastH = h;
     renderer.setSize(w, h, false); // false = keep the CSS size at 100%
     base.resize(w, h);
     run.resize(w, h);
@@ -169,6 +173,7 @@ async function start() {
   }
   window.addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 250));
   resize();
 
   // Save every few seconds and whenever the app is hidden / closed.
@@ -258,7 +263,14 @@ async function start() {
     const dt = Math.min(0.05, rawMs / 1000) * timeScale; // cap dt so a lag spike can't teleport things
     last = now;
     watchQuality(rawMs);
+    // Rotating the phone: some browsers report the new size a moment late, so
+    // check every frame and resize as soon as it changes (no squashed view).
+    if (app.clientWidth !== lastW || app.clientHeight !== lastH) resize();
+    input.splitLook = save.view === 'first' && mode !== 'run';
     input.update();
+    const look = input.takeLook();
+    if (mode === 'base') base.player.look(look.dx, look.dy);
+    else if (mode === 'air') airport?.player.look(look.dx, look.dy);
     if (mode === 'base') {
       base.update(dt, input.move);
       background(dt);

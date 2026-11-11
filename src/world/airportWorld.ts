@@ -28,7 +28,7 @@ import { lod } from '../core/lod';
 import { Hud } from '../ui/hud';
 import { HumanKind, spawnHuman } from '../actors/creatures';
 import { CreatureModel, animateCreature, faceToward, makeAnt } from '../actors/models';
-import { Player, backLayout, handsSpot } from '../actors/player';
+import { Player, backLayout, fpFov, handsSpot } from '../actors/player';
 import { Route, Worker } from '../actors/worker';
 import { Flyers, ITEM_VALUE, ItemType, Stack, StackItem, makeItem } from './items';
 import { TextSprite, makePad } from './labels';
@@ -996,7 +996,7 @@ export class AirportWorld {
   private updateCamera(dt: number) {
     const target = this.player.pos;
     const want = new THREE.Vector3().copy(target).add(this.camOffset);
-    this.setFov(this.player.firstPerson && this.intro >= 1 ? 72 : this.thirdFov);
+    this.setFov(this.player.firstPerson && this.intro >= 1 ? fpFov(this.camera.aspect) : this.thirdFov);
     if (this.player.firstPerson && this.intro >= 1) {
       this.player.placeEyeCamera(this.camera);
       this.sun.position.set(target.x + 10, 26, target.z + 12);
@@ -1055,7 +1055,7 @@ export class AirportWorld {
     const portrait = w < h;
     this.camOffset.set(0, portrait ? 20 : 16, portrait ? 17.5 : 15.5);
     this.thirdFov = portrait ? 56 : 42;
-    this.camera.fov = this.player.firstPerson ? 72 : this.thirdFov;
+    this.camera.fov = this.player.firstPerson ? fpFov(this.camera.aspect) : this.thirdFov;
     this.camera.updateProjectionMatrix();
   }
 }

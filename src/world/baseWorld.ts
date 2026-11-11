@@ -21,7 +21,7 @@ import { SaveData } from '../core/save';
 import { Progress, QueenProgress } from '../core/progress';
 import { QueenCollector } from '../actors/queen';
 import { Hud } from '../ui/hud';
-import { Player } from '../actors/player';
+import { Player, fpFov } from '../actors/player';
 import { Banker, Route, Worker } from '../actors/worker';
 import { Impostor } from '../actors/impostor';
 import { spawnCreature, spawnProp } from '../actors/creatures';
@@ -993,7 +993,7 @@ export class BaseWorld {
 
   private updateCamera(dt: number) {
     const target = this.player.pos;
-    this.setFov(this.player.firstPerson ? 72 : this.thirdFov);
+    this.setFov(this.player.firstPerson ? fpFov(this.camera.aspect) : this.thirdFov);
     if (this.player.firstPerson) {
       this.player.placeEyeCamera(this.camera);
       this.sun.position.set(target.x + 8, 20, target.z + 9);
@@ -1022,7 +1022,7 @@ export class BaseWorld {
     const portrait = w < h;
     this.camOffset.set(0, portrait ? 18 : 14.5, portrait ? 16 : 14);
     this.thirdFov = portrait ? 56 : 42;
-    this.camera.fov = this.player.firstPerson ? 72 : this.thirdFov;
+    this.camera.fov = this.player.firstPerson ? fpFov(this.camera.aspect) : this.thirdFov;
     this.camera.updateProjectionMatrix();
   }
 }
