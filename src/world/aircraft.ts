@@ -14,7 +14,7 @@
 // ============================================================================
 import * as THREE from 'three';
 import { AIR, AircraftKind, FLEET } from '../data/config';
-import { Flyers, Stack } from './items';
+import { Flyers, Stack, StackItem } from './items';
 import { TextSprite, makePad } from './labels';
 import { Zone, gridLayout } from './stations';
 
@@ -284,26 +284,71 @@ export class Aircraft {
   }
 
   /** The conveyor from the pad, out through the window, to the cargo door. */
+  // ---- The belt: pad -> out through the window -> up to the cargo door ----
+  private beltStart = new THREE.Vector3();
+  private beltEnd = new THREE.Vector3();
+  private beltLen = 1;
+  private beltTex: THREE.CanvasTexture | null = null;
+  private riders: { it: StackItem; d: number }[] = [];
+  private hopping = 0; // bags jumping from the pad onto the belt right now
+
   private buildBelt() {
     this.belt.clear();
-    const z0 = this.padZ - 1.2;
-    const z1 = this.home.z + this.built.door.z + 0.4;
-    const len = z0 - z1;
-    const mid = (z0 + z1) / 2;
+    const z0 = this.padZ - 1.2;                                  // pad end (on the floor)
+    const z1 = this.home.z + this.built.door.z + 0.4;            // plane end (at the door)
+    const run = z0 - z1;
     const top = this.built.door.y - 0.3;
-    // A ramp that rises from the floor to the door
-    const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.25, Math.hypot(len, top)), mat(0x2b2f33, 0.6));
-    ramp.position.set(this.padX, top / 2, mid);
-    ramp.rotation.x = -Math.atan2(top, len);
-    ramp.castShadow = ramp.receiveShadow = true;
+    const len = Math.hypot(run, top);
+    this.beltLen = len;
+    this.beltStart.set(this.padX, 0, z0);
+    this.beltEnd.set(this.padX, top, z1);
+
+    // Moving rubber surface (striped, scrolls toward the plane)
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#2b2f33';
+    g.fillRect(0, 0, 64, 64);
+    g.fillStyle = '#41474e';
+    g.fillRect(0, 0, 64, 16);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(1, len * 2);
+    this.beltTex = tex;
+
+    // The belt rises from the floor (pad end) up to the door (plane end).
+    const tilt = new THREE.Group();
+    tilt.position.set(this.padX, top / 2, (z0 + z1) / 2);
+    tilt.rotation.x = Math.atan2(top, run); // lifts the -z (plane) end
+    this.belt.add(tilt);
+    const surface = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, len), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }));
+    surface.castShadow = surface.receiveShadow = true;
+    tilt.add(surface);
+    // Low side rails only (they guide the bags, never cross the belt)
     const rail = mat(0xffc928, 0.5);
-    this.belt.add(ramp);
-    for (const dx of [-0.7, 0.7]) {
-      const r = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.35, Math.hypot(len, top)), rail);
-      r.position.set(this.padX + dx, top / 2 + 0.15, mid);
-      r.rotation.x = ramp.rotation.x;
-      this.belt.add(r);
+    for (const dx of [-0.66, 0.66]) {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.28, len), rail);
+      r.position.set(dx, 0.2, 0);
+      tilt.add(r);
     }
+    // Support legs under the high end
+    const leg = mat(0x555b62);
+    for (const f of [0.55, 0.85]) {
+      const h = top * f;
+      for (const dx of [-0.5, 0.5]) {
+        const l = new THREE.Mesh(new THREE.BoxGeometry(0.1, h, 0.1), leg);
+        l.position.set(this.padX + dx, h / 2, z0 - run * f);
+        this.belt.add(l);
+      }
+    }
+  }
+
+  /** Point `d` along the belt, raised so a bag sits on top of it. */
+  private beltPoint(d: number, out: THREE.Vector3) {
+    return out.lerpVectors(this.beltStart, this.beltEnd, Math.min(1, d / this.beltLen)).setY(
+      THREE.MathUtils.lerp(this.beltStart.y, this.beltEnd.y, Math.min(1, d / this.beltLen)) + 0.38,
+    );
   }
 
   private drawLabel() {
@@ -379,21 +424,42 @@ export class Aircraft {
   }
 
   private updateParked(dt: number) {
-    // Belt: one bag at a time hops from the pad into the hold.
+    const speed = 4.2;   // belt speed (units per second)
+    const gap = 0.8;     // space between bags on the belt
+    if (this.beltTex) this.beltTex.offset.y -= dt * speed * 2; // surface moves toward the plane
+    // A bag hops from the pad onto the start of the belt (when there's room).
+    const onBelt = this.riders.length + this.hopping;
+    const lastD = this.riders.length ? this.riders[this.riders.length - 1].d : Infinity;
     this.beltT += dt;
-    if (this.beltT >= 0.16 && this.hold + this.flying < this.holdMax && this.cargo.canPop()) {
+    if (this.beltT >= 0.12 && lastD > gap && !this.hopping && this.hold + onBelt < this.holdMax && this.cargo.canPop()) {
       this.beltT = 0;
       this.idleT = 0;
       const it = this.cargo.pop()!;
-      const target = new THREE.Vector3();
-      this.flying++;
-      this.flyers.fly(it.mesh, () => this.door.getWorldPosition(target), () => {
-        it.mesh.removeFromParent();
-        this.flying--;
-        this.hold++;
-        this.drawLabel();
-      }, 0.45, 1.4);
+      this.hopping++;
+      const start = this.beltPoint(0, new THREE.Vector3());
+      this.flyers.fly(it.mesh, () => start, () => {
+        this.hopping--;
+        this.scene.add(it.mesh);
+        this.riders.push({ it, d: 0 });
+      }, 0.22, 0.5);
     }
+    // Ride up the belt (each bag keeps its distance from the one ahead) and
+    // drop in through the cargo door at the top.
+    for (let i = 0; i < this.riders.length; i++) {
+      const r = this.riders[i];
+      const limit = i === 0 ? this.beltLen : this.riders[i - 1].d - gap;
+      r.d = Math.min(limit, r.d + speed * dt);
+      this.beltPoint(r.d, r.it.mesh.position);
+      r.it.mesh.rotation.set(0, 0, 0);
+    }
+    const first = this.riders[0];
+    if (first && first.d >= this.beltLen - 1e-3) {
+      this.riders.shift();
+      first.it.mesh.removeFromParent();
+      this.hold++;
+      this.drawLabel();
+    }
+    this.flying = this.riders.length + this.hopping;
     // Leave when full, or with a partial load once no bags have come for a while.
     if (this.hold > 0 && this.flying === 0 && !this.cargo.count) this.idleT += dt;
     if (this.flying === 0 && (this.hold >= this.holdMax || (this.hold > 0 && this.idleT >= AIR.partialWait))) {

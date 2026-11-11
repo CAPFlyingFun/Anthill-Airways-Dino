@@ -9,6 +9,14 @@ import { Progress, QueenProgress } from '../core/progress';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
+/** 1234 -> "1.2k", 2500000 -> "2.5M" */
+function short(n: number) {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e4) return `${Math.round(n / 1e3)}k`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
+  return String(Math.round(n));
+}
+
 export class Hud {
   private cashEl = $('cashValue');
   private cashPill = $('cash');
@@ -110,6 +118,35 @@ export class Hud {
         resolve();
       };
       btn.addEventListener('click', done);
+    });
+  }
+
+  // ---- Idle income --------------------------------------------------------
+  /** "+$1.2k/min" under the cash pill (hidden until there's a rate). */
+  setRate(perMin: number) {
+    const el = $('rate');
+    el.classList.toggle('hidden', perMin < 1);
+    el.textContent = `+$${short(perMin)}/min`;
+  }
+
+  /** The "welcome back" card. Resolves 'run' (multiply it) or 'collect'. */
+  showWelcome(awaySecs: number, amount: number): Promise<'run' | 'collect'> {
+    const h = Math.floor(awaySecs / 3600);
+    const m = Math.floor((awaySecs % 3600) / 60);
+    $('wbAway').textContent = `You were away ${h ? `${h}h ` : ''}${m}m`;
+    $('wbAmount').textContent = `$${Math.round(amount).toLocaleString()}`;
+    const overlay = $('welcome');
+    overlay.classList.remove('hidden');
+    return new Promise((resolve) => {
+      const run = $('wbRun');
+      const collect = $('wbCollect');
+      const done = (choice: 'run' | 'collect') => () => {
+        run.onclick = collect.onclick = null;
+        overlay.classList.add('hidden');
+        resolve(choice);
+      };
+      run.onclick = done('run');
+      collect.onclick = done('collect');
     });
   }
 

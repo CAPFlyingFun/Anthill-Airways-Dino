@@ -9,7 +9,7 @@ import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { clearSave, loadSave, writeSave } from './core/save';
 import { Progress, QueenProgress } from './core/progress';
-import { QUEEN_UNLOCK_LEVEL } from './data/config';
+import { OFFLINE, QUEEN_UNLOCK_LEVEL } from './data/config';
 import { Hud } from './ui/hud';
 import { BaseWorld } from './world/baseWorld';
 import { GateRun } from './runs/gateRun';
@@ -26,6 +26,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 app.appendChild(renderer.domElement);
 
 const save = loadSave();
+// How long since the last save (= since you last played), for offline earnings.
+const awayAtLaunch = save.lastSeen ? (Date.now() - save.lastSeen) / 1000 : 0;
 const hud = new Hud();
 const sfx = new Sfx();
 sfx.enabled = save.sound;
@@ -82,6 +84,11 @@ async function start() {
         mode = 'base';
         base.receiveRunPayout(endCount, from.itemType);
         writeSave(save);
+        if (pendingAway) {
+          const secs = pendingAway;
+          pendingAway = 0;
+          offerOffline(secs);
+        }
       },
       from.theme,
       from.itemType,
@@ -178,9 +185,93 @@ async function start() {
 
   // Save every few seconds and whenever the app is hidden / closed.
   window.setInterval(() => writeSave(save), 5000);
+  let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) writeSave(save);
+    if (document.hidden) {
+      writeSave(save);
+      hiddenAt = Date.now();
+    } else if (hiddenAt) {
+      // Back from the home screen / another app: pay for the time away.
+      offerOffline((Date.now() - hiddenAt) / 1000);
+      hiddenAt = 0;
+    }
   });
+
+  // ---- Idle income -----------------------------------------------------------
+  // Measure income while playing: cash gained every 10 s (spending ignored),
+  // smoothed. Gate run payouts don't count (they're not idle income).
+  let prevCash = save.cash;
+  let winEarned = 0;
+  let winT = 0;
+  hud.setRate(save.rate * 60);
+  function trackIncome(dt: number) {
+    if (mode === 'run') {
+      prevCash = save.cash;
+      return;
+    }
+    const gained = save.cash - prevCash;
+    if (gained > 0) winEarned += gained;
+    prevCash = save.cash;
+    winT += dt;
+    if (winT >= 10) {
+      const r = winEarned / winT;
+      save.rate = save.rate > 0 ? save.rate * 0.85 + r * 0.15 : r;
+      hud.setRate(save.rate * 60);
+      winEarned = 0;
+      winT = 0;
+    }
+  }
+
+  // ---- Offline earnings + the bonus gate run ---------------------------------
+  let pendingAway = 0;
+  let welcomeOpen = false;
+  async function offerOffline(secs: number) {
+    if (secs < OFFLINE.minAwaySecs) return;
+    if (mode === 'run' || welcomeOpen || switching) {
+      pendingAway += secs; // ask after the run
+      return;
+    }
+    const capped = Math.min(secs, OFFLINE.maxHours * 3600);
+    const amount = Math.floor(save.rate * capped * OFFLINE.share);
+    if (amount < 1) return; // no income measured yet
+    welcomeOpen = true;
+    const choice = await hud.showWelcome(capped, amount);
+    welcomeOpen = false;
+    if (choice === 'collect') {
+      payOffline(amount);
+      return;
+    }
+    // Bonus run: cash bundles on a tougher course. The finish pays per bundle.
+    const back = mode === 'air' ? 'air' : 'base';
+    mode = 'run';
+    hud.setLaunch(null);
+    run.luck = progress.luck;
+    const per = amount / OFFLINE.runBundles;
+    run.start(
+      OFFLINE.runBundles,
+      (end) => {
+        mode = back;
+        if (back === 'air') airport?.enter(false);
+        else base.enter();
+        payOffline(Math.max(amount * OFFLINE.keepMin, end * per));
+      },
+      'grass',
+      'cash',
+      { hard: true, valueEach: per, keepMin: amount * OFFLINE.keepMin, title: '💰 BONUS RUN' },
+    );
+  }
+  function payOffline(amount: number) {
+    save.cash += Math.round(amount);
+    hud.setCash(save.cash);
+    prevCash = save.cash; // not counted as idle income
+    sfx.unlocked();
+    writeSave(save);
+    if (pendingAway) {
+      const more = pendingAway;
+      pendingAway = 0;
+      offerOffline(more);
+    }
+  }
 
   // Auto-update: checks for a newer build and reloads into it (never mid gate run).
   const updater = new Updater({
@@ -240,6 +331,8 @@ async function start() {
   }
 
   hud.hideLoading();
+  // Welcome back! (time since you last played)
+  window.setTimeout(() => offerOffline(awayAtLaunch), 900);
 
   // 7) Main loop. `?speed=4` in the URL fast-forwards (handy for testing).
   const timeScale = Math.min(10, Number(new URLSearchParams(location.search).get('speed')) || 1);
@@ -263,6 +356,7 @@ async function start() {
     const dt = Math.min(0.05, rawMs / 1000) * timeScale; // cap dt so a lag spike can't teleport things
     last = now;
     watchQuality(rawMs);
+    trackIncome(Math.min(1, rawMs / 1000)); // real seconds (income per real second)
     // Rotating the phone: some browsers report the new size a moment late, so
     // check every frame and resize as soon as it changes (no squashed view).
     if (app.clientWidth !== lastW || app.clientHeight !== lastH) resize();

@@ -20,6 +20,8 @@ export interface SaveData {
   world: 'ant' | 'air';               // which world you're playing (Act 2 adds the airport)
   airSeen: boolean;                   // seen the airport intro?
   view: 'third' | 'first';            // camera: behind you, or through your eyes
+  lastSeen: number;                   // when the game last saved (ms) -> offline earnings
+  rate: number;                       // measured income ($ per second) while playing
 }
 
 export interface QueenSave {
@@ -31,7 +33,7 @@ export interface QueenSave {
 }
 
 export function newSave(): SaveData {
-  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} }, world: 'ant', airSeen: false, view: 'third' };
+  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} }, world: 'ant', airSeen: false, view: 'third', lastSeen: 0, rate: 0 };
 }
 
 export function loadSave(): SaveData {
@@ -47,6 +49,7 @@ export function loadSave(): SaveData {
 
 export function writeSave(data: SaveData) {
   try {
+    data.lastSeen = Date.now(); // offline earnings count from the last save
     localStorage.setItem(CONFIG.saveKey, JSON.stringify(data));
   } catch {
     /* saving is best-effort */

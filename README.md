@@ -37,6 +37,14 @@ Both worlds keep running while you're in the other one, and the Queen keeps coll
   flight crew), and **Sarah**, your personal assistant, who collects the cash
 - The people (~11 MB) only download once you reach Act 2
 
+## Idle earnings 💤
+
+While you play, the game measures your income (shown under your cash as +$/min). When you
+come back after a while, the colony and airport pay **50% of that rate for the time away**
+(up to 8 hours). Collect it, or risk it on a **Bonus Run**: a tougher gate run (more ÷ gates,
+double hazards, gates that 🔀 swap sides at the last second) that multiplies it. You always keep
+at least 25%.
+
 ## First-person view 👁️
 
 The eye button (bottom right) switches either world to **first person**: you see through the

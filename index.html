@@ -33,7 +33,7 @@
           </div>
           <div id="zone" class="zone-label">Nest Entrance</div>
         </div>
-        <div id="cash" class="pill cash"><span class="bill">💵</span><span id="cashValue">0</span></div>
+        <div id="cash" class="pill cash"><span class="bill">💵</span><span id="cashValue">0</span><span id="rate" class="rate hidden"></span></div>
       </div>
 
       <div id="hint" class="hint hidden"></div>
@@ -60,6 +60,19 @@
           <div class="res-row"><span>Made it to the finish</span><b id="resEnd">0</b></div>
           <div class="res-row total"><span>Cash earned</span><b id="resEarned">$0</b></div>
           <button id="collectBtn" class="big-btn">Collect</button>
+        </div>
+      </div>
+
+      <!-- Welcome back: what the colony + airport earned while you were away -->
+      <div id="welcome" class="overlay hidden">
+        <div class="card welcome">
+          <h2>Welcome back! 👋</h2>
+          <div id="wbAway" class="wb-away">You were away 1h 0m</div>
+          <div class="wb-sub">Your colony &amp; airport kept working:</div>
+          <div id="wbAmount" class="wb-amount">$0</div>
+          <button id="wbRun" class="menu-btn wb-run">🚀 Multiply it! Bonus gate run</button>
+          <button id="wbCollect" class="menu-btn">💵 Just collect</button>
+          <div class="wb-fine">The bonus run is tougher: more traps, and gates that swap sides. You always keep at least 25%.</div>
         </div>
       </div>
 

@@ -59,7 +59,7 @@ export default defineConfig({
       },
       workbox: {
         // version.json is deliberately NOT cached, so update checks always see the live one.
-        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,glb}'],
+        globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,glb,woff}'], // woff = the ground-text font
         // The people (models/h-*.glb, ~11 MB) aren't pre-downloaded: they load
         // when you reach Act 2 and are cached then (see runtimeCaching).
         globIgnores: ['**/models/h-*.glb'],

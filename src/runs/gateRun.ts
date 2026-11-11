@@ -32,6 +32,16 @@ interface Row {
   z: number;
   gates: Gate[];
   passed: boolean;
+  swap?: boolean;   // bonus run trick: the gates trade sides as you get close
+  swapped?: boolean;
+}
+
+/** Options for a special run (the offline-earnings bonus run). */
+export interface RunOpts {
+  hard?: boolean;     // more traps: worse gates, more hazards, gates that swap sides
+  valueEach?: number; // cash per item at the finish (instead of the item's price)
+  keepMin?: number;   // never pay less than this
+  title?: string;     // banner at the start
 }
 interface Puddle {
   x: number;
@@ -90,6 +100,7 @@ export class GateRun {
   private theme: RunTheme = 'grass';
   private itemType: ItemType = 'snack';
   private vehicles: Record<RunTheme, { group: THREE.Group; deckY: number }>;
+  private opts: RunOpts = {};
 
   constructor(private hud: Hud, private sfx: Sfx) {
     const s = this.scene;
@@ -116,8 +127,9 @@ export class GateRun {
 
   // --------------------------------------------------------------------------
   /** Build a fresh course and start the run. */
-  start(count: number, onDone: (endCount: number) => void, theme: RunTheme = 'grass', itemType: ItemType = 'snack') {
+  start(count: number, onDone: (endCount: number) => void, theme: RunTheme = 'grass', itemType: ItemType = 'snack', opts: RunOpts = {}) {
     this.onDone = onDone;
+    this.opts = opts;
     this.theme = theme;
     this.itemType = itemType;
     this.vehicles.grass.group.visible = theme === 'grass';
@@ -138,8 +150,8 @@ export class GateRun {
     this.cart.position.set(0, 0, 0);
     this.updateLabel();
     this.hud.setHint('Drag left / right to steer through the best gates!');
-    const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies' };
-    this.hud.banner('Ready…', `${count} ${names[itemType] ?? 'items'} loaded`, 1100);
+    const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles' };
+    this.hud.banner(opts.title ?? 'Ready…', `${count} ${names[itemType] ?? 'items'} loaded`, opts.title ? 1800 : 1100);
   }
 
   private buildCourse(S: number) {
@@ -197,21 +209,34 @@ export class GateRun {
       const z = -(firstRow + r * rowSpacing);
       const plus = () => ({ kind: '+' as const, v: Math.max(2, Math.round(S * rand(0.2, 0.45))) });
       const minus = () => ({ kind: '-' as const, v: Math.max(1, Math.round(S * rand(0.25, 0.45))) });
+      const hard = !!this.opts.hard;
       let pair: Op[];
       if (r === xRow) pair = [{ kind: 'x', v: 2 }, Math.random() < 0.5 ? minus() : plus()];
-      else if (r === qRow) pair = [{ kind: '?', v: 0 }, plus()];
-      else {
+      else if (r === qRow) pair = [{ kind: '?', v: 0 }, hard ? minus() : plus()];
+      else if (hard) {
+        // Bonus run: fewer free wins. Sometimes both gates hurt (pick the lesser evil).
+        const roll = Math.random();
+        pair =
+          roll < 0.3 ? [plus(), minus()]
+            : roll < 0.55 ? [plus(), { kind: '/', v: 2 }]
+              : roll < 0.75 ? [minus(), { kind: '/', v: 2 }]
+                : roll < 0.9 ? [plus(), { kind: '/', v: 3 }]
+                  : [{ kind: 'x', v: 2 }, { kind: '/', v: 3 }];
+      } else {
         const roll = Math.random();
         pair = roll < 0.45 ? [plus(), minus()] : roll < 0.75 ? [plus(), { kind: '/', v: 2 }] : [plus(), plus()];
       }
       if (Math.random() < 0.5) pair.reverse();
-      const row: Row = { z, passed: false, gates: [] };
+      // Trick (bonus run): about 4 in 10 rows swap their gates at the last second.
+      const row: Row = { z, passed: false, gates: [], swap: hard && r > 0 && Math.random() < 0.4 };
       pair.forEach((op, i) => row.gates.push(this.makeGate(op, i === 0 ? -1 : 1, z)));
       this.rows.push(row);
 
-      // A puddle halfway to the next row, now and then
-      if (r < rows - 1 && Math.random() < 0.6) {
-        const p: Puddle = { x: rand(-laneHalfWidth + 1, laneHalfWidth - 1), z: z - rowSpacing / 2, r: 1.1, hit: false };
+      // A puddle halfway to the next row, now and then (always, on a bonus run;
+      // sometimes two of them)
+      const hazards = r >= rows - 1 ? 0 : this.opts.hard ? (Math.random() < 0.5 ? 2 : 1) : Math.random() < 0.6 ? 1 : 0;
+      for (let h = 0; h < hazards; h++) {
+        const p: Puddle = { x: rand(-laneHalfWidth + 1, laneHalfWidth - 1), z: z - rowSpacing * (hazards === 2 ? (h ? 0.68 : 0.36) : 0.5), r: 1.1, hit: false };
         this.puddles.push(p);
         if (gutter) {
           // A floating twig to steer around
@@ -336,6 +361,18 @@ export class GateRun {
     this.cart.rotation.z = -move.x * 0.08 * (this.state === 'run' ? 1 : 0); // lean into turns
     animateCreature(this.beetle, dt, this.speed);
 
+    // Trick gates: swap sides when you get close (bonus run)
+    for (const row of this.rows) {
+      if (!row.swap || row.passed) continue;
+      if (!row.swapped && this.z - row.z < 11) {
+        row.swapped = true;
+        for (const g of row.gates) g.side = (g.side === 1 ? -1 : 1) as -1 | 1;
+        this.hud.floatAt(new THREE.Vector3(0, 3, row.z), this.camera, '🔀 SWAP!', 'big bad');
+      }
+      // Slide them across
+      for (const g of row.gates) g.group.position.x += (g.side * 1.75 - g.group.position.x) * Math.min(1, dt * 7);
+    }
+
     // Gates
     for (const row of this.rows) {
       if (row.passed || this.z > row.z) continue;
@@ -371,7 +408,10 @@ export class GateRun {
       this.state = 'done';
       this.stateT = 0;
       this.hud.setHint(null);
-      const earned = Math.round(this.count * ITEM_VALUE[this.itemType] * this.cashMult);
+      const o = this.opts;
+      const earned = o.valueEach !== undefined
+        ? Math.round(Math.max(o.keepMin ?? 0, this.count * o.valueEach))
+        : Math.round(this.count * ITEM_VALUE[this.itemType] * this.cashMult);
       window.setTimeout(() => {
         this.hud.showResults(this.startCount, this.count, earned).then(() => {
           this.active = false;

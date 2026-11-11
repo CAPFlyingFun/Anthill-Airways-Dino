@@ -112,6 +112,19 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'expand3',     name: 'Big Order: Airstrip', icon: '✈️', cost: 12000, pos: [-10, 34], requires: ['candy2', 'candyrunner'] },
 ];
 
+/**
+ * Idle / offline earnings. While you play, the game measures how much cash
+ * comes in per second. When you come back after a while, you get a share of
+ * that for the time you were away (the colony + airport kept working).
+ */
+export const OFFLINE = {
+  share: 0.5,        // 50% of your measured income rate while away
+  maxHours: 8,       // counts up to 8 hours away
+  minAwaySecs: 60,   // shorter breaks don't count
+  runBundles: 20,    // the bonus run starts with this many cash bundles
+  keepMin: 0.25,     // the bonus run always pays at least 25% of the earnings
+};
+
 // ============================================================================
 // ACT 2: THE AIRPORT (human scale). Jack runs the terminal for Anthill Airways:
 //   passengers check in (ticket cash + a suitcase) -> carry bags to the plane

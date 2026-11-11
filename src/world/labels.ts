@@ -4,6 +4,9 @@
 //   makePad    — the dashed "stand here" squares on the ground
 // ============================================================================
 import * as THREE from 'three';
+import { Text, preloadFont } from 'troika-three-text';
+// A chunky rounded font, bundled with the game (works offline). Fredoka, SIL Open Font License.
+import FONT_URL from '@fontsource/fredoka/files/fredoka-latin-700-normal.woff?url';
 
 export const GAME_FONT = '"Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", system-ui, sans-serif';
 
@@ -43,6 +46,63 @@ export function gameText(ctx: CanvasRenderingContext2D, text: string, x: number,
   ctx.strokeText(text, x, y);
   ctx.fillStyle = fill;
   ctx.fillText(text, x, y);
+}
+
+// ----------------------------------------------------------------------------
+// GROUND TEXT: words painted on the floor (pads, unlock tiles). These used to
+// be drawn into canvas images, which go blurry/pixelated when seen up close or
+// at a low angle. Now they're SDF text: drawn from the font's shapes on the
+// GPU, so they stay razor sharp at any distance, angle or zoom.
+// ----------------------------------------------------------------------------
+const ASCII = /^[\x20-\x7e]*$/;
+
+/** Start loading the font early so the first labels appear right away. */
+export function preloadGroundFont() {
+  return new Promise<void>((resolve) => preloadFont({ font: FONT_URL, characters: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$:-,.!?&' }, resolve));
+}
+
+/** Can this label be drawn as ground text? (The font has no emoji.) */
+export function isGroundTextable(text: string) {
+  return ASCII.test(text);
+}
+
+/**
+ * Flat, crisp text lying in its parent's XY plane (so it can sit on a pad
+ * that's already rotated flat). Shrinks itself to fit `maxWidth`.
+ */
+export function groundText(text: string, size: number, color = '#ffffff', maxWidth = Infinity) {
+  const t = new Text();
+  t.font = FONT_URL;
+  t.text = text;
+  t.fontSize = size;
+  t.color = color;
+  t.anchorX = 'center';
+  t.anchorY = 'middle';
+  t.outlineWidth = size * 0.12;
+  t.outlineColor = '#1a1a1a';
+  t.outlineOpacity = 0.85;
+  t.position.z = 0.012; // just above the pad
+  t.renderOrder = 3;
+  t.material = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false });
+  fitText(t, maxWidth);
+  return t;
+}
+
+/** Set new text and re-fit it. */
+export function setGroundText(t: Text, text: string, color?: THREE.ColorRepresentation, maxWidth = Infinity) {
+  if (t.text === text && (color === undefined || t.color === color)) return;
+  t.text = text;
+  if (color !== undefined) t.color = color;
+  fitText(t, maxWidth);
+}
+
+function fitText(t: Text, maxWidth: number) {
+  t.sync(() => {
+    const b = t.textRenderInfo?.blockBounds;
+    if (!b) return;
+    const w = b[2] - b[0];
+    t.scale.setScalar(w > maxWidth ? maxWidth / w : 1);
+  });
 }
 
 /** The biggest font size (up to `max`) at which `text` fits in `width` pixels. */
@@ -119,8 +179,9 @@ export function makePad(width: number, depth: number, label = '', color = '#4fe3
   c.lineWidth = 12 * k;
   c.strokeStyle = color;
   c.stroke();
-  // Long labels ("CHECK-IN", "TO PLANE") shrink to fit instead of running off the pad.
-  if (label) gameText(c, label, cw / 2, ch / 2 + 4 * k, fitFont(c, label, cw - inset * 4, Math.min(ch * 0.34, cw * 0.3)), '#fff', 'rgba(0,0,0,0.55)');
+  // Emoji labels (🗑️) are painted into the image; words are crisp ground text (below).
+  const crisp = !!label && isGroundTextable(label);
+  if (label && !crisp) gameText(c, label, cw / 2, ch / 2 + 4 * k, fitFont(c, label, cw - inset * 4, Math.min(ch * 0.34, cw * 0.3)), '#fff', 'rgba(0,0,0,0.55)');
   const tex = sharpTexture(canvas);
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(width, depth),
@@ -129,5 +190,6 @@ export function makePad(width: number, depth: number, label = '', color = '#4fe3
   mesh.rotation.x = -Math.PI / 2; // lie flat; the text's "up" points away from the camera
   mesh.position.y = 0.03;
   mesh.renderOrder = 1;
+  if (crisp) mesh.add(groundText(label, Math.min(depth * 0.36, width * 0.34), '#ffffff', width * 0.88));
   return mesh;
 }

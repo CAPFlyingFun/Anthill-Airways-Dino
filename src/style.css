@@ -362,3 +362,24 @@ html, body {
   font-size: 24px;
 }
 .view-btn.on { background: linear-gradient(#7fd3ff, #2d8fdf); border-color: rgba(255, 255, 255, 0.6); }
+
+/* Income rate under the cash pill (idle games: watch it count up) */
+.pill.cash { position: relative; }
+.rate {
+  position: absolute;
+  right: 10px;
+  top: calc(100% + 3px);
+  font-size: 13px;
+  font-weight: 900;
+  color: #b8ffb0;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+/* Welcome back card */
+.card.welcome { padding-bottom: 20px; }
+.wb-away { font-size: 16px; font-weight: 800; color: #8a6a4a; }
+.wb-sub { font-size: 15px; margin-top: 10px; }
+.wb-amount { font-size: 42px; font-weight: 900; color: #2f8a3a; margin: 4px 0 8px; }
+.menu-btn.wb-run { background: linear-gradient(#ffe27a, #f2b632); box-shadow: 0 4px 0 #b07d10; }
+.wb-fine { font-size: 12.5px; color: #8a7a6a; margin-top: 4px; }

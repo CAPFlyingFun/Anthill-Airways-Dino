@@ -13,7 +13,8 @@
 import * as THREE from 'three';
 import { CONFIG, UnlockDef } from '../data/config';
 import { Flyers, ITEM_H, ITEM_VALUE, ItemType, Layout, Stack, StackItem, makeItem } from './items';
-import { GAME_FONT, TEXT_RES, TextSprite, fitFont, gameText, makePad, roundRect, sharpTexture } from './labels';
+import { GAME_FONT, TEXT_RES, TextSprite, groundText, makePad, roundRect, setGroundText, sharpTexture } from './labels';
+import type { Text } from 'troika-three-text';
 import { CreatureModel, animateCreature, faceToward, makeAnt, makeBeetle } from '../actors/models';
 import { CreatureKind, spawnCreature } from '../actors/creatures';
 import { lod } from '../core/lod';
@@ -662,7 +663,7 @@ export class TrashBin {
 }
 
 // ----------------------------------------------------------------------------
-const TILE_RES = TEXT_RES * 1.5;
+const TILE_RES = TEXT_RES; // only the background + icon are painted now
 
 export class UnlockTile {
   mesh: THREE.Mesh;
@@ -673,6 +674,9 @@ export class UnlockTile {
   private tex: THREE.CanvasTexture;
   private shown = '';
   private pulseT = Math.random() * 6;
+  // Name + price: crisp ground text on top of the painted tile
+  private nameText: Text;
+  private priceText: Text;
 
   constructor(scene: THREE.Scene, public def: UnlockDef, paid: number) {
     this.paid = paid;
@@ -688,6 +692,12 @@ export class UnlockTile {
     this.mesh.rotation.x = -Math.PI / 2;
     this.mesh.position.set(def.pos[0], 0.04, def.pos[1]);
     this.mesh.renderOrder = 2;
+    // (Tile is 2.6 x 2.6; its local +y points away from the camera.)
+    this.nameText = groundText(def.name, 0.32, '#ffffff', 2.2);
+    this.nameText.position.y = -0.17;
+    this.priceText = groundText('', 0.52, '#ffffff', 2.2);
+    this.priceText.position.y = -0.74;
+    this.mesh.add(this.nameText, this.priceText);
     scene.add(this.mesh);
     this.zone = new Zone(def.pos[0], def.pos[1], 1.25, 1.25);
   }
@@ -700,7 +710,12 @@ export class UnlockTile {
   draw(affordable: boolean) {
     const key = `${this.remaining}|${affordable}`;
     if (key === this.shown) return;
+    const repaint = !this.shown.endsWith(`|${affordable}`); // the painted part only changes with color
     this.shown = key;
+    if (!repaint) {
+      setGroundText(this.priceText, `$${this.remaining.toLocaleString()}`, affordable ? '#ffe066' : '#ffffff', 2.2);
+      return;
+    }
     const c = this.ctx;
     c.setTransform(TILE_RES, 0, 0, TILE_RES, 0, 0); // draw in 256x256 "units", sharp at TILE_RES
     c.clearRect(0, 0, 256, 256);
@@ -716,9 +731,8 @@ export class UnlockTile {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText(this.def.icon, 128, 78);
-    gameText(c, this.def.name, 128, 146, fitFont(c, this.def.name, 216, 30));
-    gameText(c, `$${this.remaining}`, 128, 202, 50, affordable ? '#ffe066' : '#ffffff');
     this.tex.needsUpdate = true;
+    setGroundText(this.priceText, `$${this.remaining.toLocaleString()}`, affordable ? '#ffe066' : '#ffffff', 2.2);
   }
 
   update(dt: number, affordable: boolean) {
@@ -759,17 +773,35 @@ export class Conveyor {
       new THREE.Vector3(cx, y, oz),
       new THREE.Vector3(cx, y, cz),
     ];
-    for (let i = 0; i < this.path.length - 1; i++) {
+    const last = this.path.length - 2;
+    for (let i = 0; i <= last; i++) {
       const a = this.path[i];
       const b = this.path[i + 1];
       const len = a.distanceTo(b);
       this.segLen.push(len);
       this.total += len;
-      this.buildSegment(a, b, len);
+      this.buildSegment(a, b, len, i > 0, i < last);
+    }
+    // Corners: rails only on the two OUTSIDE edges, so nothing blocks the turn.
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0xffc928, roughness: 0.5 });
+    for (let i = 1; i <= last; i++) {
+      const c = this.path[i];
+      const dIn = this.path[i].clone().sub(this.path[i - 1]).setY(0).normalize();
+      const dOut = this.path[i + 1].clone().sub(this.path[i]).setY(0).normalize();
+      for (const dir of [dIn, dOut.clone().negate()]) {
+        // An edge of the corner square, across `dir`
+        const rail = box(Math.abs(dir.z) > 0.5 ? 1.12 : 0.12, 0.25, Math.abs(dir.x) > 0.5 ? 1.12 : 0.12, frameMat, c.x + dir.x * 0.5, 0.58, c.z + dir.z * 0.5);
+        this.group.add(rail);
+      }
     }
   }
 
-  private buildSegment(a: THREE.Vector3, b: THREE.Vector3, len: number) {
+  /**
+   * One straight piece of belt from a to b. `joinStart`/`joinEnd` = this end
+   * meets a corner, so its side rails stop at the corner instead of running
+   * across the next piece of belt.
+   */
+  private buildSegment(a: THREE.Vector3, b: THREE.Vector3, len: number, joinStart = false, joinEnd = false) {
     const seg = new THREE.Group();
     seg.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
     seg.rotation.y = Math.atan2(b.x - a.x, b.z - a.z);
@@ -793,7 +825,10 @@ export class Conveyor {
     belt.receiveShadow = true;
     seg.add(belt);
     const frameMat = new THREE.MeshStandardMaterial({ color: 0xffc928, roughness: 0.5 });
-    for (const s of [-1, 1]) seg.add(box(0.12, 0.25, L, frameMat, s * 0.5, 0.58, 0));
+    // Side rails: run past a free end (end cap look), stop short at a corner.
+    const r0 = -len / 2 - (joinStart ? -0.5 : 0.45);
+    const r1 = len / 2 + (joinEnd ? -0.5 : 0.45);
+    for (const s of [-1, 1]) seg.add(box(0.12, 0.25, r1 - r0, frameMat, s * 0.5, 0.58, (r0 + r1) / 2));
     const legMat = new THREE.MeshStandardMaterial({ color: 0x555b62 });
     for (let t = -L / 2 + 0.3; t <= L / 2; t += 1.6) for (const s of [-1, 1]) seg.add(box(0.1, 0.5, 0.1, legMat, s * 0.42, 0.25, t));
     this.group.add(seg);
@@ -818,7 +853,8 @@ export class Conveyor {
 
   update(dt: number) {
     const { speed, spacing } = CONFIG.conveyor;
-    for (const t of this.beltTex) t.offset.y -= dt * speed * 2;
+    // Scroll the belt surface the same way the snacks travel (toward the counter).
+    for (const t of this.beltTex) t.offset.y += dt * speed * 2;
 
     // Pull a snack off the oven table onto the start of the belt.
     this.pullT += dt;
