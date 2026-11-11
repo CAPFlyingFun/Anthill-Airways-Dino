@@ -13,7 +13,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  # (renamed from "pages": runs stuck on GitHub's side were holding that lane)
+  group: pages-deploy
   cancel-in-progress: true
 
 jobs:
