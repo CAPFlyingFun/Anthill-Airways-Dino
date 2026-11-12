@@ -1032,6 +1032,7 @@ export class VolcanoWorld {
     if (animate) {
       this.flyers.grow(rex.root);
       roar(rex);
+      this.sfx.roar();
     }
   }
 
@@ -1111,6 +1112,7 @@ export class VolcanoWorld {
         this.lair = new RexLair(this.scene, this.flyers, this.save, tamed);
         this.blockers.push(...this.lair.blockers);
         this.lair.onEvent = (what) => {
+          if (what === 'roar' && this.active) this.sfx.roar();
           if (what === 'tamed') {
             if (!this.save.unlocked.includes('v4-rex-tamed')) this.save.unlocked.push('v4-rex-tamed');
             delete this.save.paid['v4-rex-tame'];
@@ -1326,7 +1328,10 @@ export class VolcanoWorld {
         this.phaseLeft = C.eruptionLength;
         this.evacuated = false;
         this.flowMeshes.forEach((m) => (m.visible = true));
-        if (this.active) this.hud.banner('🌋 ERUPTION!', 'Dodge the red rings! Lava flows cross the paths', 3200);
+        if (this.active) {
+          this.hud.banner('🌋 ERUPTION!', 'Dodge the red rings! Lava flows cross the paths', 3200);
+          this.sfx.eruption();
+        }
         // The Tour Pilot evacuates everyone by himself
         if (this.tours?.hasPilot && this.tours.waiting > 0 && this.tours.away <= 0) this.evacuate(false);
       } else {
@@ -1375,7 +1380,7 @@ export class VolcanoWorld {
           this.scatter('🌋 LAVA BOMB! Dropped everything');
           this.heat = Math.min(0.95, this.heat + 0.25);
         }
-        this.sfx.splash();
+        if (this.active) this.sfx.lavaBomb();
       }
       if (b.t >= BOMB_FALL + 0.6) {
         b.ring.removeFromParent();
@@ -1564,7 +1569,7 @@ export class VolcanoWorld {
       const it = me.stack.pop();
       if (!it) return;
       this.flyers.fly(it.mesh, () => this.trash.mouth, () => it.mesh.removeFromParent(), 0.25, 1.0);
-      this.sfx.drop();
+      this.sfx.trash();
       this.addCash(trash.pay(this.trash.mouth, this.camera));
     });
     trash.wait(dt, onBin, this.trash.mouth, this.camera);

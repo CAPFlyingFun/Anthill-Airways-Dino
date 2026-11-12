@@ -123,6 +123,9 @@
         <div class="card">
           <h2>Settings</h2>
           <button id="soundBtn" class="menu-btn">Sound: On</button>
+          <!-- 🎵 Music / 🔊 Effects volumes (core/audio.ts). Plays even with the iPhone's silent switch on. -->
+          <div class="vol-row"><span>🎵 Music</span><input id="musicVol" type="range" min="0" max="1" step="0.05" value="0.6" aria-label="Music volume" /><b id="musicVolTxt">60%</b></div>
+          <div class="vol-row"><span>🔊 Effects</span><input id="sfxVol" type="range" min="0" max="1" step="0.05" value="1" aria-label="Effects volume" /><b id="sfxVolTxt">100%</b></div>
           <!-- 🐢 slower ... 🐇 faster: how fast everyone WALKS (ants, people, dinos...) -->
           <div class="speed-row">
             <div id="speedLabel" class="speed-label">🐜 Movement speed: 1.0x (normal)</div>

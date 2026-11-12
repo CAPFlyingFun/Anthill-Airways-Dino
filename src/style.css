@@ -352,6 +352,12 @@ html, body {
 }
 .stat-row button:disabled { background: #d8cbb8; box-shadow: none; }
 
+/* 🎵 / 🔊 volume sliders (Settings) */
+.vol-row { display: flex; align-items: center; gap: 10px; margin: 8px 2px; font-weight: 800; }
+.vol-row span { width: 82px; text-align: left; }
+.vol-row input { flex: 1; accent-color: #e07a1a; }
+.vol-row b { width: 42px; text-align: right; font-size: 14px; }
+
 /* ✨ New version popup */
 .card.update-card { text-align: center; padding-bottom: 18px; }
 .up-version { display: inline-block; margin: 2px 0 6px; padding: 4px 12px; border-radius: 999px; background: #ffe7b0; font-weight: 900; color: #b8650b; }

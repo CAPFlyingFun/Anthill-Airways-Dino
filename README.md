@@ -183,6 +183,21 @@ They show in every world, so you can tell which upgrade will help most.
 If the game can't start (the browser refuses 3D graphics, or something crashes while loading), the
 loading card turns into an explanation with a 🔄 **Retry** button instead of hanging.
 
+## 🔊 Sound & music
+
+- **Sound effects + music** are mp3 files in `public/audio/` (`manifest.json` lists which exist). Any
+  sound that doesn't exist yet falls back to a tiny synth beep, so the game is never silent.
+- **Plays with the iPhone's silent switch on** (only the volume buttons matter, like a music app).
+- Settings has **🎵 Music** and **🔊 Effects** volume sliders (saved on your device) and the Sound on/off button.
+- Each world has its own music (crossfades as you travel; gate runs get a chase loop), plus quiet
+  ambience on the island (waves) and the volcano (rumbling), and a pterosaur cry over the island now and then.
+- **From Beyond Extinction (Godot):** the island music, island + volcano ambience, the Lava Rex roar,
+  the Dilophosaurus hiss, the dodo cluck, the splash and the pterosaur cry (`audio/supplied/`).
+- **Everything else is made with ElevenLabs** from the prompts in `audio/sounds.json`, by the manual-only
+  **Generate audio (ElevenLabs)** GitHub Action (`scripts/gen-audio.py`). It needs the `ELEVENLABS_API_KEY`
+  repository secret, only makes sounds that are missing or whose prompt changed (re-runs are free), evens
+  out the loudness, and commits the files back to the branch it ran on. Start with mode **dry-run**.
+
 ## Movement speed 🐢🐇
 
 Settings has a **Movement speed** slider: how fast everyone walks, from 0.2x (slow) to 3x

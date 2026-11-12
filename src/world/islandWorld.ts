@@ -692,6 +692,7 @@ export class IslandWorld {
   active = false;
   /** ⬆️ This world's upgrade pads. */
   ups: Upgrades | null = null;
+  private pteroT = 12; // seconds until the next pterosaur cry
   /** Set by main.ts: launch a Sea Safari gate run with `count` tourists. */
   onSafari: (count: number) => void = () => {};
   /** Set by main.ts: "Big Order: Volcano" was just bought (opens Act 4). */
@@ -933,6 +934,7 @@ export class IslandWorld {
       case 'i3-dilo': {
         this.show = new DiloShow(this.scene, this.flyers, () => this.progress.cashMult, this.sfx);
         this.show.onEvent = (what) => {
+          if (this.active && (what === 'escaped' || what === 'chomp')) this.sfx.dilo();
           if (!this.active) return;
           if (what === 'escaped') this.hud.banner('🚨 The Dilophosaurus escaped!', 'Grab 🍖 from the supply drop: he follows food. Lead him to FEED!', 5000);
           else if (what === 'chomp') this.hud.floatAt(this.player.pos.clone().setY(H + 1), this.camera, '🦖 CHOMP! Dropped everything', 'big bad');
@@ -1081,6 +1083,14 @@ export class IslandWorld {
       'island', this.save, this.hud, this.sfx, this.flyers, this.progress,
     );
     this.ups.update(dt, this, this.player.pos, this.active);
+    // 🦅 Now and then a pterosaur cries somewhere over the island
+    if (this.active) {
+      this.pteroT -= dt;
+      if (this.pteroT <= 0) {
+        this.pteroT = 35 + Math.random() * 45;
+        this.sfx.ptero();
+      }
+    }
     const me = this.player;
     // The world runs whether or not you're here
     for (const p of this.piles) p.update(dt);
@@ -1231,7 +1241,7 @@ export class IslandWorld {
       const it = me.stack.pop();
       if (!it) return;
       this.flyers.fly(it.mesh, () => this.trash.mouth, () => it.mesh.removeFromParent(), 0.25, 1.0);
-      this.sfx.drop();
+      this.sfx.trash();
       this.addCash(trash.pay(this.trash.mouth, this.camera));
     });
     trash.wait(dt, onBin, this.trash.mouth, this.camera);

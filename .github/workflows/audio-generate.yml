@@ -1,0 +1,85 @@
+name: Generate audio (ElevenLabs)
+
+# MANUAL ONLY: never runs on a push, because every run can spend ElevenLabs credits.
+# Start it from the Actions tab -> "Generate audio (ElevenLabs)" -> Run workflow.
+# Pick the branch to run it on (normally Claude-Work): the new sounds are committed
+# back to THAT branch, then reach the live game with the next push to main.
+#
+# Needs the ELEVENLABS_API_KEY repository secret (Settings -> Secrets and variables ->
+# Actions). It is passed to the script's environment only and never printed.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'What to do'
+        required: true
+        default: 'dry-run'
+        type: choice
+        options:
+          - dry-run   # list what would be made; spends nothing
+          - missing   # make every sound that's missing or whose prompt changed
+          - force     # make the sounds in "only" again, even if they exist
+      kind:
+        description: 'Which sounds'
+        required: true
+        default: 'sfx'
+        type: choice
+        options: [sfx, music, both]
+      only:
+        description: 'Optional: only these ids, comma-separated (e.g. roar,levelUp)'
+        required: false
+        default: ''
+
+concurrency:
+  group: audio-generate
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        # (loudness levelling + small web mp3s; not preinstalled on the runner)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Generate
+        id: gen
+        # continue-on-error so sounds that were already PAID FOR still get committed
+        # when one of the others fails; the last step marks the run failed afterwards.
+        continue-on-error: true
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+        run: |
+          ARGS=(--kind "${{ inputs.kind }}")
+          if [ -n "${{ inputs.only }}" ]; then ARGS+=(--only "${{ inputs.only }}"); fi
+          case "${{ inputs.mode }}" in
+            dry-run) ARGS+=(--dry-run) ;;
+            force)   ARGS+=(--force) ;;
+          esac
+          python3 scripts/gen-audio.py "${ARGS[@]}"
+
+      - name: Commit the new sounds
+        if: inputs.mode != 'dry-run'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/audio audio/generated.json audio/raw
+          if git diff --cached --quiet; then
+            echo "Nothing new to commit."
+          else
+            git commit -m "Audio: generated with ElevenLabs (${{ inputs.mode }}, ${{ inputs.kind }}${{ inputs.only && format(', {0}', inputs.only) || '' }})"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Report
+        if: steps.gen.outcome != 'success'
+        run: |
+          echo "::error::Some sounds failed (see the Generate step). Everything that succeeded was committed."
+          exit 1

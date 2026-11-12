@@ -791,7 +791,8 @@ export class AirportWorld {
     };
     a.onDepart = () => {
       if (!this.active) return;
-      this.sfx.gateGood();
+      if (a.kind === 'heli') this.sfx.heli();
+      else this.sfx.takeoff();
       this.hud.banner(`${a.kind === 'heli' ? '🚁' : '✈️'} ${a.spec.name} departing!`, 'It pays for every bag when it lands back here', 2200);
     };
     return a;
@@ -1064,7 +1065,7 @@ export class AirportWorld {
       const it = me.stack.pop();
       if (!it) return;
       this.flyers.fly(it.mesh, () => this.trash.mouth, () => it.mesh.removeFromParent(), 0.25, 1.0);
-      this.sfx.drop();
+      this.sfx.trash();
       this.addCash(trash.pay(this.trash.mouth, this.camera));
     });
     trash.wait(dt, onBin, this.trash.mouth, this.camera);

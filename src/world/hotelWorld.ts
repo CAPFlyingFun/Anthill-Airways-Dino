@@ -1011,6 +1011,7 @@ export class HotelWorld {
       // Guests are too busy watching it to check in
       this.desk.opts.interval = this.deskInterval * 2;
       say('🦤 A Dodo escaped from the island!', 'It\'s loose in the resort: catch it!');
+      if (this.active) this.sfx.dodo();
     }
   }
 
@@ -1108,7 +1109,7 @@ export class HotelWorld {
       const it = me.stack.pop();
       if (!it) return;
       this.flyers.fly(it.mesh, () => this.trash.mouth, () => it.mesh.removeFromParent(), 0.25, 1.0);
-      this.sfx.drop();
+      this.sfx.trash();
       this.addCash(trash.pay(this.trash.mouth, this.camera));
     });
     trash.wait(dt, onBin, this.trash.mouth, this.camera);

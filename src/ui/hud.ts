@@ -518,6 +518,25 @@ export class Hud {
     });
   }
 
+  /** 🎵 Music + 🔊 Effects sliders (0..1). */
+  initVolumes(music: number, sfx: number, onChange: (music: number, sfx: number) => void) {
+    const m = $('musicVol') as HTMLInputElement;
+    const s = $('sfxVol') as HTMLInputElement;
+    const show = () => {
+      $('musicVolTxt').textContent = `${Math.round(Number(m.value) * 100)}%`;
+      $('sfxVolTxt').textContent = `${Math.round(Number(s.value) * 100)}%`;
+    };
+    m.value = String(music);
+    s.value = String(sfx);
+    show();
+    const change = () => {
+      show();
+      onChange(Number(m.value), Number(s.value));
+    };
+    m.addEventListener('input', change);
+    s.addEventListener('input', change);
+  }
+
   initSettings(opts: { sound: boolean; onSound: (on: boolean) => void; onReset: () => void; onOpen?: () => void }) {
     const panel = $('settings');
     const soundBtn = $('soundBtn');

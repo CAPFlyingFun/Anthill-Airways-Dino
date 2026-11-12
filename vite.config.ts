@@ -72,6 +72,13 @@ export default defineConfig({
             options: { cacheName: 'human-models', expiration: { maxEntries: 20 } },
           },
           {
+            // 🔊 Sounds + music (public/audio, made with ElevenLabs): cached the first time
+            // they play. Each URL carries ?v=<version>, so a regenerated sound is a new URL.
+            urlPattern: /\/audio\/[\w-]+\.mp3(\?.*)?$/,
+            handler: 'CacheFirst',
+            options: { cacheName: 'audio', expiration: { maxEntries: 80 } },
+          },
+          {
             urlPattern: /\/models\/[dst]-[\w-]+\.glb(\?.*)?$/,
             handler: 'CacheFirst',
             options: { cacheName: 'island-models', expiration: { maxEntries: 30 } },

@@ -77,15 +77,19 @@ const sfx = new Sfx();
 sfx.enabled = save.sound;
 const input = new Input(renderer.domElement);
 input.onFirstTouch(() => sfx.unlock());
+// (any first tap counts, buttons included: iPhone only allows sound after a touch)
+document.addEventListener('pointerdown', () => sfx.unlock(), { once: true, capture: true });
 const progress = new Progress(save);
 const queenProgress = new QueenProgress(save);
 bindTrash(save, hud, queenProgress); // 🗑️ paid trash (world/trash.ts)
 
+hud.initVolumes(sfx.musicVolume, sfx.sfxVolume, (music, effects) => sfx.setVolumes(music, effects));
 hud.initSettings({
   sound: save.sound,
   onSound: (on) => {
     save.sound = on;
     sfx.enabled = on;
+    sfx.applyVolumes(); // (also starts / stops the music)
     writeSave(save);
   },
   onReset: () => {
@@ -148,7 +152,7 @@ async function start() {
   progress.onChange = () => hud.renderLevel();
   queenProgress.onChange = () => hud.renderLevel();
   progress.onLevelUp = (level) => {
-    sfx.unlocked();
+    sfx.levelUp();
     hud.banner(`LEVEL UP! Lv ${level}`, 'Tap your level (top left) to spend your point', 2600);
     if (level >= QUEEN_UNLOCK_LEVEL) base.activateQueen(true);
     writeSave(save);
@@ -531,6 +535,7 @@ async function start() {
     const choice = await hud.showWelcome(capped, amount);
     welcomeOpen = false;
     if (choice === 'collect') {
+      sfx.welcome();
       payOffline(amount);
       return;
     }
@@ -746,14 +751,21 @@ async function start() {
   }
 
   let last = performance.now();
+  let wasStorm = false;
+  const MUSIC = { base: 'colony', air: 'airport', island: 'island', volcano: 'volcano', hotel: 'hotel', run: 'run' } as const;
   function frame(now: number) {
     const rawMs = now - last;
     const dt = Math.min(0.05, rawMs / 1000) * testSpeed; // cap dt so a lag spike can't teleport things
     tickClock(rawMs / 1000, Math.min(0.05, rawMs / 1000)); // (paying for things runs on real time)
     last = now;
     watchQuality(rawMs);
+    // 🎵 Each world has its own music (crossfades when you travel; gate runs get the chase loop)
+    sfx.setMusic(MUSIC[mode]);
+    sfx.setAmbience(mode === 'island' ? 'island' : mode === 'volcano' ? 'volcano' : null); // waves / rumbling
     trackIncome(Math.min(1, rawMs / 1000)); // real seconds (income per real second)
     weather.update(dt);
+    if (weather.storm && !wasStorm && humanWorld()) sfx.thunder(); // ⛈️ the storm hits
+    wasStorm = weather.storm;
     stormEl.classList.toggle('on', weather.storm && humanWorld());
     ashEl.classList.toggle('on', mode === 'volcano' && !!volcano?.erupting);
     // Rotating the phone: some browsers report the new size a moment late, so

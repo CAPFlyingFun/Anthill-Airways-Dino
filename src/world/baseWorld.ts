@@ -865,7 +865,7 @@ export class BaseWorld {
         const it = me.stack.pop();
         if (!it) return;
         this.flyers.fly(it.mesh, () => bin.mouth, () => it.mesh.removeFromParent(), 0.25, 1.0);
-        this.sfx.drop();
+        this.sfx.trash();
         this.addCash(trash.pay(bin.mouth, this.camera));
       });
       if (onBin) trash.wait(dt, true, bin.mouth, this.camera);
@@ -995,6 +995,7 @@ export class BaseWorld {
     if (ev === 'stealing') {
       this.hud.floatAt(at, this.camera, '🕷️ IMPOSTOR!', 'big bad');
       this.hud.banner('An impostor is stealing! 🕷️', 'That "ant" is a spider. Run into it!', 2600);
+      this.sfx.spider();
       this.sfx.gateBad();
     } else if (ev === 'caught') {
       const reward = [0, 40, 150, 500][tier];

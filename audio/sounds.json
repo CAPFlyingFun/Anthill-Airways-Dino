@@ -1,0 +1,230 @@
+{
+  "_readme": [
+    "Every sound and music track the game asks ElevenLabs for. scripts/gen-audio.py reads",
+    "this; the 'Generate audio' GitHub Action (manual only) runs it. A sound is generated",
+    "only if its file is missing or its prompt/settings changed, so re-runs cost nothing",
+    "for sounds that already exist. Keep prompts under ~380 characters (longer ones get",
+    "rejected), and SFX durations between 0.5 and 22 seconds.",
+    "id = the file name (public/audio/<id>.mp3) and the name the game plays it by.",
+    "'supplied' = files we already own (from the Beyond Extinction Godot repo, audio/supplied/). They cost no credits: the script just trims, levels and compresses them."
+  ],
+  "sfx": [
+    {
+      "id": "pickup",
+      "duration": 0.5,
+      "prompt": "Soft cartoon pop, a tiny snack box picked up, bright, light and short. Cute casual mobile game UI sound. No music."
+    },
+    {
+      "id": "drop",
+      "duration": 0.5,
+      "prompt": "Small soft wooden thunk of a little cardboard box set down onto a stack. Cartoon casual mobile game sound, short and clean."
+    },
+    {
+      "id": "cash",
+      "duration": 0.5,
+      "prompt": "One bright coin clink, a single coin collected. Cheerful casual mobile game pickup sound, very short."
+    },
+    {
+      "id": "sale",
+      "duration": 1.0,
+      "prompt": "Cheerful cash register ka-ching with a little bell, short. Cozy casual mobile tycoon game sale sound."
+    },
+    {
+      "id": "unlockTick",
+      "duration": 0.5,
+      "prompt": "A tiny quick coin tick, one short metallic click of a coin dropping into a pile. Very short and soft."
+    },
+    {
+      "id": "unlocked",
+      "duration": 1.5,
+      "prompt": "Bright magical unlock fanfare: short rising chime with sparkles and a soft pop. Cozy casual mobile tycoon game, new building unlocked."
+    },
+    {
+      "id": "levelUp",
+      "duration": 2.0,
+      "prompt": "Triumphant level up jingle with short brass, bells and sparkle, cheerful and celebratory. Casual mobile game."
+    },
+    {
+      "id": "upgrade",
+      "duration": 1.2,
+      "prompt": "Power-up upgrade sound: a quick rising whoosh into a sparkly ding. Casual mobile tycoon game."
+    },
+    {
+      "id": "gateGood",
+      "duration": 0.8,
+      "prompt": "Positive arcade whoosh through a glowing gate ending in a bright ding. Upbeat runner game bonus sound."
+    },
+    {
+      "id": "gateBad",
+      "duration": 0.8,
+      "prompt": "Negative arcade penalty: a low buzz with a deflating wobble. Runner game, playful not scary."
+    },
+    {
+      "id": "risky",
+      "duration": 0.8,
+      "prompt": "Short arcade warning: two quick alert pings, caution ahead. Playful runner game sound."
+    },
+    {
+      "id": "contract",
+      "duration": 2.0,
+      "prompt": "Reward celebration: a small crowd cheering with a short victory fanfare and a confetti pop. Casual mobile game."
+    },
+    {
+      "id": "go",
+      "duration": 2.5,
+      "prompt": "Arcade race start: three short countdown beeps then one higher go beep. Clean, no voice."
+    },
+    {
+      "id": "trash",
+      "duration": 0.8,
+      "prompt": "Small metal trash can lid clang with a bit of junk dropping in. Cartoon, short."
+    },
+    {
+      "id": "popup",
+      "duration": 0.5,
+      "prompt": "Soft bubbly UI pop for a menu or card opening. Gentle, short, casual mobile game."
+    },
+    {
+      "id": "welcome",
+      "duration": 1.5,
+      "prompt": "Cozy reward: coins pouring into a pile with a warm chime. Idle game offline earnings collected."
+    },
+    {
+      "id": "takeoff",
+      "duration": 4.0,
+      "prompt": "Small propeller airplane engine revving up, rolling down a runway and taking off, flying away into the distance."
+    },
+    {
+      "id": "heli",
+      "duration": 3.0,
+      "prompt": "Helicopter rotor blades thumping as it lifts off and flies away. Outdoor."
+    },
+    {
+      "id": "horn",
+      "duration": 1.5,
+      "prompt": "Friendly tour boat horn, two short toots at a harbor. Outdoor, light seagull ambience."
+    },
+    {
+      "id": "eruption",
+      "duration": 4.0,
+      "prompt": "Volcano eruption: deep rumbling boom, ground shaking, rocks crackling and lava hissing."
+    },
+    {
+      "id": "lavaBomb",
+      "duration": 1.5,
+      "prompt": "A flaming rock whistling down from the sky and crashing with a fiery thud and sizzle."
+    },
+    {
+      "id": "bell",
+      "duration": 0.8,
+      "prompt": "Hotel front desk service bell, one crisp ding. Clean, no room noise."
+    },
+    {
+      "id": "thunder",
+      "duration": 4.0,
+      "prompt": "Rolling thunder crack followed by rain starting to fall. Outdoor storm."
+    },
+    {
+      "id": "spider",
+      "duration": 1.2,
+      "prompt": "Creepy cartoon spider hiss with quick skittering legs. Spooky but fun, short."
+    }
+  ],
+  "music": [
+    {
+      "id": "music-colony",
+      "seconds": 75,
+      "prompt": "Cozy, bouncy instrumental for a cute ant colony idle tycoon game. Plucky pizzicato strings, marimba, light hand percussion and a playful bassoon melody. Cheerful and busy like tiny workers marching. Mid tempo. Loopable, no vocals."
+    },
+    {
+      "id": "music-airport",
+      "seconds": 75,
+      "prompt": "Smooth relaxed bossa nova lounge instrumental for an airport terminal in a casual tycoon game. Nylon guitar, soft electric piano, brushed drums and upright bass. Bright and friendly. Loopable, no vocals."
+    },
+    {
+      "id": "music-volcano",
+      "seconds": 75,
+      "prompt": "Tense adventurous instrumental for an active volcano level in a casual game. Deep tribal drums, low brass and rumbling percussion with a heroic edge. Driving rhythm, not scary. Loopable, no vocals."
+    },
+    {
+      "id": "music-hotel",
+      "seconds": 75,
+      "prompt": "Elegant hotel lobby jazz instrumental for a 5-star resort in a cozy tycoon game. Light swing piano trio with soft vibraphone. Classy, warm and cheerful. Loopable, no vocals."
+    },
+    {
+      "id": "music-run",
+      "seconds": 60,
+      "prompt": "Upbeat energetic chase instrumental for an arcade runner mini-game. Fast funky drums, slap bass, bright synth brass stabs and a catchy hook. Fun and exciting. Loopable, no vocals."
+    }
+  ],
+  "supplied": [
+    {
+      "id": "roar",
+      "kind": "sfx",
+      "file": "audio/supplied/dino-roar-far.mp3",
+      "trim": [
+        0,
+        4.0
+      ],
+      "from": "Beyond-Extinction-Godot assets/audio/sfx/dino-roar-far.mp3"
+    },
+    {
+      "id": "dilo",
+      "kind": "sfx",
+      "file": "audio/supplied/dilo-snarl.mp3",
+      "trim": [
+        0,
+        2.1
+      ],
+      "from": "Beyond-Extinction-Godot assets/audio/sfx/dilo-snarl.mp3"
+    },
+    {
+      "id": "dodo",
+      "kind": "sfx",
+      "file": "audio/supplied/dodo-cluck.mp3",
+      "trim": [
+        0,
+        1.8
+      ],
+      "from": "Beyond-Extinction-Godot assets/audio/sfx/dodo-cluck.mp3"
+    },
+    {
+      "id": "splash",
+      "kind": "sfx",
+      "file": "audio/supplied/splash-dive.mp3",
+      "trim": [
+        0,
+        1.4
+      ],
+      "from": "Beyond-Extinction-Godot assets/audio/sfx/splash-dive.mp3"
+    },
+    {
+      "id": "ptero",
+      "kind": "sfx",
+      "file": "audio/supplied/pterosaur-screech.mp3",
+      "trim": [
+        0.4,
+        2.2
+      ],
+      "from": "Beyond-Extinction-Godot assets/audio/sfx/pterosaur-screech.mp3"
+    },
+    {
+      "id": "music-island",
+      "kind": "music",
+      "file": "audio/supplied/island_bg_1.mp3",
+      "from": "Beyond-Extinction-Godot assets/audio/music/island_bg_1.mp3"
+    },
+    {
+      "id": "amb-island",
+      "kind": "ambience",
+      "file": "audio/supplied/ambient_beach.mp3",
+      "from": "Beyond-Extinction-Godot assets/audio/ambient/ambient_beach.mp3"
+    },
+    {
+      "id": "amb-volcano",
+      "kind": "ambience",
+      "file": "audio/supplied/ambient_volcano.mp3",
+      "from": "Beyond-Extinction-Godot assets/audio/ambient/ambient_volcano.mp3"
+    }
+  ]
+}

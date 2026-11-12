@@ -1,0 +1,42 @@
+{
+ "amb-island": {
+  "fp": "dea05a2712744b51",
+  "from": "Beyond-Extinction-Godot assets/audio/ambient/ambient_beach.mp3",
+  "kind": "ambience"
+ },
+ "amb-volcano": {
+  "fp": "0b29c57a42aff336",
+  "from": "Beyond-Extinction-Godot assets/audio/ambient/ambient_volcano.mp3",
+  "kind": "ambience"
+ },
+ "dilo": {
+  "fp": "73e4968ccb24080f",
+  "from": "Beyond-Extinction-Godot assets/audio/sfx/dilo-snarl.mp3",
+  "kind": "sfx"
+ },
+ "dodo": {
+  "fp": "b85b6e2033215ff6",
+  "from": "Beyond-Extinction-Godot assets/audio/sfx/dodo-cluck.mp3",
+  "kind": "sfx"
+ },
+ "music-island": {
+  "fp": "2763d4c559e2648a",
+  "from": "Beyond-Extinction-Godot assets/audio/music/island_bg_1.mp3",
+  "kind": "music"
+ },
+ "ptero": {
+  "fp": "fb8e8225e0a01a77",
+  "from": "Beyond-Extinction-Godot assets/audio/sfx/pterosaur-screech.mp3",
+  "kind": "sfx"
+ },
+ "roar": {
+  "fp": "1ed616cc3cfa679b",
+  "from": "Beyond-Extinction-Godot assets/audio/sfx/dino-roar-far.mp3",
+  "kind": "sfx"
+ },
+ "splash": {
+  "fp": "0e6c8a7967070844",
+  "from": "Beyond-Extinction-Godot assets/audio/sfx/splash-dive.mp3",
+  "kind": "sfx"
+ }
+}

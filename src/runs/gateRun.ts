@@ -36,6 +36,8 @@ interface Row {
   passed: boolean;
   swap?: boolean;   // bonus run trick: the gates trade sides as you get close
   swapped?: boolean;
+  risky?: boolean;  // ⚠️ a risky row (pings once as you get close)
+  warned?: boolean;
 }
 
 /** Sea Safari: a sea creature that leaps out beside the boat (get close for a photo!). */
@@ -239,6 +241,11 @@ export class GateRun {
     this.active = true;
     this.buildCourse(count);
     this.cart.position.set(0, 0, 0);
+    // 🔊 Off we go: countdown beeps, plus each ride's own sound
+    this.sfx.go();
+    if (theme === 'ocean') this.sfx.horn();
+    else if (theme === 'lava') this.sfx.heli();
+    else if (theme === 'hotel') this.sfx.bell();
     this.updateLabel();
     this.hud.setHint('Drag left / right to steer through the best gates!');
     const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles', ticket: 'tourists', bag: 'suitcases' };
@@ -671,7 +678,7 @@ export class GateRun {
   private riskyRow(r: number, z: number, S: number) {
     const riskSide = (Math.random() < 0.5 ? -1 : 1) as -1 | 1;
     const safe: Op = { kind: '+', v: Math.max(3, Math.round(S * rand(0.12, 0.22))) };
-    const row: Row = { z, passed: false, gates: [this.makeGate(safe, (-riskSide) as -1 | 1, z), this.makeGate({ kind: 'x', v: 2 }, riskSide, z, true)] };
+    const row: Row = { z, passed: false, risky: true, gates: [this.makeGate(safe, (-riskSide) as -1 | 1, z), this.makeGate({ kind: 'x', v: 2 }, riskSide, z, true)] };
     this.rows.push(row);
     const p: Puddle = { x: riskSide * 1.75, z: z - 6.5, r: 1.5, hit: false, risky: true };
     this.puddles.push(p);
@@ -782,6 +789,14 @@ export class GateRun {
       for (const g of row.gates) g.group.position.x += (g.side * 1.75 - g.group.position.x) * Math.min(1, dt * 7);
     }
 
+    // ⚠️ A ping as a risky row comes up (time to decide!)
+    for (const row of this.rows) {
+      if (row.risky && !row.warned && this.z - row.z < 26) {
+        row.warned = true;
+        this.sfx.risky();
+      }
+    }
+
     // Gates
     for (const row of this.rows) {
       if (row.passed || this.z > row.z) continue;
@@ -811,6 +826,10 @@ export class GateRun {
         const rock = m.getObjectByName('rock')!;
         const u = THREE.MathUtils.clamp((14 - near) / 12, 0, 1); // lands just before you reach it
         rock.position.y = 30 * (1 - u * u) + 0.6;
+        if (u >= 1 && !m.userData.landed) {
+          m.userData.landed = true;
+          this.sfx.lavaBomb();
+        }
         rock.rotation.x += dt * 4;
       } else if (m.userData.kind === 'ash') {
         m.rotation.y += dt * 0.6;
@@ -893,6 +912,7 @@ export class GateRun {
       if (this.bossT < 0 && this.z - this.finishZ < 18) {
         this.bossT = 0;
         roar(this.rexBoss);
+        this.sfx.roar();
       }
       animateCreature(this.rexBoss, dt, 0);
     }
@@ -930,7 +950,7 @@ export class GateRun {
         contract = { target: this.target, reached: this.count, filled: this.count >= this.target };
         if (this.count >= this.target) {
           this.changeCount(Math.round(this.count * CONTRACT.bonus), new THREE.Vector3(this.x, 3.6, this.z), '📦 CONTRACT FILLED! +50%', true);
-          this.sfx.gateGood();
+          this.sfx.contract();
         } else {
           this.hud.floatAt(new THREE.Vector3(this.x, 3.6, this.z), this.camera, `📦 Contract missed (${this.count}/${this.target})`, 'big bad');
         }

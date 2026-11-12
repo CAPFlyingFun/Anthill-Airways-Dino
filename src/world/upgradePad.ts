@@ -579,7 +579,7 @@ export class Upgrades {
     t.apply(lv, true);
     bump('upgrades');
     this.progress.addXp(cost * 0.1);
-    this.sfx.unlocked();
+    this.sfx.upgrade();
     const msg = pad.kind === 'line' && lv === 1 ? `👥 ${pad.label}: 2nd line open!` : `⬆️ ${pad.titleOf(lv)}!`;
     this.hud.floatAt(pad.mesh.position.clone().setY(1.6), this.host.camera, msg, 'big gold');
     this.flyers.grow(pad.mesh, 0.3);
