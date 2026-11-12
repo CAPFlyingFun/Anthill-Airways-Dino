@@ -24,7 +24,7 @@ import { bump } from '../core/totals';
 import { UP_BASE, UP_KINDS, UP_MAX, UpKind, up, upCost } from '../core/upgrades';
 import { Hud } from '../ui/hud';
 import { Flyers } from './items';
-import { GAME_FONT, TEXT_RES, groundText, roundRect, setGroundText, sharpTexture } from './labels';
+import { GAME_FONT, TEXT_RES, TextSprite, groundText, roundRect, setGroundText, sharpTexture } from './labels';
 import { Blocker, Zone } from './stations';
 import { TRASH } from './trash';
 import { CONFIG } from '../data/config';
@@ -139,6 +139,47 @@ export class UpgradePad {
 }
 
 // ============================================================================
+// ⚠️ STATUS TAGS: a little warning over a station only while something's wrong
+// (an idle oven, a full shelf…), so you can see where production is stuck.
+// ============================================================================
+/** What a machine's input is called in "needs …". */
+const NEEDS: Record<string, string> = {
+  crumb: 'crumbs', leaf: 'leaves', sugar: 'sugar', fruit: 'fruit', obsidian: 'obsidian', laundry: 'laundry',
+  grocery: 'groceries', meat: 'meat', magma: 'magma', gem: 'gems', snackbox: 'snack boxes',
+};
+
+interface Status {
+  o: any;
+  kind: 'machine' | 'seller';
+  tag: TextSprite;
+  top: number;      // height of the station's roof (the tag floats above it)
+  problem: string;  // what's wrong right now ('' = all good)
+  since: number;    // how long it's been that way
+}
+
+/** What's wrong with a machine right now ('' = nothing). */
+function machineProblem(o: any) {
+  if (o.output.full) return '📦 OUT full · pick it up';
+  if (o.input.count === 0 && !o.cooking && o.output.count === 0) return `😴 Idle · needs ${NEEDS[o.opts.inType] ?? o.opts.inType}`;
+  return '';
+}
+
+/** What's wrong with a counter / desk right now ('' = nothing). */
+function sellerProblem(o: any) {
+  // How many are waiting (counters keep 1-2 lines of customers, desks report it)
+  const waiting: number = o.queues ? o.queues.reduce((n: number, q: unknown[]) => n + q.length, 0) : 0;
+  const staffed = !!(o.hasCashier || o.hasStaff);
+  if (o.bagPile?.full) return '🧳 BAGS full · pick them up';
+  if (!staffed && waiting >= 3) return '🙋 No cashier · stand here';
+  const shelf = o.shelf;
+  if (!shelf) return '';
+  // (nearly full: customers keep taking one, so it's rarely exactly full)
+  if (shelf.count >= shelf.max * 0.8 && waiting >= 2) return '🛒 Shelf full · slow buyers';
+  if (shelf.count === 0 && waiting >= 2) return '😟 Shelf empty · buyers waiting';
+  return '';
+}
+
+// ============================================================================
 // Everything a world needs to give the manager
 // ============================================================================
 export interface UpgradeHost {
@@ -178,6 +219,8 @@ export class Upgrades {
   private piles = new Map<string, PileLike[]>(); // one pad per pile TYPE
   private scanT = 0;
   private crewLoaded = 0; // helpers whose saved XP has been loaded
+  private statuses: Status[] = [];
+  private statusT = 0;
   private active = false;
 
   constructor(private host: UpgradeHost, private world: WorldKey, private save: SaveData, private hud: Hud, private sfx: Sfx, private flyers: Flyers, private progress: Progress) {
@@ -225,8 +268,44 @@ export class Upgrades {
       this.buildings.push(o.group);
       added = true;
       this.register(o, root);
+      if (isMachine(o) || isSeller(o)) this.addStatus(o);
     }
     if (added) this.recheckT = 1; // (after the new building's grow-in animation)
+  }
+
+  /** A (hidden) status tag over a machine or a counter / desk. */
+  private addStatus(o: any) {
+    const g = o.group as THREE.Object3D;
+    this.box.setFromObject(g);
+    const tag = new TextSprite(this.world === 'ant' ? 1.05 : 0.95, '#ffb347');
+    tag.sprite.visible = false;
+    this.host.scene.add(tag.sprite);
+    const top = isFinite(this.box.max.y) ? Math.min(this.box.max.y, g.position.y + 8) : 3;
+    this.statuses.push({ o, kind: isMachine(o) ? 'machine' : 'seller', tag, top, problem: '', since: 0 });
+  }
+
+  /** Show a tag once a problem has lasted a couple of seconds; hide it when fixed. */
+  private updateStatus(dt: number, show: boolean) {
+    this.statusT -= dt;
+    const check = this.statusT <= 0;
+    if (check) this.statusT = 0.25;
+    for (const st of this.statuses) {
+      if (check) {
+        const now = st.kind === 'machine' ? machineProblem(st.o) : sellerProblem(st.o);
+        if (now !== st.problem) {
+          st.problem = now;
+          st.since = 0;
+        }
+      }
+      st.since += dt;
+      const on = show && st.problem !== '' && st.since > 2.2;
+      st.tag.sprite.visible = on;
+      if (on) {
+        st.tag.setText(st.problem);
+        const p = st.o.group.position;
+        st.tag.sprite.position.set(p.x, st.top + (this.world === 'ant' ? 1.6 : 1.3), p.z);
+      }
+    }
   }
 
   /** A building's footprint on the ground (from its real 3D shape, labels ignored). */
@@ -463,6 +542,7 @@ export class Upgrades {
     for (const c of this.host.collectors()) c.boost = grab;
 
     this.active = active;
+    this.updateStatus(dt, active); // ⚠️ station status tags (shown from the start: they guide new players too)
     const show = active && (this.host.ready?.() ?? true);
     for (const t of this.targets) t.pad.mesh.visible = show && (t.visible?.() ?? true);
     if (!show) return;

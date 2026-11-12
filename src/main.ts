@@ -28,9 +28,28 @@ import { VolcanoWorld } from './world/volcanoWorld';
 import { HotelWorld } from './world/hotelWorld';
 import { lod } from './core/lod';
 import { Updater, versionLabel } from './core/updater';
+import { showStartupError, watchStartup } from './core/startupError';
+
+watchStartup(); // a friendly Retry card instead of a frozen loading screen
 
 const app = document.getElementById('app')!;
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+/** The 3D renderer. If the browser can't make one, show why (with Retry) and stop here. */
+function makeRenderer() {
+  try {
+    const r = new THREE.WebGLRenderer({ antialias: true });
+    if (!r.getContext()) throw new Error('No WebGL context');
+    return r;
+  } catch (e) {
+    showStartupError('webgl', e);
+    throw e; // nothing else can run without it
+  }
+}
+const renderer = makeRenderer();
+// The phone can take the 3D view away (low memory): offer a Retry instead of a frozen screen
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  showStartupError('lost');
+});
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;

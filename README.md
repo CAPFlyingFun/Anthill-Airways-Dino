@@ -154,6 +154,17 @@ colony's **TRASH** upgrade pad (Lv 10). The bins take **100 pieces every 5 minut
 starts a ⏱️ 5-minute timer, and once 100 are in, the bin says *"Please wait… 27s remaining"* until the
 timer runs out (it keeps counting while the game is closed).
 
+## ⚠️ Station status tags
+
+When something's holding up production, a small orange tag pops up over that station (after a
+couple of seconds, so it doesn't flicker) and disappears once it's fixed:
+😴 *Idle · needs crumbs* · 📦 *OUT full · pick it up* · 🛒 *Shelf full · slow buyers* ·
+😟 *Shelf empty · buyers waiting* · 🙋 *No cashier · stand here* · 🧳 *BAGS full · pick them up*.
+They show in every world, so you can tell which upgrade will help most.
+
+If the game can't start (the browser refuses 3D graphics, or something crashes while loading), the
+loading card turns into an explanation with a 🔄 **Retry** button instead of hanging.
+
 ## Movement speed 🐢🐇
 
 Settings has a **Movement speed** slider: how fast everyone walks, from 0.2x (slow) to 3x

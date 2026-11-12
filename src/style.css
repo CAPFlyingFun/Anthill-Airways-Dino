@@ -346,6 +346,10 @@ html, body {
 .loadbar { height: 14px; border-radius: 8px; background: #ead9bf; overflow: hidden; margin-top: 10px; }
 .loadbar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #ffad3b, #f27a1a); transition: width 0.2s; }
 .overlay.loading .card { padding-bottom: 24px; }
+/* Startup error card (core/startupError.ts) */
+.err-tips { text-align: left; margin: 8px 0 14px; padding-left: 22px; font-weight: 700; line-height: 1.5; }
+.overlay.loading .err-btn { position: static; transform: none; width: 100%; margin: 4px 0 10px; }
+.err-slow { margin-top: 12px; font-weight: 700; }
 
 /* ---- Act 2: ant / human world switch ---------------------------------- */
 .round-btn.mode {
