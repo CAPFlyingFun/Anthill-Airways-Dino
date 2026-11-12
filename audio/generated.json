@@ -9,6 +9,21 @@
   "from": "Beyond-Extinction-Godot assets/audio/ambient/ambient_volcano.mp3",
   "kind": "ambience"
  },
+ "bell": {
+  "fp": "842b7f9785b2a196",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "cash": {
+  "fp": "c0ec700c0090b60c",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "contract": {
+  "fp": "46bea2d375b39358",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
  "dilo": {
   "fp": "73e4968ccb24080f",
   "from": "Beyond-Extinction-Godot assets/audio/sfx/dilo-snarl.mp3",
@@ -19,24 +34,129 @@
   "from": "Beyond-Extinction-Godot assets/audio/sfx/dodo-cluck.mp3",
   "kind": "sfx"
  },
+ "drop": {
+  "fp": "bacd540a88982749",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "eruption": {
+  "fp": "cae0f2bccf582e3b",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "gateBad": {
+  "fp": "508602bcce1666b2",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "gateGood": {
+  "fp": "b9d9bac356203fb5",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "go": {
+  "fp": "c13f1073228bcb39",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "heli": {
+  "fp": "c78f044e8ab3b8e0",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "horn": {
+  "fp": "0c7561e4b42a4299",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "lavaBomb": {
+  "fp": "c7ac1e3085eb73e7",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "levelUp": {
+  "fp": "399315130a95c8fb",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
  "music-island": {
   "fp": "2763d4c559e2648a",
   "from": "Beyond-Extinction-Godot assets/audio/music/island_bg_1.mp3",
   "kind": "music"
+ },
+ "pickup": {
+  "fp": "48cd30cd009942a1",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "popup": {
+  "fp": "67452192ee21ed08",
+  "kind": "sfx",
+  "made": "2026-11-12"
  },
  "ptero": {
   "fp": "fb8e8225e0a01a77",
   "from": "Beyond-Extinction-Godot assets/audio/sfx/pterosaur-screech.mp3",
   "kind": "sfx"
  },
+ "risky": {
+  "fp": "4c7c7853e894eaf7",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
  "roar": {
   "fp": "1ed616cc3cfa679b",
   "from": "Beyond-Extinction-Godot assets/audio/sfx/dino-roar-far.mp3",
   "kind": "sfx"
  },
+ "sale": {
+  "fp": "0eb8007ff34ff306",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "spider": {
+  "fp": "8a6fdafd73059a2a",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
  "splash": {
   "fp": "0e6c8a7967070844",
   "from": "Beyond-Extinction-Godot assets/audio/sfx/splash-dive.mp3",
   "kind": "sfx"
+ },
+ "takeoff": {
+  "fp": "8e98b8ae770f23e6",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "thunder": {
+  "fp": "b3b80a7b5553e4b9",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "trash": {
+  "fp": "0e81c7d764b22a83",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "unlockTick": {
+  "fp": "e30c43eecb0eacc9",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "unlocked": {
+  "fp": "c34ed7c0070b3e25",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "upgrade": {
+  "fp": "4eab5875e9cb26be",
+  "kind": "sfx",
+  "made": "2026-11-12"
+ },
+ "welcome": {
+  "fp": "9fb63cb6bfea43a6",
+  "kind": "sfx",
+  "made": "2026-11-12"
  }
 }
