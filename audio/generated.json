@@ -79,10 +79,35 @@
   "kind": "sfx",
   "made": "2026-11-12"
  },
+ "music-airport": {
+  "fp": "b5822fea45bce11e",
+  "kind": "music",
+  "made": "2026-11-12"
+ },
+ "music-colony": {
+  "fp": "00565eaf4fd7a9e6",
+  "kind": "music",
+  "made": "2026-11-12"
+ },
+ "music-hotel": {
+  "fp": "64a0f70eb4fff543",
+  "kind": "music",
+  "made": "2026-11-12"
+ },
  "music-island": {
   "fp": "2763d4c559e2648a",
   "from": "Beyond-Extinction-Godot assets/audio/music/island_bg_1.mp3",
   "kind": "music"
+ },
+ "music-run": {
+  "fp": "f6549ff81e726ea2",
+  "kind": "music",
+  "made": "2026-11-12"
+ },
+ "music-volcano": {
+  "fp": "44d8363beff8f202",
+  "kind": "music",
+  "made": "2026-11-12"
  },
  "pickup": {
   "fp": "48cd30cd009942a1",
