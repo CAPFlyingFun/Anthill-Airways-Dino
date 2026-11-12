@@ -394,43 +394,66 @@ export class Assistant {
   private pad: CashPad | null = null;
   private state: 'pick' | 'walk' | 'collect' | 'rest' = 'pick';
   private t = 0;
-  private empty = 0;
   private tmp = new THREE.Vector3();
+  /** Pads she just emptied, and when (seconds) she may come back to them. */
+  private cool = new Map<CashPad, number>();
+  private clock = 0;
+
+  /** Seconds a pad is ignored after she sweeps it (so she doesn't hover over one pad). */
+  static readonly COOLDOWN = 1;
 
   constructor(public model: CreatureModel, private home: THREE.Vector3, private tag: TextSprite, private onCash: (v: number) => void) {}
+
+  /** The pad with the most landed cash that isn't cooling down (null = nothing to fetch). */
+  private choose(pads: CashPad[]): CashPad | null {
+    let best: CashPad | null = null;
+    let most = 0;
+    for (const pad of pads) {
+      if ((this.cool.get(pad) ?? 0) > this.clock) continue;
+      const n = pad.stack.items.filter((it) => !it.flying).length;
+      if (n > most) { most = n; best = pad; }
+    }
+    return best;
+  }
 
   update(dt: number, pads: CashPad[], flyers: Flyers) {
     const m = this.model;
     const p = m.root.position;
+    this.clock += dt;
     if (this.state === 'pick') {
-      this.pad = pads.reduce<CashPad | null>((b, pad) => (pad.stack.count > (b?.stack.count ?? 0) ? pad : b), null);
+      this.pad = this.choose(pads);
       this.state = 'walk';
     } else if (this.state === 'walk') {
       const to = this.pad ? this.tmp.set(this.pad.zone.x, 0, this.pad.zone.z + 1.3) : this.home;
       if (stepTo(m, to, this.speed * this.boost, dt)) {
         this.state = this.pad ? 'collect' : 'rest';
-        this.t = 2.5;
+        this.t = this.pad ? 0 : 1; // rest at home 1 s, then look again
       }
     } else if (this.state === 'collect') {
+      // 💴 One sweep: every bill that has landed flies to her at once.
       animateCreature(m, dt, 0);
-      this.t += dt;
-      if (this.t >= 0.1 / this.boost) {
-        this.t = 0;
-        const bill = this.pad!.stack.pop();
-        if (!bill) {
-          // A bill still flying onto the pile can't be grabbed yet: wait for it to land,
-          // and only leave once the pile has really been empty for a moment.
-          if (this.pad!.stack.count > 0) this.empty = 0;
-          else if ((this.empty += 0.1 / this.boost) >= 0.6) { this.empty = 0; this.state = 'pick'; }
-        } else {
-          this.empty = 0;
-          const target = new THREE.Vector3();
-          flyers.fly(bill.mesh, () => target.copy(p).setY(m.height * 0.7), () => {
-            bill.mesh.removeFromParent();
-            this.onCash(bill.value);
-          }, 0.25, 1.0);
+      if (this.t === 0) {
+        const pad = this.pad!;
+        let shown = 0;
+        for (let bill = pad.stack.popType('cash'); bill; bill = pad.stack.popType('cash')) {
+          const b = bill;
+          if (shown++ < 14) {
+            // Only the top 14 actually fly (keeps it light on the phone); all still pay.
+            const target = new THREE.Vector3();
+            flyers.fly(b.mesh, () => target.copy(p).setY(m.height * 0.7), () => {
+              b.mesh.removeFromParent();
+              this.onCash(b.value);
+            }, 0.3, 1.0);
+          } else {
+            b.mesh.removeFromParent();
+            this.onCash(b.value);
+          }
         }
+        this.cool.set(pad, this.clock + Assistant.COOLDOWN);
       }
+      this.t += dt;
+      // A short beat for the bills to reach her, then straight on to the next pad.
+      if (this.t >= 0.35 / this.boost) this.state = 'pick';
     } else {
       animateCreature(m, dt, 0);
       faceToward(m, 0, 1, dt, 3);
