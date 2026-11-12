@@ -302,15 +302,18 @@ export class Flyers {
   pushInto(it: StackItem, to: Stack, dur = 0.28) {
     it.flying = true;
     to.items.push(it);
-    const index = to.items.length - 1;
     const tmp = new THREE.Vector3();
+    // Aim for the item's CURRENT place in the stack, not the one it had when it
+    // was thrown: if items below it are taken while it's in the air (e.g. the
+    // assistant sweeps a cash pad), it drops down instead of landing mid-air.
+    const slot = () => Math.max(0, to.items.indexOf(it));
     this.fly(
       it.mesh,
-      () => to.slotWorld(index, it.type, tmp),
+      () => to.slotWorld(slot(), it.type, tmp),
       () => {
         it.flying = false;
         to.parent.add(it.mesh);
-        to.layout(index, it.type, it.mesh.position);
+        to.layout(slot(), it.type, it.mesh.position);
       },
       dur,
     );
