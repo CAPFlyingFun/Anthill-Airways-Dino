@@ -154,6 +154,17 @@ colony's **TRASH** upgrade pad (Lv 10). The bins take **100 pieces every 5 minut
 starts a ⏱️ 5-minute timer, and once 100 are in, the bin says *"Please wait… 27s remaining"* until the
 timer runs out (it keeps counting while the game is closed).
 
+## 📦 Delivery contracts & ⚠️ risky gates
+
+Every regular gate run (cart, raft, safari, heli tour, bellhop dash) comes with a **contract**:
+*"finish with 21 snack packs"*, shown at the start and over the cart (📦 14/21 → ✅). Fill it and the
+haul pays **+50%**; miss it and you still get the regular haul. The goal is about 1.5× what you
+*usually* load in that world, so loading more makes a safe route enough, and a light load needs a gamble.
+
+From your 3rd run, one or two rows are **risky**: a small safe **+N** on one side, a gold **×2 ⚠️ RISKY**
+gate on the other with a big hazard right behind it (a puddle, shark, lava bomb or wet-floor sign).
+Hit it and you lose 35% of the load, unless you swerve around it right after the gate.
+
 ## ⚠️ Station status tags
 
 When something's holding up production, a small orange tag pops up over that station (after a

@@ -38,6 +38,7 @@ export interface SaveData {
   crewXp: Record<string, number[]>;   // each world's helpers' XP, in hiring order
   totals: Record<string, number>;     // 📊 lifetime stats (cash earned, items sold...)
   trash: { start: number; count: number }; // 🗑️ paid trash: pieces dumped in this 5-min window
+  contracts: Record<string, number>;       // 📦 usual load per run type (sets contract goals)
 }
 
 export interface QueenSave {
@@ -49,7 +50,7 @@ export interface QueenSave {
 }
 
 export function newSave(): SaveData {
-  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} }, world: 'ant', airSeen: false, view: 'third', lastSeen: 0, rate: 0, shards: 0, eruptions: 0, shardUps: {}, cycleEarned: 0, upgrades: {}, upPaid: {}, crewXp: {}, totals: {}, trash: { start: 0, count: 0 } };
+  return { cash: 0, unlocked: [], paid: {}, tutorial: 0, sound: true, xp: 0, level: 1, points: 0, stats: {}, hatched: 0, queen: { active: false, level: 1, xp: 0, points: 0, stats: {} }, world: 'ant', airSeen: false, view: 'third', lastSeen: 0, rate: 0, shards: 0, eruptions: 0, shardUps: {}, cycleEarned: 0, upgrades: {}, upPaid: {}, crewXp: {}, totals: {}, trash: { start: 0, count: 0 }, contracts: {} };
 }
 
 export const SLOTS = [1, 2, 3] as const;

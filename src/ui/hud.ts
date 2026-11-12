@@ -101,7 +101,14 @@ export class Hud {
   }
 
   /** Results card after a gate run. Resolves when "Collect" is tapped. */
-  showResults(start: number, end: number, earned: number): Promise<void> {
+  showResults(start: number, end: number, earned: number, contract?: { target: number; reached: number; filled: boolean }): Promise<void> {
+    // 📦 The run's contract (if it had one)
+    $('resContract').classList.toggle('hidden', !contract);
+    if (contract) {
+      const v = $('resContractVal');
+      v.textContent = contract.filled ? `✅ ${contract.target} delivered · +50%` : `❌ ${contract.reached}/${contract.target}`;
+      v.style.color = contract.filled ? '#2e9e4a' : '#c0392b';
+    }
     $('resStart').textContent = String(start);
     $('resEnd').textContent = String(end);
     $('resEarned').textContent = `$${earned.toLocaleString()}`;

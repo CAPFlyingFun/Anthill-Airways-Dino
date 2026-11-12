@@ -119,6 +119,8 @@ async function start() {
   const run = new GateRun(hud, sfx);
   // 📊 Every gate run (colony, safari, heli tour, bellhop dash, bonus run) counts
   // toward the lifetime stats: wrap start() once instead of touching each caller.
+  // 📦 Contract goals remember each world's usual load; ⚠️ risky gates start on the 3rd run
+  run.memory = { contracts: save.contracts, runs: () => save.totals.runs ?? 0 };
   const startRun = run.start.bind(run);
   run.start = (count, onDone, ...rest) =>
     startRun(count, (end) => {

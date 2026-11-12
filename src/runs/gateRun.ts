@@ -60,7 +60,18 @@ interface Puddle {
   r: number;
   hit: boolean;
   monster?: THREE.Object3D; // ocean: a sea creature lurking under the surface
+  risky?: boolean;          // ⚠️ sits right behind a risky ×2 gate: knocks off more
 }
+
+/**
+ * 📦 DELIVERY CONTRACTS: every regular run has a goal ("finish with 20"). Fill
+ * it and the haul pays +50%; miss it and you still get the regular haul.
+ * The goal is ~1.5x what you USUALLY load in that world: load more than usual
+ * and a safe route gets there; load light and you'll need a risky gate.
+ */
+export const CONTRACT = { goalMult: 1.5, bonus: 1.5, min: { grass: 12, gutter: 12, ocean: 10, lava: 10, hotel: 10 } as Record<RunTheme, number> };
+/** ⚠️ RISKY GATES (from your 3rd run): a small safe +N vs a gold ×2 with a hazard right behind it. */
+const RISK = { fromRun: 2, hazardLoss: 0.35 };
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const isGood = (k: OpKind) => k === '+' || k === 'x';
@@ -90,6 +101,11 @@ export class GateRun {
   luck = 0;
   /** Haggling multiplier, for showing the right payout on the results card. */
   cashMult = 1;
+  /** Set once by main.ts: each world's usual load (for contract goals) + runs done. */
+  memory: { contracts: Record<string, number>; runs: () => number } | null = null;
+  /** This run's 📦 contract goal (0 = no contract). */
+  private target = 0;
+  private goalLabel = new TextSprite(0.7);
 
   private rows: Row[] = [];
   private puddles: Puddle[] = [];
@@ -171,6 +187,8 @@ export class GateRun {
     this.cart.add(this.beetle.root);
     this.countLabel.sprite.position.set(0, 3.0, 0);
     this.cart.add(this.countLabel.sprite);
+    this.goalLabel.sprite.position.set(0, 2.15, 0); // "📦 14/20" under the count
+    this.cart.add(this.goalLabel.sprite);
     s.add(this.cart);
   }
 
@@ -207,6 +225,12 @@ export class GateRun {
     this.beetle.root.position.set(0, theme === 'gutter' ? deck - 0.1 : 0, theme === 'gutter' ? -1.0 : -1.9);
     this.startCount = this.count = count;
     this.shownCargo = -1;
+    // 📦 The contract: regular runs only (not the bonus run)
+    const plain = !opts.hard && opts.valueEach === undefined;
+    const usual = this.memory?.contracts[theme] ?? count;
+    this.target = plain ? Math.max(CONTRACT.min[theme], Math.round(Math.max(usual, 2) * CONTRACT.goalMult)) : 0;
+    if (plain && this.memory) this.memory.contracts[theme] = Math.round(usual * 0.7 + count * 0.3); // remember the usual load
+    this.goalLabel.sprite.visible = this.target > 0;
     this.x = 0;
     this.z = 0;
     this.speed = 0;
@@ -218,7 +242,9 @@ export class GateRun {
     this.updateLabel();
     this.hud.setHint('Drag left / right to steer through the best gates!');
     const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles', ticket: 'tourists', bag: 'suitcases' };
-    this.hud.banner(opts.title ?? 'Ready…', `${count} ${names[itemType] ?? 'items'} loaded`, opts.title ? 1800 : 1100);
+    const what = names[itemType] ?? 'items';
+    const goal = this.target ? ` · 📦 Contract: finish with ${this.target} for +50%!` : '';
+    this.hud.banner(opts.title ?? 'Ready…', `${count} ${what} loaded${goal}`, opts.title ? 1800 : this.target ? 2200 : 1100);
   }
 
   private buildCourse(S: number) {
@@ -358,8 +384,21 @@ export class GateRun {
     let qRow = 1 + Math.floor(Math.random() * (rows - 1));
     if (qRow === xRow) qRow = rows - 1;
 
+    // ⚠️ Risky rows (from the 3rd run): 1, sometimes 2, of the plain rows
+    const riskRows = new Set<number>();
+    if (!this.opts.hard && (this.memory?.runs() ?? 0) >= RISK.fromRun) {
+      const pool = [];
+      for (let r = 1; r < rows - 1; r++) if (r !== xRow && r !== qRow) pool.push(r);
+      pool.sort(() => Math.random() - 0.5);
+      pool.slice(0, Math.random() < 0.4 ? 2 : 1).forEach((r) => riskRows.add(r));
+    }
+
     for (let r = 0; r < rows; r++) {
       const z = -(firstRow + r * rowSpacing);
+      if (riskRows.has(r)) {
+        this.riskyRow(r, z, S);
+        continue;
+      }
       const plus = () => ({ kind: '+' as const, v: Math.max(2, Math.round(S * rand(0.2, 0.45))) });
       const minus = () => ({ kind: '-' as const, v: Math.max(1, Math.round(S * rand(0.25, 0.45))) });
       const hard = !!this.opts.hard;
@@ -391,92 +430,7 @@ export class GateRun {
       for (let h = 0; h < hazards; h++) {
         const p: Puddle = { x: rand(-laneHalfWidth + 1, laneHalfWidth - 1), z: z - rowSpacing * (hazards === 2 ? (h ? 0.68 : 0.36) : 0.5), r: 1.1, hit: false };
         this.puddles.push(p);
-        if (hotel) {
-          // A yellow WET FLOOR sign, or a room-service cart parked in the way
-          const g = new THREE.Group();
-          if ((r + h) % 2 === 0) {
-            const yellow = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.6 });
-            for (const sz of [-1, 1]) {
-              const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.05), yellow);
-              leaf.position.set(0, 0.68, sz * 0.25);
-              leaf.rotation.x = sz * 0.35;
-              g.add(leaf);
-            }
-            const puddle = new THREE.Mesh(new THREE.CircleGeometry(p.r, 20), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.6 }));
-            puddle.rotation.x = -Math.PI / 2;
-            puddle.position.y = 0.03;
-            g.add(puddle);
-            g.userData.kind = 'wet';
-          } else {
-            const silver = new THREE.MeshStandardMaterial({ color: 0xdfe4ea, roughness: 0.25, metalness: 0.8 });
-            const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.1, 0.9), silver);
-            top.position.y = 1.0;
-            const lower = top.clone();
-            lower.position.y = 0.35;
-            const dome = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), silver);
-            dome.position.y = 1.05;
-            g.add(top, lower, dome);
-            g.userData.kind = 'service';
-          }
-          g.position.set(p.x, 0, p.z);
-          p.monster = g;
-          this.dynamic.add(g);
-        } else if (lava) {
-          // Every other hazard: an ash cloud hanging in the air, or a lava bomb
-          // that drops out of the sky as you get close (watch the red ring!)
-          if ((r + h) % 2 === 0) {
-            const cloud = new THREE.Group();
-            const ash = new THREE.MeshStandardMaterial({ color: 0x4a4442, roughness: 1, transparent: true, opacity: 0.85 });
-            for (let k = 0; k < 5; k++) {
-              const puff = new THREE.Mesh(new THREE.SphereGeometry(rand(0.6, 1.0), 10, 8), ash);
-              puff.position.set(rand(-0.8, 0.8), rand(1.2, 2.4), rand(-0.6, 0.6));
-              cloud.add(puff);
-            }
-            cloud.position.set(p.x, 0, p.z);
-            cloud.userData.kind = 'ash';
-            p.monster = cloud;
-            this.dynamic.add(cloud);
-          } else {
-            const bomb = new THREE.Group();
-            const ring = new THREE.Mesh(new THREE.RingGeometry(p.r - 0.2, p.r + 0.1, 24), new THREE.MeshBasicMaterial({ color: 0xff2a12, transparent: true, opacity: 0.8 }));
-            ring.rotation.x = -Math.PI / 2;
-            ring.position.y = 0.05;
-            const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7), new THREE.MeshStandardMaterial({ color: 0x5a1606, emissive: 0xff4a12, emissiveIntensity: 1.6 }));
-            rock.position.y = 30;
-            rock.name = 'rock';
-            bomb.add(ring, rock);
-            bomb.position.set(p.x, 0, p.z);
-            bomb.userData.kind = 'bomb';
-            p.monster = bomb;
-            this.dynamic.add(bomb);
-          }
-        } else if (ocean) {
-          // A sea creature lurking: its fin cuts the water, then it lunges
-          // out as you pass. Steer around it!
-          const kinds: SeaKind[] = ['s-megalodon', 's-mosasaurus'];
-          const beast = spawnSea(kinds[Math.floor(Math.random() * 2)], 7)?.root;
-          const fin = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.0, 8), new THREE.MeshStandardMaterial({ color: 0x3a4a5a }));
-          const m = beast ?? fin;
-          m.position.set(p.x, beast ? -1.6 : 0.3, p.z);
-          m.rotation.y = rand(0, Math.PI * 2);
-          p.monster = m;
-          this.dynamic.add(m);
-        } else if (gutter) {
-          // A floating twig to steer around
-          const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, p.r * 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x6b4a2f }));
-          twig.rotation.z = Math.PI / 2;
-          twig.rotation.y = rand(-0.4, 0.4);
-          twig.position.set(p.x, 0.15, p.z);
-          this.dynamic.add(twig);
-        } else {
-          const puddle = new THREE.Mesh(
-            new THREE.CircleGeometry(p.r, 24),
-            new THREE.MeshStandardMaterial({ color: 0x4aa8ff, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.85 }),
-          );
-          puddle.rotation.x = -Math.PI / 2;
-          puddle.position.set(p.x, 0.03, p.z);
-          this.dynamic.add(puddle);
-        }
+        this.hazardVisual(p, (r + h) % 2 === 0);
       }
     }
 
@@ -610,11 +564,130 @@ export class GateRun {
     this.dynamic.add(finishSign.sprite);
   }
 
-  private makeGate(op: Op, side: -1 | 1, z: number): Gate {
+  /**
+   * The thing you see at a hazard spot (per theme): a puddle, a floating twig,
+   * a lurking shark, an ash cloud / lava bomb, a wet-floor sign / room-service
+   * cart. `alt` picks between each theme's two kinds.
+   */
+  private hazardVisual(p: Puddle, alt: boolean) {
+    const lava = this.theme === 'lava';
+    const hotel = this.theme === 'hotel';
+    const ocean = this.theme === 'ocean';
+    const gutter = this.theme === 'gutter';
+    if (hotel) {
+      // A yellow WET FLOOR sign, or a room-service cart parked in the way
+      const g = new THREE.Group();
+      if (alt) {
+        const yellow = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.6 });
+        for (const sz of [-1, 1]) {
+          const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.05), yellow);
+          leaf.position.set(0, 0.68, sz * 0.25);
+          leaf.rotation.x = sz * 0.35;
+          g.add(leaf);
+        }
+        const puddle = new THREE.Mesh(new THREE.CircleGeometry(p.r, 20), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.6 }));
+        puddle.rotation.x = -Math.PI / 2;
+        puddle.position.y = 0.03;
+        g.add(puddle);
+        g.userData.kind = 'wet';
+      } else {
+        const silver = new THREE.MeshStandardMaterial({ color: 0xdfe4ea, roughness: 0.25, metalness: 0.8 });
+        const top = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.1, 0.9), silver);
+        top.position.y = 1.0;
+        const lower = top.clone();
+        lower.position.y = 0.35;
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(0.32, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), silver);
+        dome.position.y = 1.05;
+        g.add(top, lower, dome);
+        g.userData.kind = 'service';
+      }
+      g.position.set(p.x, 0, p.z);
+      p.monster = g;
+      this.dynamic.add(g);
+    } else if (lava) {
+      // Every other hazard: an ash cloud hanging in the air, or a lava bomb
+      // that drops out of the sky as you get close (watch the red ring!)
+      if (alt) {
+        const cloud = new THREE.Group();
+        const ash = new THREE.MeshStandardMaterial({ color: 0x4a4442, roughness: 1, transparent: true, opacity: 0.85 });
+        for (let k = 0; k < 5; k++) {
+          const puff = new THREE.Mesh(new THREE.SphereGeometry(rand(0.6, 1.0), 10, 8), ash);
+          puff.position.set(rand(-0.8, 0.8), rand(1.2, 2.4), rand(-0.6, 0.6));
+          cloud.add(puff);
+        }
+        cloud.position.set(p.x, 0, p.z);
+        cloud.userData.kind = 'ash';
+        p.monster = cloud;
+        this.dynamic.add(cloud);
+      } else {
+        const bomb = new THREE.Group();
+        const ring = new THREE.Mesh(new THREE.RingGeometry(p.r - 0.2, p.r + 0.1, 24), new THREE.MeshBasicMaterial({ color: 0xff2a12, transparent: true, opacity: 0.8 }));
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.05;
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7), new THREE.MeshStandardMaterial({ color: 0x5a1606, emissive: 0xff4a12, emissiveIntensity: 1.6 }));
+        rock.position.y = 30;
+        rock.name = 'rock';
+        bomb.add(ring, rock);
+        bomb.position.set(p.x, 0, p.z);
+        bomb.userData.kind = 'bomb';
+        p.monster = bomb;
+        this.dynamic.add(bomb);
+      }
+    } else if (ocean) {
+      // A sea creature lurking: its fin cuts the water, then it lunges
+      // out as you pass. Steer around it!
+      const kinds: SeaKind[] = ['s-megalodon', 's-mosasaurus'];
+      const beast = spawnSea(kinds[Math.floor(Math.random() * 2)], 7)?.root;
+      const fin = new THREE.Mesh(new THREE.ConeGeometry(0.35, 1.0, 8), new THREE.MeshStandardMaterial({ color: 0x3a4a5a }));
+      const m = beast ?? fin;
+      m.position.set(p.x, beast ? -1.6 : 0.3, p.z);
+      m.rotation.y = rand(0, Math.PI * 2);
+      p.monster = m;
+      this.dynamic.add(m);
+    } else if (gutter) {
+      // A floating twig to steer around
+      const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, p.r * 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x6b4a2f }));
+      twig.rotation.z = Math.PI / 2;
+      twig.rotation.y = rand(-0.4, 0.4);
+      twig.position.set(p.x, 0.15, p.z);
+      this.dynamic.add(twig);
+    } else {
+      const puddle = new THREE.Mesh(
+        new THREE.CircleGeometry(p.r, 24),
+        new THREE.MeshStandardMaterial({ color: 0x4aa8ff, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.85 }),
+      );
+      puddle.rotation.x = -Math.PI / 2;
+      puddle.position.set(p.x, 0.03, p.z);
+      this.dynamic.add(puddle);
+    }
+  }
+
+  /**
+   * ⚠️ A risky row: a small safe +N on one side, a gold ×2 on the other with a
+   * hazard right behind it (visible from far off). ×2 then the hazard (-35%)
+   * still beats +N on a big load, but on a light one... it's your call. Or
+   * swerve around the hazard right after the gate!
+   */
+  private riskyRow(r: number, z: number, S: number) {
+    const riskSide = (Math.random() < 0.5 ? -1 : 1) as -1 | 1;
+    const safe: Op = { kind: '+', v: Math.max(3, Math.round(S * rand(0.12, 0.22))) };
+    const row: Row = { z, passed: false, gates: [this.makeGate(safe, (-riskSide) as -1 | 1, z), this.makeGate({ kind: 'x', v: 2 }, riskSide, z, true)] };
+    this.rows.push(row);
+    const p: Puddle = { x: riskSide * 1.75, z: z - 6.5, r: 1.5, hit: false, risky: true };
+    this.puddles.push(p);
+    this.hazardVisual(p, r % 2 === 0);
+    // A warning over the gold gate
+    const warn = new TextSprite(1.3, '#ffd166');
+    warn.setText('⚠️ RISKY');
+    warn.sprite.position.set(riskSide * 1.75, 3.7, z);
+    this.dynamic.add(warn.sprite);
+  }
+
+  private makeGate(op: Op, side: -1 | 1, z: number, risky = false): Gate {
     const group = new THREE.Group();
     group.position.set(side * 1.75, 0, z);
     const good = isGood(op.kind);
-    const color = op.kind === '?' ? 0x9b5de5 : good ? 0x2f9bff : 0xff4d4d;
+    const color = risky ? 0xffb000 : op.kind === '?' ? 0x9b5de5 : good ? 0x2f9bff : 0xff4d4d; // (risky = gold)
     const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
     for (const px of [-1.6, 1.6]) {
       const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.6, 8), postMat);
@@ -647,6 +720,10 @@ export class GateRun {
   // --------------------------------------------------------------------------
   private updateLabel() {
     this.countLabel.setText(String(this.count), this.count >= this.startCount ? '#ffffff' : '#ffb3b3');
+    if (this.target) {
+      const done = this.count >= this.target;
+      this.goalLabel.setText(done ? `✅ ${this.count}/${this.target}` : `📦 ${this.count}/${this.target}`, done ? '#7df9a0' : '#ffd166');
+    }
     // Rebuild the visible cargo pile (capped so it doesn't get silly).
     const show = Math.min(this.count, 36);
     if (show === this.shownCargo) return;
@@ -753,7 +830,7 @@ export class GateRun {
     for (const p of this.puddles) {
       if (p.hit || Math.abs(this.z - p.z) > p.r || Math.abs(this.x - p.x) > p.r + 0.7) continue;
       p.hit = true;
-      const loss = CONFIG.run.puddleLoss * Math.max(0.3, 1 - this.luck * 0.06);
+      const loss = (p.risky ? RISK.hazardLoss : CONFIG.run.puddleLoss) * Math.max(0.3, 1 - this.luck * 0.06);
       const lost = Math.max(1, Math.ceil(this.count * loss));
       this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : this.theme === 'ocean' ? '🦈' : this.theme === 'lava' ? (p.monster?.userData.kind === 'ash' ? '💨' : '🌋') : this.theme === 'hotel' ? (p.monster?.userData.kind === 'wet' ? '🧽' : '🛎️') : '💦'} -${lost}`, false);
       this.sfx.splash();
@@ -847,6 +924,17 @@ export class GateRun {
         this.bossDone = true;
         this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 LAVA REX! ×1.25', true);
       }
+      // 📦 The contract: +50% if filled; the regular haul either way
+      let contract: { target: number; reached: number; filled: boolean } | undefined;
+      if (this.target) {
+        contract = { target: this.target, reached: this.count, filled: this.count >= this.target };
+        if (this.count >= this.target) {
+          this.changeCount(Math.round(this.count * CONTRACT.bonus), new THREE.Vector3(this.x, 3.6, this.z), '📦 CONTRACT FILLED! +50%', true);
+          this.sfx.gateGood();
+        } else {
+          this.hud.floatAt(new THREE.Vector3(this.x, 3.6, this.z), this.camera, `📦 Contract missed (${this.count}/${this.target})`, 'big bad');
+        }
+      }
       this.state = 'done';
       this.stateT = 0;
       this.hud.setHint(null);
@@ -855,7 +943,7 @@ export class GateRun {
         ? Math.round(Math.max(o.keepMin ?? 0, this.count * o.valueEach))
         : Math.round(this.count * ITEM_VALUE[this.itemType] * this.cashMult);
       window.setTimeout(() => {
-        this.hud.showResults(this.startCount, this.count, earned).then(() => {
+        this.hud.showResults(this.startCount, this.count, earned, contract).then(() => {
           this.active = false;
           this.onDone(this.count);
         });
