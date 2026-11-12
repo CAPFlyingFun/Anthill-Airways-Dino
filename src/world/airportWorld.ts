@@ -394,6 +394,7 @@ export class Assistant {
   private pad: CashPad | null = null;
   private state: 'pick' | 'walk' | 'collect' | 'rest' = 'pick';
   private t = 0;
+  private empty = 0;
   private tmp = new THREE.Vector3();
 
   constructor(public model: CreatureModel, private home: THREE.Vector3, private tag: TextSprite, private onCash: (v: number) => void) {}
@@ -416,8 +417,13 @@ export class Assistant {
       if (this.t >= 0.1 / this.boost) {
         this.t = 0;
         const bill = this.pad!.stack.pop();
-        if (!bill) this.state = 'pick';
-        else {
+        if (!bill) {
+          // A bill still flying onto the pile can't be grabbed yet: wait for it to land,
+          // and only leave once the pile has really been empty for a moment.
+          if (this.pad!.stack.count > 0) this.empty = 0;
+          else if ((this.empty += 0.1 / this.boost) >= 0.6) { this.empty = 0; this.state = 'pick'; }
+        } else {
+          this.empty = 0;
           const target = new THREE.Vector3();
           flyers.fly(bill.mesh, () => target.copy(p).setY(m.height * 0.7), () => {
             bill.mesh.removeFromParent();
