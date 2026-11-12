@@ -123,7 +123,7 @@ export class Progress {
 }
 
 // ============================================================================
-// The Queen's progress: she gains 1 XP per $10 she collects, levels up, and
+// The Queen's progress: she gains 1 XP per $10 the Bankers collect, levels up, and
 // each level gives a point for her stats (Royal Stride, Grab Speed, Tribute).
 // ============================================================================
 export class QueenProgress {
@@ -178,7 +178,7 @@ export class QueenProgress {
 
   describe(id: QueenStatDef['id']) {
     const n = this.stat(id);
-    if (id === 'speed') return `+${n * 12}% speed`;
+    if (id === 'speed') return `+${n * 10}% trash money`; // 🗑️ Royal Bins
     if (id === 'grab') return `+${n * 20}% grab`;
     return `+${n * 5}% cash`;
   }

@@ -174,34 +174,50 @@ function walkStep(m: CreatureModel, mind: Mind, goal: THREE.Vector3, dt: number,
   return false;
 }
 
-/** Jumping spider: crouch, spring in an arc, land, pause, repeat. */
+/**
+ * Jumping spider: WALK a little, then JUMP, then walk, then jump...
+ *  • `mind.hopRest` = seconds left in the current walking bit (legs stepping)
+ *  • then it springs in an arc toward its goal (a big hop when startled)
+ * Both the walking and the hops follow the Movement speed slider.
+ */
 function hopStep(m: CreatureModel, mind: Mind, goal: THREE.Vector3, dt: number, alarmed: boolean) {
+  const sp = mind.species;
   const p = m.root.position;
   if (mind.hop) {
     const h = mind.hop;
-    h.t = Math.min(1, h.t + dt / h.dur);
+    h.t = Math.min(1, h.t + (dt * pace.move) / h.dur);
     p.lerpVectors(h.from, h.to, h.t);
     p.y = Math.sin(Math.PI * h.t) * (0.5 + h.from.distanceTo(h.to) * 0.25);
-    animateCreature(m, dt, 0);
+    animateCreature(m, dt, 0); // legs tucked in mid-air
     if (h.t >= 1) {
       p.y = 0;
       mind.hop = null;
-      mind.hopRest = alarmed ? 0.1 : 0.25 + Math.random() * 0.3;
+      // Next: walk for a bit before the next jump (a quick scurry when startled)
+      mind.hopRest = alarmed ? 0.15 : 0.6 + Math.random() * 0.5;
     }
     return false;
   }
   const dx = goal.x - p.x;
   const dz = goal.z - p.z;
   const d = Math.hypot(dx, dz);
-  mind.hopRest -= dt;
-  faceToward(m, dx, dz, dt, 14);
   if (d < 0.15) {
     idleLook(m, mind, dt);
     animateCreature(m, dt, 0);
     return !alarmed;
   }
+  faceToward(m, dx, dz, dt, 14);
+  mind.hopRest -= dt * pace.move;
+  // Close to the goal, or still in the walking bit: walk (legs stepping)
+  if (mind.hopRest > 0 || d < 1.2) {
+    const speed = (alarmed ? sp.fleeBLs : sp.walkBLs) * sp.length * pace.move;
+    const step = Math.min(d, speed * dt);
+    p.x += (dx / d) * step;
+    p.z += (dz / d) * step;
+    animateCreature(m, dt, speed);
+    return false;
+  }
+  // JUMP!
   animateCreature(m, dt, 0);
-  if (mind.hopRest > 0) return false;
   const len = Math.min(d, alarmed ? 2.6 : 2.0);
   mind.hop = {
     from: p.clone(),

@@ -340,12 +340,12 @@ export class Hud {
       $('queenTitle').textContent = '👑 Queen (locked)';
       $('queenXpFill').style.width = `${Math.min(100, (s.level / QUEEN_UNLOCK_LEVEL) * 100)}%`;
       $('queenXpText').textContent = `Lv ${s.level} / ${QUEEN_UNLOCK_LEVEL}`;
-      $('queenPoints').textContent = `Reach Level ${QUEEN_UNLOCK_LEVEL} and the Queen starts collecting your cash!`;
+      $('queenPoints').textContent = `Reach Level ${QUEEN_UNLOCK_LEVEL} and the Queen is crowned: her points boost your Bankers + trash money!`;
     } else {
       $('queenTitle').textContent = `👑 Queen · Level ${qs.level}`;
       $('queenXpFill').style.width = `${Math.min(100, (qs.xp / q.xpToNext()) * 100)}%`;
       $('queenXpText').textContent = `${Math.floor(qs.xp)} / ${q.xpToNext()} XP`;
-      $('queenPoints').textContent = qs.points > 0 ? `${qs.points} royal point${qs.points > 1 ? 's' : ''} to spend!` : 'She earns XP from the cash she collects';
+      $('queenPoints').textContent = qs.points > 0 ? `${qs.points} royal point${qs.points > 1 ? 's' : ''} to spend!` : 'She earns XP from the cash your Bankers collect';
     }
     for (const def of QUEEN_STATS) {
       $(`qlv-${def.id}`).textContent = String(q.stat(def.id));

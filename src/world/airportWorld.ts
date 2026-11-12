@@ -4,7 +4,7 @@
 // You play the terminal manager (Jack's model; he's only named on the island), running the terminal for Anthill Airways. Your ant colony
 // is still there: it's the little planter box by the window (the camera
 // zooms out from it when you switch worlds), and it keeps working while
-// you're here. The Queen still collects your cash in the colony.
+// you're here. The colony's Bankers still collect your cash.
 //
 // LOOP 1 — FLIGHTS
 //   passengers line up at CHECK-IN -> pay a ticket + drop a suitcase on the
@@ -22,6 +22,7 @@ import { clock } from '../core/clock';
 import { autoCash } from '../core/income';
 import { bump } from '../core/totals';
 import { Upgrades } from './upgradePad';
+import { trash } from './trash';
 import { pace } from '../core/pace';
 import * as THREE from 'three';
 import { AIR, AIR_UNLOCKS, AircraftKind, CONFIG, UNLOCKS } from '../data/config';
@@ -1024,12 +1025,16 @@ export class AirportWorld {
     }
 
     // Trash bin
-    this.every(this.trash.zone, dt, this.trash.zone.contains(p) && me.stack.count > 0, 0.04, () => {
+    // 🗑️ Paid trash: each piece pays (see world/trash.ts), 100 pieces per 5 minutes
+    const onBin = this.trash.zone.contains(p) && me.stack.count > 0;
+    this.every(this.trash.zone, dt, onBin && trash.open(), 0.04, () => {
       const it = me.stack.pop();
       if (!it) return;
       this.flyers.fly(it.mesh, () => this.trash.mouth, () => it.mesh.removeFromParent(), 0.25, 1.0);
       this.sfx.drop();
+      this.addCash(trash.pay(this.trash.mouth, this.camera));
     });
+    trash.wait(dt, onBin, this.trash.mouth, this.camera);
 
     // Unlock tiles
     for (const t of this.tiles) {

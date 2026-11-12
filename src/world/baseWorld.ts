@@ -17,12 +17,12 @@
 import { clock } from '../core/clock';
 import { autoCash } from '../core/income';
 import { Upgrades } from './upgradePad';
+import { trash } from './trash';
 import * as THREE from 'three';
 import { CONFIG, QUEEN_UNLOCK_LEVEL, TUTORIAL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
 import { Sfx } from '../core/audio';
 import { SaveData } from '../core/save';
 import { Progress, QueenProgress } from '../core/progress';
-import { QueenCollector } from '../actors/queen';
 import { Hud } from '../ui/hud';
 import { Player, fpFov } from '../actors/player';
 import { Banker, Route, Worker } from '../actors/worker';
@@ -91,11 +91,11 @@ export class BaseWorld {
   private timers = new Map<object, number>();
   private zoneName = '';
   private impostor: Impostor | null = null;
-  // The Queen: sits in her corner until you reach level 20, then collects cash for you.
+  // The Queen: sits on her throne in her corner. From level 20 she's crowned and her points boost the Bankers + trash.
   private queenModel: CreatureModel | null = null;
   private queenCrown: TextSprite | null = null;
   private queenBlocker: Blocker | null = null;
-  private queenCollector: QueenCollector | null = null;
+  private queenCrowned = false;
   private impostorT = 45 + Math.random() * 30; // seconds until the next sneaky visit
 
   constructor(private hud: Hud, private sfx: Sfx, public save: SaveData, private progress: Progress, private queenProgress: QueenProgress) {
@@ -534,6 +534,7 @@ export class BaseWorld {
       const v = amount * tribute * (this.ups?.bonus ?? 1); // (+ 💼 COLLECTORS upgrade bonus)
       this.addCash(v);
       autoCash(v); // automated income: counts toward +$/min and offline pay
+      if (this.save.queen.active) this.queenProgress.addCash(v); // 👑 the Queen's XP: the bankers' takings
     });
     titleTag(b.model, '🏦 BANKER', TITLE.ant);
     this.bankers.push(b);
@@ -757,7 +758,7 @@ export class BaseWorld {
     this.ups ??= new Upgrades(
       {
         scene: this.scene, camera: this.camera, workers: this.workers, home: this.player.pos.clone(), canWalk: this.canWalk,
-        tileSpots: UNLOCKS.map((d) => d.pos), collectors: () => [...this.bankers, ...(this.queenCollector ? [this.queenCollector] : [])],
+        tileSpots: UNLOCKS.map((d) => d.pos), collectors: () => this.bankers,
         ready: () => this.save.unlocked.includes('worker1'), // (keeps a brand-new game simple)
       },
       'ant', this.save, this.hud, this.sfx, this.flyers, this.progress,
@@ -777,12 +778,16 @@ export class BaseWorld {
     for (const c of this.counters) c.update(dt, this.active && c.sellZone.contains(p), this.sfx, p);
     for (const d of this.dispatches) d.update(dt);
     for (const w of this.workers) w.update(dt, this.flyers);
-    for (const b of this.bankers) b.update(dt, this.flyers);
+    // (👑 the Queen's ✋ Grab Speed trains the bankers)
+    const royal = this.save.queen.active ? this.queenProgress.grabMult : 1;
+    for (const b of this.bankers) {
+      b.royal = royal;
+      b.update(dt, this.flyers);
+    }
     this.hatchery?.update(dt);
 
     if (!this.active) {
-      // In the background: no player, no HUD, no impostor. The Queen still works.
-      this.queenCollector?.update(dt, this.cashPads, this.flyers);
+      // In the background: no player, no HUD, no impostor.
       this.flyers.update(dt);
       return;
     }
@@ -853,14 +858,19 @@ export class BaseWorld {
     }
 
     // 4b) Trash bins: dump everything you're carrying
+    // (🗑️ each piece pays, 100 pieces per 5 minutes: see world/trash.ts)
     for (const bin of this.trash) {
-      this.every(bin.zone, dt, bin.zone.contains(p) && me.stack.count > 0, 0.04, () => {
+      const onBin = bin.zone.contains(p) && me.stack.count > 0;
+      this.every(bin.zone, dt, onBin && trash.open(), 0.04, () => {
         const it = me.stack.pop();
         if (!it) return;
         this.flyers.fly(it.mesh, () => bin.mouth, () => it.mesh.removeFromParent(), 0.25, 1.0);
         this.sfx.drop();
+        this.addCash(trash.pay(bin.mouth, this.camera));
       });
+      if (onBin) trash.wait(dt, true, bin.mouth, this.camera);
     }
+    if (!this.trash.some((b) => b.zone.contains(p))) trash.wait(dt, false, p, this.camera);
 
     // 5) Hatchery: feed it leaf wraps
     const hatch = this.hatchery;
@@ -917,8 +927,6 @@ export class BaseWorld {
     // 8) The Ant-Mimicking Spider sneaks in now and then to steal
     this.updateImpostor(dt);
 
-    // 9) The Queen collects cash from every pad (once she's active)
-    this.queenCollector?.update(dt, this.cashPads, this.flyers);
 
     // Inventory panel
     this.hud.setInventory(me.stack.counts(), me.stack.count, me.carryMax);
@@ -943,18 +951,19 @@ export class BaseWorld {
     this.hud.setCash(this.save.cash);
   }
 
-  /** Level 20: the Queen leaves her corner and starts collecting your cash. */
+  /**
+   * Level 20: the Queen is crowned. She stays home on her throne (the
+   * 🏦 Bankers do the collecting now), and her points boost them:
+   *   💰 Tribute: +5% on all cash bankers collect · ✋ Grab Speed: bankers grab faster
+   *   🗑️ Royal Bins: +10% trash money (world/trash.ts)
+   * She earns XP from the cash the bankers bring in.
+   */
   activateQueen(announce: boolean) {
-    if (this.queenCollector || !this.queenModel || !this.queenCrown) return;
+    if (this.save.queen.active && this.queenCrowned) return;
+    if (!this.queenModel || !this.queenCrown) return;
+    this.queenCrowned = true;
     this.save.queen.active = true;
-    this.idlers = this.idlers.filter((m) => m !== this.queenModel);
-    this.blockers = this.blockers.filter((b) => b !== this.queenBlocker); // her corner is open now
     this.queenCrown.setText('👑 QUEEN · Lv ' + this.save.queen.level);
-    this.queenCollector = new QueenCollector(this.queenModel, this.queenCrown, new THREE.Vector3(-11, 0, -9), this.queenProgress, (amount) => {
-      amount *= this.ups?.bonus ?? 1; // 💼 COLLECTORS upgrade bonus
-      this.addCash(amount);
-      autoCash(amount); // automated income: counts toward +$/min and offline pay
-    });
     this.queenProgress.onLevelUp = (lv) => {
       this.queenCrown?.setText('👑 QUEEN · Lv ' + lv);
       this.sfx.unlocked();
@@ -962,7 +971,7 @@ export class BaseWorld {
     };
     if (announce) {
       this.sfx.unlocked();
-      this.hud.banner('👑 The Queen joins the economy!', 'She now walks the colony collecting your cash', 4500);
+      this.hud.banner('👑 The Queen is crowned!', 'Her points now boost your Bankers and trash money', 4500);
     }
   }
 

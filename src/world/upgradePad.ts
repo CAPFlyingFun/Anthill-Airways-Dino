@@ -26,6 +26,7 @@ import { Hud } from '../ui/hud';
 import { Flyers } from './items';
 import { GAME_FONT, TEXT_RES, groundText, roundRect, setGroundText, sharpTexture } from './labels';
 import { Blocker, Zone } from './stations';
+import { TRASH } from './trash';
 import type { Worker } from '../actors/worker';
 
 /** Which world a manager belongs to (also the save key for helpers' XP). */
@@ -46,6 +47,7 @@ interface CollectorLike { boost: number }
 const isMachine = (o: any): o is MachineLike => o && o.inZone instanceof Zone && o.outZone instanceof Zone && typeof o.speedMult === 'number';
 const isPile = (o: any): o is PileLike => o && o.zone instanceof Zone && typeof o.rateMult === 'number' && typeof o.spawnEvery === 'function';
 const isSeller = (o: any): o is SellerLike => o && typeof o.priceMult === 'number' && typeof o.paceMult === 'number' && o.group;
+const isBin = (o: any) => o && o.mouth instanceof THREE.Vector3 && o.zone instanceof Zone && o.group;
 
 /** Short names for each pile type ("CRUMBS"), shown on its pad. */
 const PILE_NAME: Record<string, string> = {
@@ -193,7 +195,7 @@ export class Upgrades {
     const found: any[] = [];
     const visit = (o: any, depth: number) => {
       if (!o || typeof o !== 'object' || o instanceof THREE.Object3D || depth > 2) return;
-      if (isMachine(o) || isPile(o) || isSeller(o)) {
+      if (isMachine(o) || isPile(o) || isSeller(o) || isBin(o)) {
         found.push(o);
         return;
       }
@@ -256,7 +258,11 @@ export class Upgrades {
   private register(o: any, root: any) {
     const at = o.group.position as THREE.Vector3;
     const key = `${Math.round(at.x)},${Math.round(at.z)}`;
-    if (isMachine(o)) {
+    if (isBin(o)) {
+      // 🗑️ One TRASH pad, by the colony's first bin: $ per piece in every world's bins
+      if (this.world !== 'ant' || this.targets.some((t) => t.pad.id === TRASH.padId)) return;
+      this.add('trash', 'trash', 'TRASH', at, root, () => {}, TRASH.padId, TRASH.padBase);
+    } else if (isMachine(o)) {
       const label = clean(o.opts.label) || 'MACHINE';
       this.add(`${label.toLowerCase()}@${key}`, 'machine', label, at, root, (lv) => (o.speedMult = up.machine(lv)));
     } else if (isPile(o)) {
@@ -278,16 +284,17 @@ export class Upgrades {
       this.add(`sell-${label.toLowerCase()}@${key}`, 'seller', label, at, root, (lv) => {
         o.priceMult = up.price(lv);
         o.paceMult = up.pace(lv) * charm();
+        if ('bulk' in o) (o as { bulk: number }).bulk = up.bulk(lv); // (colony shops: bigger orders)
       });
     }
   }
 
   /** Make a pad for `name`, on a free spot near `near`. */
-  private add(name: string, kind: UpKind, label: string, near: THREE.Vector3, root: any, apply: (lv: number) => void) {
-    const id = this.id(name);
+  private add(name: string, kind: UpKind, label: string, near: THREE.Vector3, root: any, apply: (lv: number) => void, fixedId?: string, base?: number) {
+    const id = fixedId ?? this.id(name);
     if (this.targets.some((t) => t.pad.id === id)) return;
     const spot = this.freeSpot(near, root);
-    const pad = new UpgradePad(this.host.scene, id, kind, label, spot.x, spot.z, UP_BASE[this.world], SIZES[this.world]);
+    const pad = new UpgradePad(this.host.scene, id, kind, label, spot.x, spot.z, base ?? UP_BASE[this.world], SIZES[this.world]);
     this.targets.push({ pad, apply, near: near.clone() });
     apply(this.level(id));
   }
@@ -326,6 +333,18 @@ export class Upgrades {
     for (const [x, z] of this.host.tileSpots) out.push({ minX: x - 1.4, maxX: x + 1.4, minZ: z - 1.4, maxZ: z + 1.4 });
     // Every building's real footprint (a pile's bread loaf, a machine's body...)
     for (const g of this.buildings) out.push(this.footprint(g));
+    // Decorations (rocks, twigs, trees): anything spawned with userData.decor
+    for (const o of this.host.scene.children) {
+      if (!o.userData.decor) continue;
+      const f = this.footprint(o);
+      if (!isFinite(f.minX)) continue;
+      if (o.userData.decor === 'tree') {
+        // A tree's leaves are up high: only its trunk takes up floor
+        const cx = (f.minX + f.maxX) / 2;
+        const cz = (f.minZ + f.maxZ) / 2;
+        out.push({ minX: cx - 1, maxX: cx + 1, minZ: cz - 1, maxZ: cz + 1 });
+      } else out.push(f);
+    }
     if (withPads) {
       for (const t of this.targets) {
         const p = t.pad.mesh.position;

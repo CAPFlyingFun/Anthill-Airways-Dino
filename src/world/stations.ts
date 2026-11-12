@@ -392,6 +392,8 @@ export class Counter {
   /** ⬆️ Upgrade: x price per sale, and customers arrive / are served faster. */
   priceMult = 1;
   paceMult = 1;
+  /** ⬆️ Upgrade: customers buy this many times more per visit (bigger orders). */
+  bulk = 1;
   private queue: Customer[] = [];
   private leaving: Customer[] = [];
   private spawnT = 1.5;
@@ -465,8 +467,10 @@ export class Counter {
     }
     this.scene.add(model.root);
     const top = model.height * 0.9;
-    const held = new Stack(model.bob, (i, type, out) => out.set(0, top + i * ITEM_H[type] + ITEM_H[type] / 2, -model.length * 0.1), 4);
-    this.queue.push({ model, mind: newMind(species), held, wants: 1 + Math.floor(Math.random() * 3), ready: false, path: [] });
+    const held = new Stack(model.bob, (i, type, out) => out.set(0, top + i * ITEM_H[type] + ITEM_H[type] / 2, -model.length * 0.1), 16);
+    // 1-3 snacks each, more with the shop's ⬆️ level (bigger orders = fewer slow shuffles in line)
+    const wants = Math.min(16, Math.max(1, Math.round((1 + Math.floor(Math.random() * 3)) * this.bulk)));
+    this.queue.push({ model, mind: newMind(species), held, wants, ready: false, path: [] });
   }
 
   update(dt: number, playerServing: boolean, sfx: { sale(): void }, playerPos: THREE.Vector3) {
@@ -480,7 +484,14 @@ export class Counter {
     // Everyone in line heads for their spot, using their own brain:
     // spiders hop or rear up at you, flies hover in line, aphids just plod.
     this.queue.forEach((c, i) => {
-      c.ready = stepBug(c.model, c.mind, this.slot(i, this.tmp), playerPos, dt);
+      const spot = this.slot(i, this.tmp);
+      c.ready = stepBug(c.model, c.mind, spot, playerPos, dt);
+      // The front customer can start buying once they're close (no waiting to shuffle
+      // the last bit into place); fliers still wait until they've settled.
+      if (!c.ready && i === 0 && c.mind.species.medium === 'ground' && c.mind.alarmT <= 0) {
+        const p = c.model.root.position;
+        c.ready = p.y < 0.05 && Math.hypot(p.x - spot.x, p.z - spot.z) < 1.0;
+      }
       if (c.ready) faceToward(c.model, -this.opts.facing, 0, dt, c.mind.species.medium === 'air' ? 4 : 12); // look at the counter
     });
 

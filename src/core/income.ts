@@ -2,7 +2,7 @@
 // income.ts — AUTOMATED income meter.
 //
 // Idle / offline earnings must only be based on money that arrives WITHOUT
-// you: the Queen collecting cash, an assistant at the airport, and so on.
+// you: Banker Ants collecting cash, an assistant at the airport, and so on.
 // Bills you pick up yourself don't count (you won't be there while you're away).
 //
 // Anything that collects cash on its own calls `autoCash(amount)`.
@@ -10,7 +10,7 @@
 // ============================================================================
 export const income = { auto: 0 };
 
-/** Call when an automated helper (Queen, assistant...) collects `amount` cash. */
+/** Call when an automated helper (banker, assistant...) collects `amount` cash. */
 export function autoCash(amount: number) {
   if (amount > 0) income.auto += amount;
 }

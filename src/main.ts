@@ -15,6 +15,7 @@ import { pace } from './core/pace';
 import { tickClock } from './core/clock';
 import { income } from './core/income';
 import { best, bindTotals, bump } from './core/totals';
+import { bindTrash } from './world/trash';
 import { CREW_LEVEL } from './actors/worker';
 import { weather } from './core/weather';
 import { Hud } from './ui/hud';
@@ -58,6 +59,7 @@ const input = new Input(renderer.domElement);
 input.onFirstTouch(() => sfx.unlock());
 const progress = new Progress(save);
 const queenProgress = new QueenProgress(save);
+bindTrash(save, hud, queenProgress); // 🗑️ paid trash (world/trash.ts)
 
 hud.initSettings({
   sound: save.sound,

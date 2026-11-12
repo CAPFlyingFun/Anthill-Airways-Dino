@@ -188,6 +188,7 @@ export function spawnProp(name: PropKind, length: number): THREE.Object3D | null
   if (!t) return null;
   const p = t.clone();
   p.scale.setScalar(length);
+  p.userData.decor = true; // (upgrade pads keep clear of decorations)
   lod.add(p, length);
   return p;
 }
@@ -267,7 +268,10 @@ function findLegs(model: CreatureModel, skip: string[] = []) {
     chain[chain.length - 1].getWorldPosition(tip);
     const nearGround = tip.y < model.height * 0.35 && tip.y < root.y;
     const outToSide = Math.abs(tip.x) > model.length * 0.08; // tucked front legs count too (wolf spider)
-    if (nearGround && outToSide) legs.push({ bone: b, x: root.x, z: root.z });
+    // Side + front/back come from the FOOT (tip), not the hip: on some spiders
+    // (black widow) every leg joins near the middle of the body, so the hip's
+    // x can't tell left from right, and the gait groups got mixed up.
+    if (nearGround && outToSide) legs.push({ bone: b, x: tip.x, z: tip.z });
   }
   if (legs.length < 4) return; // couldn't find a sensible set; it'll just glide + bob
 
@@ -356,6 +360,7 @@ export function spawnTree(name: TreeKind, height: number): THREE.Object3D | null
   const tree = t.clone(); // plain meshes now: a cheap clone sharing the geometry
   tree.scale.setScalar(height);
   tree.rotation.y = Math.random() * Math.PI * 2;
+  tree.userData.decor = 'tree'; // (upgrade pads keep clear of the trunk)
   lod.add(tree, height * 0.6);
   return tree;
 }

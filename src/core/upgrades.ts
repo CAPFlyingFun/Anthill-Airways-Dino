@@ -10,16 +10,17 @@
 //   collector — bankers, the Queen, assistants: grab faster + bonus cash
 // Levels are saved in save.upgrades (by pad id).
 // ============================================================================
-export type UpKind = 'machine' | 'seller' | 'source' | 'crew' | 'collector';
+export type UpKind = 'machine' | 'seller' | 'source' | 'crew' | 'collector' | 'trash';
 
 export const UP_MAX = 10;
 
 export const UP_KINDS: Record<UpKind, { icon: string; per: string }> = {
   machine: { icon: '⚙️', per: '+25% cook speed' },
-  seller: { icon: '💲', per: '+10% prices, +8% customers' },
+  seller: { icon: '💲', per: '+10% prices, +8% customers, +20% bigger orders' },
   source: { icon: '🌱', per: '+30% regrow speed' },
   crew: { icon: '👷', per: '+10% helper speed, +1 carry' },
   collector: { icon: '💼', per: '+15% grab speed, +6% cash' },
+  trash: { icon: '🗑️', per: '$1 -> $50 per piece of trash' },
 };
 
 /** Price of the NEXT level: `base` x 1.85 per level already bought. */
@@ -32,6 +33,7 @@ export const up = {
   machine: (lv: number) => 1 + lv * 0.25,     // cook speed multiplier
   price: (lv: number) => 1 + lv * 0.1,        // seller: price multiplier
   pace: (lv: number) => 1 + lv * 0.08,        // seller: customer + service speed
+  bulk: (lv: number) => 1 + lv * 0.2,         // seller: customers buy more per visit (colony shops)
   source: (lv: number) => 1 + lv * 0.3,       // regrow speed multiplier
   crewSpeed: (lv: number) => 1 + lv * 0.1,    // helpers' speed multiplier
   crewCarry: (lv: number) => lv,              // extra items per trip

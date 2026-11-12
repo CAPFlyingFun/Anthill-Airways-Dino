@@ -222,7 +222,7 @@ export const STATS: StatDef[] = [
 /** The Queen joins the economy at this player level. */
 export const QUEEN_UNLOCK_LEVEL = 20;
 
-/** The Queen's own stats (she earns XP from the cash she collects, like an ARK tame). */
+/** The Queen's own stats (she earns XP from the cash your Bankers collect, like an ARK tame). */
 export interface QueenStatDef {
   id: 'speed' | 'grab' | 'tribute';
   name: string;
@@ -230,9 +230,11 @@ export interface QueenStatDef {
   per: string;
 }
 export const QUEEN_STATS: QueenStatDef[] = [
-  { id: 'speed', name: 'Royal Stride', icon: '👟', per: '+12% walk speed' },
-  { id: 'grab', name: 'Grab Speed', icon: '✋', per: '+20% faster cash pickup' },
-  { id: 'tribute', name: 'Tribute', icon: '💰', per: '+5% on all cash she collects' },
+  // (The Queen stays home now: her points boost the 🏦 Bankers and the 🗑️ trash money.
+  //  'speed' keeps its save id; it used to be Royal Stride.)
+  { id: 'speed', name: 'Royal Bins', icon: '🗑️', per: '+10% trash money' },
+  { id: 'grab', name: 'Grab Speed', icon: '✋', per: '+20% faster Banker pickup' },
+  { id: 'tribute', name: 'Tribute', icon: '💰', per: '+5% on all cash Bankers collect' },
 ];
 
 /** Tutorial hints, shown one at a time until the player does each thing. */

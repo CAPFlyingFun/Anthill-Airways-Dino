@@ -29,7 +29,7 @@ On iPhone: open in Safari → Share → **Add to Home Screen** to install it as 
 
 Finish Act 1 (**Big Order: Airstrip**) and a 🧍 button appears top left. The camera zooms out
 from your colony (now a planter box in the terminal) to human scale. Tap 🐜 to go back.
-Both worlds keep running while you're in the other one, and the Queen keeps collecting.
+Both worlds keep running while you're in the other one, and the Bankers keep collecting.
 
 - You're the terminal manager (Jack's model). Passengers check in (ticket cash + suitcases) → carry 🧳 bags to the
   **TO PLANE** belt → the plane takes off when its hold is full and pays per bag when it lands
@@ -127,10 +127,11 @@ one for a moment and your cash pours in (like an unlock tile); each pad goes up 
 and each level costs ×1.85 more than the last.
 
 - ⚙️ **Machines** (oven, presses, blender, forge, washers, kitchen): +25% cook speed per level
-- 💲 **Counters & desks**: +10% prices and +8% more customers per level
+- 💲 **Counters & desks**: +10% prices and +8% more customers per level (the colony's shops: customers
+  also buy +20% more per visit, so the line keeps up with maxed-out production)
 - 🌱 **Resource piles** (one pad per kind): +30% regrow speed per level
 - 👷 **CREW** (one per world): all helpers there +10% speed and +1 carry per level
-- 💼 **COLLECTORS** (one per world): Bankers, the Queen and assistants grab 15% faster and
+- 💼 **COLLECTORS** (one per world): Bankers and assistants grab 15% faster and
   bring in +6% cash per level
 
 **Helper levels:** every helper earns 1 XP per item they deliver and levels up by themselves
@@ -139,6 +140,17 @@ and each level costs ×1.85 more than the last.
 **📊 Lifetime stats:** tap your level, then *Lifetime stats*: cash earned (overall and per
 world), time played, sales, items made, gate runs and your best run, helpers, upgrades and
 your idle income.
+
+## 👑 The Queen & 🗑️ paid trash
+
+At level 20 the Queen is **crowned**. She stays on her throne (the 🏦 Banker Ants do the collecting)
+and earns XP from the cash they bring in. Her points: 💰 **Tribute** (+5% on all Banker cash),
+✋ **Grab Speed** (Bankers grab 20% faster) and 🗑️ **Royal Bins** (+10% trash money).
+
+**Trash pays!** Every piece you dump in a 🗑️ bin (any world) pays **$1**, up to **$50** with the
+colony's **TRASH** upgrade pad (Lv 10). The bins take **100 pieces every 5 minutes**: your first piece
+starts a ⏱️ 5-minute timer, and once 100 are in, the bin says *"Please wait… 27s remaining"* until the
+timer runs out (it keeps counting while the game is closed).
 
 ## Movement speed 🐢🐇
 
@@ -169,7 +181,7 @@ switching pauses the one you leave, so slots never stack.
 ## Idle earnings 💤
 
 While you play, the game measures your **automated** income (shown under your cash as +$/min): only cash
-that helpers collect on their own (💼 Banker Ants, the 👑 Queen, your assistants) counts, not bills you
+that helpers collect on their own (💼 Banker Ants, your assistants) counts, not bills you
 pick up yourself. The colony's first Banker Ant ($300) starts your idle income. When you
 come back after a while, the colony and airport pay **50% of that rate for the time away**
 (up to 8 hours). Collect it, or risk it on a **Bonus Run**: a tougher gate run (more ÷ gates,

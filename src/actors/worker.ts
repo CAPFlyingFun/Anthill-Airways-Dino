@@ -201,6 +201,8 @@ export class Banker {
   model: CreatureModel;
   /** ⬆️ COLLECTORS upgrade: grabs bills this many times faster. */
   boost = 1;
+  /** 👑 The Queen's Grab Speed points: also faster. */
+  royal = 1;
   private t = 0;
 
   constructor(scene: THREE.Scene, private pad: { stack: Stack; zone: Zone }, private onCash: (amount: number) => void) {
@@ -215,7 +217,7 @@ export class Banker {
   update(dt: number, flyers: Flyers) {
     animateCreature(this.model, dt, 0);
     this.t += dt;
-    if (this.t < 0.12 / this.boost) return;
+    if (this.t < 0.12 / this.boost / this.royal) return;
     this.t = 0;
     const bill = this.pad.stack.pop();
     if (!bill) return;
