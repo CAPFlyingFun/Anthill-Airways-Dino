@@ -3,6 +3,7 @@
 // floating "+5" numbers, banners and the results / settings screens.
 // The 3D game never touches the DOM directly; it calls these methods.
 // ============================================================================
+import type { BoardRow } from './departures';
 import * as THREE from 'three';
 import { GAME_SPEED, QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STATS, shardCost } from '../data/config';
 import { Progress, QueenProgress } from '../core/progress';
@@ -359,6 +360,33 @@ export class Hud {
       $(`qds-${def.id}`).textContent = `${def.per} · now ${q.describe(def.id)}`;
       ($(`qadd-${def.id}`) as HTMLButtonElement).disabled = !qs.active || qs.points <= 0;
     }
+  }
+
+  // ---- ✈️ Departures board ------------------------------------------------------
+  /** The "🛫 Next:" chip (null hides it, e.g. once the whole route is done). */
+  setNext(text: string | null) {
+    const b = $('nextBtn');
+    b.classList.toggle('hidden', !text);
+    if (text && b.textContent !== text) b.textContent = text;
+  }
+
+  /** Tap the chip -> the board. `rows()` is read fresh each time it opens. */
+  initDepartures(rows: () => BoardRow[]) {
+    const panel = $('departures');
+    $('nextBtn').addEventListener('click', () => {
+      $('boardRows').innerHTML = rows()
+        .map((r) => {
+          const st = r.status === 'departed' ? 'DEPARTED ✅' : r.status === 'next' ? 'NEXT' : 'LATER';
+          const line = `<div class="board-row ${r.status}"><div class="ic">${r.stop.icon}</div><div class="nm">${r.stop.name}</div><div class="st">${st}</div></div>`;
+          const more = r.status === 'next'
+            ? `<div class="board-detail">${r.detail}<br>${r.ready === r.steps ? '✅ Ready to buy!' : `Steps done: ${r.ready}/${r.steps} (unlock everything it needs nearby)`}</div>`
+            : '';
+          return line + more;
+        })
+        .join('');
+      panel.classList.remove('hidden');
+    });
+    $('closeBoard').addEventListener('click', () => panel.classList.add('hidden'));
   }
 
   // ---- 📊 Lifetime stats ------------------------------------------------------

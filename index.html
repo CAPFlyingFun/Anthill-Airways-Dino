@@ -36,6 +36,8 @@
             <button id="modeBtn" class="round-btn mode hidden" aria-label="Switch world">🧍</button>
           </div>
           <div id="zone" class="zone-label">Nest Entrance</div>
+          <!-- ✈️ Departures: the next big stop (tap for the whole route) -->
+          <button id="nextBtn" class="next-chip hidden">🛫 Next</button>
         </div>
         <div id="cash" class="pill cash"><span class="bill">💵</span><span id="cashValue">0</span><span id="rate" class="rate hidden"></span></div>
       </div>
@@ -167,6 +169,18 @@
           <div id="upCountLine" class="up-count">Refreshing in <b id="upCount">10</b>s…</div>
           <button id="upNow" class="big-btn">🚀 Update now</button>
           <button id="upLater" class="menu-btn">Later (next time I open the game)</button>
+        </div>
+      </div>
+
+      <!-- ✈️ DEPARTURES BOARD: the whole route (ui/departures.ts) -->
+      <div id="departures" class="overlay hidden">
+        <div class="card board-card">
+          <div class="board">
+            <div class="board-title">✈️ DEPARTURES</div>
+            <div id="boardRows"></div>
+          </div>
+          <p class="board-tip">Each stop opens when you buy its <b>Big Order</b> tile.</p>
+          <button id="closeBoard" class="menu-btn">Close</button>
         </div>
       </div>
 

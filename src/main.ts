@@ -16,6 +16,7 @@ import { tickClock } from './core/clock';
 import { income } from './core/income';
 import { best, bindTotals, bump } from './core/totals';
 import { bindTrash } from './world/trash';
+import { departures, nextChip } from './ui/departures';
 import { CREW_LEVEL } from './actors/worker';
 import { weather } from './core/weather';
 import { Hud } from './ui/hud';
@@ -664,6 +665,16 @@ async function start() {
   } catch {
     /* ignore */
   }
+  // ✈️ Departures board: the "Next stop" chip + the full route
+  hud.initDepartures(() => departures(save.unlocked));
+  let boardSeen = -1;
+  window.setInterval(() => {
+    if (save.unlocked.length === boardSeen) return; // only changes when you buy something
+    boardSeen = save.unlocked.length;
+    hud.setNext(nextChip(save.unlocked));
+  }, 1000);
+  hud.setNext(nextChip(save.unlocked));
+
   // 📊 Lifetime stats screen (Level panel -> "Lifetime stats")
   hud.initTotals(() => {
     const t = save.totals;

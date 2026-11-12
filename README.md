@@ -154,6 +154,13 @@ colony's **TRASH** upgrade pad (Lv 10). The bins take **100 pieces every 5 minut
 starts a ⏱️ 5-minute timer, and once 100 are in, the bin says *"Please wait… 27s remaining"* until the
 timer runs out (it keeps counting while the game is closed).
 
+## ✈️ Departures board
+
+Under the zone name, a **🛫 Next:** chip shows your next big stop and how many of its steps are done
+(*Next: 🦖 Dino Island · 1/2 steps*). Tap it for the full **DEPARTURES** board: Tunnels → Hangar →
+Airport → Dino Island → Mount Anthill → Grand Resort, each marked DEPARTED ✅, NEXT (with its Big
+Order's price) or LATER, so from the very first snack pack you can see where it all leads.
+
 ## 📦 Delivery contracts & ⚠️ risky gates
 
 Every regular gate run (cart, raft, safari, heli tour, bellhop dash) comes with a **contract**:

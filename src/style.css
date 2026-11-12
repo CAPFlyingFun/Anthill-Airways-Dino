@@ -55,6 +55,38 @@ html, body {
   text-overflow: ellipsis;
   max-width: 52vw;
 }
+/* ✈️ "Next stop" chip under the zone name (tap: departures board) */
+.next-chip {
+  align-self: flex-start;
+  background: rgba(20, 24, 30, 0.72);
+  color: #ffd166;
+  border: 2px solid rgba(255, 209, 102, 0.55);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  max-width: 60vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The departures board: a dark flip-board with amber letters */
+.board-card { padding: 14px; }
+.board { background: #15181d; border-radius: 14px; padding: 12px 10px; box-shadow: inset 0 0 0 3px #2b3038; }
+.board-title { color: #ffd166; font-weight: 900; font-size: 20px; letter-spacing: 3px; text-align: center; margin-bottom: 8px; }
+.board-row { display: flex; align-items: center; gap: 8px; padding: 8px 6px; border-top: 1px solid #2b3038; }
+.board-row .ic { font-size: 22px; width: 28px; text-align: center; }
+.board-row .nm { flex: 1; color: #f3f3f3; font-weight: 900; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; }
+.board-row .st { font-weight: 900; font-size: 11px; letter-spacing: 1px; padding: 3px 7px; border-radius: 6px; }
+.board-row.departed .nm { color: #8a9099; }
+.board-row.departed .st { background: #1f4d2c; color: #7df9a0; }
+.board-row.next .st { background: #ffd166; color: #15181d; animation: blink 1.2s steps(2) infinite; }
+.board-row.later .st { background: #2b3038; color: #8a9099; }
+.board-row.later .nm { color: #c9ced6; }
+.board-detail { color: #ffd166; font-size: 12px; font-weight: 700; padding: 0 6px 8px 42px; }
+.board-tip { font-size: 13px; margin: 10px 0 6px; }
+@keyframes blink { 50% { opacity: 0.45; } }
+
 .pill {
   background: var(--pill);
   color: #fff;
