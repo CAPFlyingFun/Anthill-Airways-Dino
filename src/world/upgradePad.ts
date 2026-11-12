@@ -27,6 +27,7 @@ import { Flyers } from './items';
 import { GAME_FONT, TEXT_RES, groundText, roundRect, setGroundText, sharpTexture } from './labels';
 import { Blocker, Zone } from './stations';
 import { TRASH } from './trash';
+import { CONFIG } from '../data/config';
 import type { Worker } from '../actors/worker';
 
 /** Which world a manager belongs to (also the save key for helpers' XP). */
@@ -73,6 +74,14 @@ export class UpgradePad {
   private priceText: Text;
   private shown = '';
   private pulseT = Math.random() * 6;
+  /** Highest level (most pads: 10). */
+  max = UP_MAX;
+  /** Price of the next level. */
+  costOf = (lv: number) => upCost(this.base, lv);
+  /** Name shown on the pad at a level. */
+  titleOf = (lv: number) => `${this.label} · Lv ${lv}`;
+  /** Second icon on the pad at a level. */
+  iconOf = (_lv: number) => UP_KINDS[this.kind].icon;
 
   constructor(scene: THREE.Scene, public id: string, public kind: UpKind, public label: string, x: number, z: number, public base: number, private size: number) {
     const SIZE = size;
@@ -95,14 +104,14 @@ export class UpgradePad {
   /** Repaint only when something visible changed. */
   draw(level: number, remaining: number, affordable: boolean) {
     const SIZE = this.size;
-    const maxed = level >= UP_MAX;
+    const maxed = level >= this.max;
     const key = `${level}|${remaining}|${affordable}`;
     if (key === this.shown) return;
     const repaint = this.shown.split('|')[2] !== String(affordable) || this.shown.split('|')[0] !== String(level);
     this.shown = key;
     setGroundText(this.priceText, maxed ? 'MAX' : `$${remaining.toLocaleString()}`, maxed ? '#7df9a0' : affordable ? '#ffe066' : '#ffffff', SIZE * 0.86);
     if (!repaint) return;
-    setGroundText(this.nameText, `${this.label} · Lv ${level}`, '#ffffff', SIZE * 0.9);
+    setGroundText(this.nameText, this.titleOf(level), '#ffffff', SIZE * 0.9);
     const c = this.ctx;
     c.setTransform(TEXT_RES, 0, 0, TEXT_RES, 0, 0);
     c.clearRect(0, 0, 256, 256);
@@ -118,7 +127,7 @@ export class UpgradePad {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
     c.fillText(maxed ? '⭐' : '⬆️', 98, 78);
-    c.fillText(UP_KINDS[this.kind].icon, 160, 78);
+    c.fillText(this.iconOf(level), 160, 78);
     this.tex.needsUpdate = true;
   }
 
@@ -150,9 +159,12 @@ export interface UpgradeHost {
 
 interface Target {
   pad: UpgradePad;
-  apply: (lv: number) => void;
+  /** Puts the level into effect (`animate` = just bought, not loading a save). */
+  apply: (lv: number, animate?: boolean) => void;
   /** The building it belongs to (pads stay near it if they have to move). */
   near: THREE.Vector3;
+  /** Only shown (and buyable) while this is true. */
+  visible?: () => boolean;
 }
 
 export class Upgrades {
@@ -284,19 +296,45 @@ export class Upgrades {
       this.add(`sell-${label.toLowerCase()}@${key}`, 'seller', label, at, root, (lv) => {
         o.priceMult = up.price(lv);
         o.paceMult = up.pace(lv) * charm();
-        if ('bulk' in o) (o as { bulk: number }).bulk = up.bulk(lv); // (colony shops: bigger orders)
       });
+      // 👥 The LINE pad, after the shop's first cashier is hired:
+      //   Lv 0 -> buy the 2ND CASHIER (a second line, served at the same time)
+      //   Lv 1-11 -> BIGGER ORDERS Lv 0-10 (+20% per level: customers buy more)
+      const shop = o as SellerLike & {
+        bulk: number; lines: number; hasCashier?: boolean; hasStaff?: boolean;
+        hireCashier2?: (animate: boolean) => void; hireStaff2?: (animate: boolean) => void;
+      };
+      const base = UP_BASE[this.world];
+      const line = this.add(
+        `line-${label.toLowerCase()}@${key}`, 'line', label, at, root,
+        (lv, animate) => {
+          if (lv >= 1 && shop.lines < 2) (shop.hireCashier2 ?? shop.hireStaff2)?.call(shop, !!animate);
+          shop.bulk = up.bulk(Math.max(0, lv - 1));
+        },
+        undefined, undefined,
+        () => !!(shop.hasCashier || shop.hasStaff), // only once the first cashier works here
+      );
+      if (line) {
+        line.max = 11;
+        line.costOf = (lv) => (lv === 0 ? base * 4 : upCost(base * 1.5, lv - 1));
+        line.titleOf = (lv) => (lv === 0 ? '2ND CASHIER' : `BIGGER ORDERS · Lv ${lv - 1}`);
+        line.iconOf = (lv) => (lv === 0 ? '👥' : '📦');
+      }
     }
   }
 
   /** Make a pad for `name`, on a free spot near `near`. */
-  private add(name: string, kind: UpKind, label: string, near: THREE.Vector3, root: any, apply: (lv: number) => void, fixedId?: string, base?: number) {
+  private add(
+    name: string, kind: UpKind, label: string, near: THREE.Vector3, root: any, apply: Target['apply'],
+    fixedId?: string, base?: number, visible?: () => boolean,
+  ): UpgradePad | null {
     const id = fixedId ?? this.id(name);
-    if (this.targets.some((t) => t.pad.id === id)) return;
+    if (this.targets.some((t) => t.pad.id === id)) return null;
     const spot = this.freeSpot(near, root);
     const pad = new UpgradePad(this.host.scene, id, kind, label, spot.x, spot.z, base ?? UP_BASE[this.world], SIZES[this.world]);
-    this.targets.push({ pad, apply, near: near.clone() });
+    this.targets.push({ pad, apply, near: near.clone(), visible });
     apply(this.level(id));
+    return pad;
   }
 
   // ---- Placing pads -----------------------------------------------------------
@@ -311,6 +349,16 @@ export class Upgrades {
       if (o instanceof Zone) {
         out.push({ minX: o.x - o.halfW, maxX: o.x + o.halfW, minZ: o.z - o.halfD, maxZ: o.z + o.halfD });
         return;
+      }
+      // A shop's waiting lines (2 lines once the 2nd cashier is hired): keep them clear
+      if (isSeller(o)) {
+        const c = o as SellerLike & { opts: { facing?: number; queueMax?: number } };
+        const at = c.group.position;
+        const f = c.opts.facing ?? 1; // counters face either way; desks' lines run east (+x)
+        const n = c.opts.queueMax ?? CONFIG.counter.queueMax;
+        const x1 = at.x + f * 1.0;
+        const x2 = at.x + f * (2.3 + n * 2.3);
+        out.push({ minX: Math.min(x1, x2), maxX: Math.max(x1, x2), minZ: at.z - 2.1, maxZ: at.z + 2.1 });
       }
       // Anything with a 3D group (carts, bins, the hatchery, piles, machines…):
       // its real footprint, so no pad ever ends up under an object
@@ -416,17 +464,18 @@ export class Upgrades {
 
     this.active = active;
     const show = active && (this.host.ready?.() ?? true);
-    for (const t of this.targets) t.pad.mesh.visible = show;
+    for (const t of this.targets) t.pad.mesh.visible = show && (t.visible?.() ?? true);
     if (!show) return;
 
     // Pour cash into the pad you're standing on
     for (const t of this.targets) {
       const pad = t.pad;
+      if (!pad.mesh.visible) continue;
       const lv = this.level(pad.id);
-      const cost = upCost(pad.base, lv);
+      const cost = pad.costOf(lv);
       const paid = this.save.upPaid[pad.id] ?? 0;
       const remaining = Math.max(0, Math.ceil(cost - paid));
-      const canBuy = lv < UP_MAX;
+      const canBuy = lv < pad.max;
       pad.draw(lv, remaining, canBuy && this.save.cash >= remaining);
       pad.pulse(dt, canBuy && this.save.cash >= remaining);
       const on = pad.zone.contains(playerPos);
@@ -447,11 +496,12 @@ export class Upgrades {
     this.save.upgrades[pad.id] = lv;
     delete this.save.upPaid[pad.id];
     pad.dwell = -0.6; // a short breather before the next level starts pouring
-    t.apply(lv);
+    t.apply(lv, true);
     bump('upgrades');
     this.progress.addXp(cost * 0.1);
     this.sfx.unlocked();
-    this.hud.floatAt(pad.mesh.position.clone().setY(1.6), this.host.camera, `⬆️ ${pad.label} Lv ${lv}!`, 'big gold');
+    const msg = pad.kind === 'line' && lv === 1 ? `👥 ${pad.label}: 2nd line open!` : `⬆️ ${pad.titleOf(lv)}!`;
+    this.hud.floatAt(pad.mesh.position.clone().setY(1.6), this.host.camera, msg, 'big gold');
     this.flyers.grow(pad.mesh, 0.3);
   }
 

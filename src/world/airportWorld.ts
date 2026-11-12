@@ -125,12 +125,18 @@ export class Desk {
   /** ⬆️ Upgrade: x price per sale, and people arrive / are served faster. */
   priceMult = 1;
   paceMult = 1;
-  private queue: Guest[] = [];
+  /** ⬆️ Bigger orders: café guests buy this many times more; check-in parties pay this much more. */
+  bulk = 1;
+  /** 1 line, or 2 once the 2nd worker is hired (both served at the same time). */
+  lines = 1;
+  private queues: Guest[][] = [[], []];
   private leaving: Guest[] = [];
   private spawnT = 1;
-  private serveT = 0;
+  private serveTs = [0, 0];
   private register = new THREE.Object3D();
   private staff: CreatureModel | null = null;
+  private staff2: CreatureModel | null = null;
+  private staffTitle = '';
   private tmp = new THREE.Vector3();
 
   constructor(
@@ -176,6 +182,7 @@ export class Desk {
   hireStaff(model: CreatureModel, animate: boolean, title: string) {
     this.hasStaff = true;
     this.staff = model;
+    this.staffTitle = title;
     model.root.position.set(this.x - 1.4, 0, this.z + 0.9);
     model.root.rotation.y = Math.PI / 2; // face the line
     titleTag(model, title, TITLE.human);
@@ -183,52 +190,92 @@ export class Desk {
     if (animate) this.flyers.grow(model.root);
   }
 
-  /** Spot `i` in line (the line runs east from the desk). */
-  private slot(i: number, out: THREE.Vector3) {
-    return out.set(this.x + 2.3 + i * 2.3, 0, this.z - 0.3);
+  /**
+   * The 2nd worker (upgrade pad "2ND CASHIER"): opens a second line next to the
+   * first, served at the same time.
+   */
+  hireStaff2(animate: boolean) {
+    if (this.staff2) return;
+    this.lines = 2;
+    const kinds: HumanKind[] = ['h-crew1', 'h-crew3', 'h-crew4', 'h-balance'];
+    const model = person(kinds[Math.floor(Math.random() * kinds.length)]);
+    model.root.position.set(this.x - 1.4, 0, this.z - 0.9);
+    model.root.rotation.y = Math.PI / 2;
+    titleTag(model, `${this.staffTitle || '💵 CASHIER'} 2`, TITLE.human);
+    this.scene.add(model.root);
+    this.staff2 = model;
+    if (animate) this.flyers.grow(model.root);
   }
 
-  private spawnGuest() {
+  /** Spot `i` in line `line` (the lines run east from the desk, side by side). */
+  private slot(i: number, out: THREE.Vector3, line = 0) {
+    const z = this.lines === 2 ? this.z + (line === 0 ? -1.0 : 1.0) : this.z - 0.3;
+    return out.set(this.x + 2.3 + i * 2.3, 0, z);
+  }
+
+  private spawnGuest(line: number) {
     const kind = this.opts.kinds[Math.floor(Math.random() * this.opts.kinds.length)];
     const model = person(kind);
     const [start, ...rest] = this.opts.entry;
     model.root.position.copy(start);
     this.scene.add(model.root);
     const spot = handsSpot(model);
-    const held = new Stack(model.bob, backLayout(() => 0, spot.y0, spot.z0), 4);
+    const held = new Stack(model.bob, backLayout(() => 0, spot.y0, spot.z0), 16); // (room for Bigger Orders)
     if (this.opts.mode === 'checkin') {
       // Passengers bring 1 or 2 suitcases
       const bags = Math.random() < 0.35 ? 2 : 1;
       for (let i = 0; i < bags; i++) held.addInstant('bag');
     }
-    const g: Guest = { model, held, wants: 1 + Math.floor(Math.random() * 3), path: rest.map((v) => v.clone()) };
+    // 1-3 items each (more with ⬆️ Bigger Orders)
+    const wants = Math.min(16, Math.max(1, Math.round((1 + Math.floor(Math.random() * 3)) * this.bulk)));
+    const g: Guest = { model, held, wants, path: rest.map((v) => v.clone()) };
     if (this.opts.vips && Math.random() < VIP.chance) {
       const tag = new TextSprite(0.42, '#ffd166');
       tag.setText(`👑 VIP · ${VIP.patience}s`);
       this.scene.add(tag.sprite);
       g.vip = { patience: VIP.patience, tag, shown: VIP.patience };
     }
-    this.queue.push(g);
+    this.queues[line].push(g);
   }
 
   /** How many are waiting (for hints). */
   get waiting() {
-    return this.queue.length;
+    return this.queues[0].length + this.queues[1].length;
   }
 
   update(dt: number, playerServing: boolean, sfx: Sfx) {
     this.spawnT += dt;
-    const interval = (this.rush ? this.opts.interval * 0.35 : this.opts.interval) / this.paceMult;
+    const interval = (this.rush ? this.opts.interval * 0.35 : this.opts.interval) / this.paceMult / this.lines;
     const queueMax = this.rush ? this.opts.queueMax + 3 : this.opts.queueMax;
-    if (this.spawnT >= interval && this.queue.length < queueMax) {
+    const line = this.lines === 2 && this.queues[1].length < this.queues[0].length ? 1 : 0; // the shorter line
+    if (this.spawnT >= interval && this.queues[line].length < queueMax) {
       this.spawnT = 0;
-      this.spawnGuest();
+      this.spawnGuest(line);
     }
+    for (let l = 0; l < this.lines; l++) this.updateLine(l, dt, playerServing, sfx);
+    // Done: leave along the exit path, then vanish (boarded / gone home).
+    for (let i = this.leaving.length - 1; i >= 0; i--) {
+      const l = this.leaving[i];
+      l.model.holding = l.held.count > 0;
+      if (stepTo(l.model, l.path[0], 4.2, dt)) {
+        l.path.shift();
+        if (!l.path.length) {
+          l.model.root.removeFromParent();
+          this.leaving.splice(i, 1);
+        }
+      }
+    }
+    if (this.staff) animateCreature(this.staff, dt, 0);
+    if (this.staff2) animateCreature(this.staff2, dt, 0);
+  }
 
+  /** One line: walk in, shuffle up, get served at the front. */
+  private updateLine(l: number, dt: number, playerServing: boolean, sfx: Sfx) {
+    const queue = this.queues[l];
     // Walk in (entry waypoints first), then shuffle up the line.
     let frontReady = false;
     let angry: Guest | null = null;
-    this.queue.forEach((g, i) => {
+    queue.forEach((g, i) => {
       g.model.holding = g.held.count > 0;
       if (g.vip) {
         // VIPs count down once they're in line; the tag floats over them.
@@ -246,7 +293,7 @@ export class Desk {
         if (stepTo(g.model, g.path[0], 4.2, dt)) g.path.shift();
         return;
       }
-      const at = stepTo(g.model, this.slot(i, this.tmp), 3.6, dt);
+      const at = stepTo(g.model, this.slot(i, this.tmp, l), 3.6, dt);
       if (at) faceToward(g.model, -1, 0, dt, 8);
       if (i === 0) frontReady = at;
     });
@@ -257,45 +304,31 @@ export class Desk {
       this.onVip('angry', 0, a.model.root.position.clone());
       a.vip!.tag.sprite.removeFromParent();
       a.vip = undefined;
-      this.queue.splice(this.queue.indexOf(a), 1);
+      queue.splice(queue.indexOf(a), 1);
       a.path = this.opts.exit(a.model.root.position);
       this.leaving.push(a);
     }
 
     // Serve the front of the line.
-    const g = this.queue[0];
+    const g = queue[0];
     if (g && frontReady && (playerServing || this.hasStaff)) {
       const serve = this.opts.serve / this.paceMult;
-      this.serveT = Math.min(this.serveT + dt, serve * 4);
-      while (this.serveT >= serve && this.queue[0] === g) {
-        this.serveT -= serve;
-        if (this.opts.mode === 'checkin') this.serveCheckin(g, playerServing, sfx);
-        else this.serveCafe(g, playerServing, sfx);
+      this.serveTs[l] = Math.min(this.serveTs[l] + dt, serve * 4);
+      while (this.serveTs[l] >= serve && queue[0] === g) {
+        this.serveTs[l] -= serve;
+        if (this.opts.mode === 'checkin') this.serveCheckin(g, playerServing, sfx, l);
+        else this.serveCafe(g, playerServing, sfx, l);
       }
     }
-
-    // Done: leave along the exit path, then vanish (boarded / gone home).
-    for (let i = this.leaving.length - 1; i >= 0; i--) {
-      const l = this.leaving[i];
-      l.model.holding = l.held.count > 0;
-      if (stepTo(l.model, l.path[0], 4.2, dt)) {
-        l.path.shift();
-        if (!l.path.length) {
-          l.model.root.removeFromParent();
-          this.leaving.splice(i, 1);
-        }
-      }
-    }
-    if (this.staff) animateCreature(this.staff, dt, 0);
   }
 
   /** Check-in: take one suitcase at a time onto the BAGS cart, then the ticket. */
-  private serveCheckin(g: Guest, byPlayer: boolean, sfx: Sfx) {
+  private serveCheckin(g: Guest, byPlayer: boolean, sfx: Sfx, line: number) {
     if (g.held.count > 0) {
       if (this.bagPile && !this.bagPile.full && this.flyers.transfer(g.held, this.bagPile)) sfx.drop();
       return; // cart full = the line waits (go load the plane!)
     }
-    const fee = this.opts.fee ?? AIR.ticket;
+    const fee = (this.opts.fee ?? AIR.ticket) * this.bulk; // (⬆️ Bigger Orders: bigger parties)
     this.spawnBill(fee);
     if (g.vip) {
       // Served in time: a big tip!
@@ -307,11 +340,11 @@ export class Desk {
     }
     sfx.sale();
     this.onServe(byPlayer);
-    this.finish(g);
+    this.finish(g, line);
   }
 
   /** Café: sell snack boxes one at a time until they've got what they wanted. */
-  private serveCafe(g: Guest, byPlayer: boolean, sfx: Sfx) {
+  private serveCafe(g: Guest, byPlayer: boolean, sfx: Sfx, line: number) {
     if (g.wants > 0) {
       if (this.shelf && this.flyers.transfer(this.shelf, g.held)) {
         g.wants--;
@@ -321,11 +354,11 @@ export class Desk {
       }
       return;
     }
-    if (g.held.canPop()) this.finish(g);
+    if (g.held.canPop()) this.finish(g, line);
   }
 
-  private finish(g: Guest) {
-    this.queue.shift();
+  private finish(g: Guest, line: number) {
+    this.queues[line].shift();
     g.path = this.opts.exit(g.model.root.position);
     this.leaving.push(g);
   }

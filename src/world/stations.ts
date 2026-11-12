@@ -394,10 +394,13 @@ export class Counter {
   paceMult = 1;
   /** ⬆️ Upgrade: customers buy this many times more per visit (bigger orders). */
   bulk = 1;
-  private queue: Customer[] = [];
+  /** 1 line, or 2 once the 2nd cashier is hired (each line is served at the same time). */
+  lines = 1;
+  private queues: Customer[][] = [[], []];
+  private saleTs = [0, 0];
+  private cashier2: CreatureModel | null = null;
   private leaving: Customer[] = [];
   private spawnT = 1.5;
-  private saleT = 0;
   private register = new THREE.Object3D();
   private cashier: CreatureModel | null = null;
   private tmp = new THREE.Vector3();
@@ -449,18 +452,43 @@ export class Counter {
     if (animate) this.flyers.grow(this.cashier.root);
   }
 
-  private slot(i: number, out: THREE.Vector3) {
-    return out.set(this.x + this.opts.facing * (2.0 + i * 2.3), 0, this.z - 0.4);
+  /**
+   * The 2nd cashier: a second ant at the other end of the counter, and a second
+   * line next to the first. (Upgrade pad "2ND CASHIER".)
+   */
+  hireCashier2(animate: boolean) {
+    if (this.cashier2) return;
+    this.lines = 2;
+    const m = spawnCreature('worker', 2.0) ?? makeAnt(0x4a2c1a);
+    const visor = new THREE.Mesh(
+      new THREE.CylinderGeometry(m.length * 0.14, m.length * 0.14, 0.05, 16, 1, false, -Math.PI / 2, Math.PI),
+      new THREE.MeshStandardMaterial({ color: 0x3fbf5a }),
+    );
+    visor.position.set(0, m.height * 0.85, m.length * 0.38);
+    m.bob.add(visor);
+    m.root.position.set(this.x - 1.15 * this.opts.facing, 0, this.z - 1.0);
+    m.root.rotation.y = (Math.PI / 2) * this.opts.facing;
+    titleTag(m, '💵 CASHIER 2', TITLE.ant);
+    this.scene.add(m.root);
+    this.cashier2 = m;
+    if (animate) this.flyers.grow(m.root);
   }
 
-  private spawnCustomer() {
+  /** Spot `i` in line `line` (with 2 lines they sit side by side). */
+  private slot(i: number, out: THREE.Vector3, line = 0) {
+    const z = this.lines === 2 ? this.z + (line === 0 ? -0.95 : 0.95) : this.z - 0.4;
+    return out.set(this.x + this.opts.facing * (2.0 + i * 2.3), 0, z);
+  }
+
+  private spawnCustomer(line: number) {
+    const queue = this.queues[line];
     const kinds = this.opts.customers;
     const kind = kinds[Math.floor(Math.random() * kinds.length)];
     const species = BUGS[kind];
     const model = spawnCreature(kind, species.length) ?? makeBeetle(BEETLE_COLORS[Math.floor(Math.random() * BEETLE_COLORS.length)]);
     if (species.medium === 'soil') {
       // Earthworms pop up out of the ground right at the back of the line.
-      this.slot(this.queue.length, model.root.position);
+      this.slot(queue.length, model.root.position, line);
       model.root.position.y = -1.5;
     } else {
       model.root.position.set(this.x + this.opts.facing * 15, 0, this.z - 0.4);
@@ -470,60 +498,19 @@ export class Counter {
     const held = new Stack(model.bob, (i, type, out) => out.set(0, top + i * ITEM_H[type] + ITEM_H[type] / 2, -model.length * 0.1), 16);
     // 1-3 snacks each, more with the shop's ⬆️ level (bigger orders = fewer slow shuffles in line)
     const wants = Math.min(16, Math.max(1, Math.round((1 + Math.floor(Math.random() * 3)) * this.bulk)));
-    this.queue.push({ model, mind: newMind(species), held, wants, ready: false, path: [] });
+    queue.push({ model, mind: newMind(species), held, wants, ready: false, path: [] });
   }
 
   update(dt: number, playerServing: boolean, sfx: { sale(): void }, playerPos: THREE.Vector3) {
-    // New customers arrive while there's room in line.
+    // New customers arrive while there's room, joining the shorter line.
     this.spawnT += dt;
-    if (this.spawnT >= CONFIG.counter.customerInterval / this.paceMult && this.queue.length < CONFIG.counter.queueMax) {
+    const line = this.lines === 2 && this.queues[1].length < this.queues[0].length ? 1 : 0;
+    if (this.spawnT >= CONFIG.counter.customerInterval / this.paceMult / this.lines && this.queues[line].length < CONFIG.counter.queueMax) {
       this.spawnT = 0;
-      this.spawnCustomer();
+      this.spawnCustomer(line);
     }
-
-    // Everyone in line heads for their spot, using their own brain:
-    // spiders hop or rear up at you, flies hover in line, aphids just plod.
-    this.queue.forEach((c, i) => {
-      const spot = this.slot(i, this.tmp);
-      c.ready = stepBug(c.model, c.mind, spot, playerPos, dt);
-      // The front customer can start buying once they're close (no waiting to shuffle
-      // the last bit into place); fliers still wait until they've settled.
-      if (!c.ready && i === 0 && c.mind.species.medium === 'ground' && c.mind.alarmT <= 0) {
-        const p = c.model.root.position;
-        c.ready = p.y < 0.05 && Math.hypot(p.x - spot.x, p.z - spot.z) < 1.0;
-      }
-      if (c.ready) faceToward(c.model, -this.opts.facing, 0, dt, c.mind.species.medium === 'air' ? 4 : 12); // look at the counter
-    });
-
-    // The front customer buys if someone is at the register.
-    const front = this.queue[0];
     const serving = playerServing || this.hasCashier;
-    if (front && serving && front.ready) {
-      this.saleT += dt;
-      if (this.saleT >= CONFIG.counter.saleInterval / this.paceMult && this.shelf.canPop() && front.wants > 0) {
-        this.saleT = 0;
-        if (this.flyers.transfer(this.shelf, front.held)) {
-          front.wants--;
-          this.spawnBill();
-          sfx.sale();
-          this.onSale(playerServing);
-        }
-      }
-    }
-    if (front && front.wants <= 0 && front.held.canPop()) {
-      // Happy customer leaves. Fliers literally fly away with their snacks!
-      this.queue.shift();
-      const p = front.model.root.position;
-      const f = this.opts.facing;
-      const medium = front.mind.species.medium;
-      front.path = medium === 'air'
-        ? [new THREE.Vector3(this.x + f * 20, 0, this.z - 8)]
-        : medium === 'soil'
-          ? [p.clone()] // worms burrow straight down where they are
-          : [new THREE.Vector3(p.x, 0, this.z + 2.3), new THREE.Vector3(this.x + f * 16, 0, this.z + 2.3)];
-      this.leaving.push(front);
-    }
-
+    for (let l = 0; l < this.lines; l++) this.updateLine(l, dt, serving, playerServing, sfx, playerPos);
     for (let i = this.leaving.length - 1; i >= 0; i--) {
       const c = this.leaving[i];
       const arrived = stepBug(c.model, c.mind, c.path[0], playerPos, dt, true);
@@ -538,6 +525,53 @@ export class Counter {
     }
 
     if (this.cashier) animateCreature(this.cashier, dt, 0);
+    if (this.cashier2) animateCreature(this.cashier2, dt, 0);
+  }
+
+  /** One line: walk up, buy at the front, leave. */
+  private updateLine(l: number, dt: number, serving: boolean, playerServing: boolean, sfx: { sale(): void }, playerPos: THREE.Vector3) {
+    const queue = this.queues[l];
+    // Everyone in line heads for their spot, using their own brain:
+    // spiders hop or rear up at you, flies hover in line, aphids just plod.
+    queue.forEach((c, i) => {
+      const spot = this.slot(i, this.tmp, l);
+      c.ready = stepBug(c.model, c.mind, spot, playerPos, dt);
+      // The front customer can start buying once they're close (no waiting to shuffle
+      // the last bit into place); fliers still wait until they've settled.
+      if (!c.ready && i === 0 && c.mind.species.medium === 'ground' && c.mind.alarmT <= 0) {
+        const p = c.model.root.position;
+        c.ready = p.y < 0.05 && Math.hypot(p.x - spot.x, p.z - spot.z) < 1.0;
+      }
+      if (c.ready) faceToward(c.model, -this.opts.facing, 0, dt, c.mind.species.medium === 'air' ? 4 : 12); // look at the counter
+    });
+
+    // The front customer buys if someone is at the register.
+    const front = queue[0];
+    if (front && serving && front.ready) {
+      this.saleTs[l] += dt;
+      if (this.saleTs[l] >= CONFIG.counter.saleInterval / this.paceMult && this.shelf.canPop() && front.wants > 0) {
+        this.saleTs[l] = 0;
+        if (this.flyers.transfer(this.shelf, front.held)) {
+          front.wants--;
+          this.spawnBill();
+          sfx.sale();
+          this.onSale(playerServing);
+        }
+      }
+    }
+    if (front && front.wants <= 0 && front.held.canPop()) {
+      // Happy customer leaves. Fliers literally fly away with their snacks!
+      queue.shift();
+      const p = front.model.root.position;
+      const f = this.opts.facing;
+      const medium = front.mind.species.medium;
+      front.path = medium === 'air'
+        ? [new THREE.Vector3(this.x + f * 20, 0, this.z - 8)]
+        : medium === 'soil'
+          ? [p.clone()] // worms burrow straight down where they are
+          : [new THREE.Vector3(p.x, 0, this.z + 2.3), new THREE.Vector3(this.x + f * 16, 0, this.z + 2.3)];
+      this.leaving.push(front);
+    }
   }
 
   /** A cash bill pops out of the register and lands on the cash pad. */

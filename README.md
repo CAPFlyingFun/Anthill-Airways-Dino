@@ -127,8 +127,10 @@ one for a moment and your cash pours in (like an unlock tile); each pad goes up 
 and each level costs ×1.85 more than the last.
 
 - ⚙️ **Machines** (oven, presses, blender, forge, washers, kitchen): +25% cook speed per level
-- 💲 **Counters & desks**: +10% prices and +8% more customers per level (the colony's shops: customers
-  also buy +20% more per visit, so the line keeps up with maxed-out production)
+- 💲 **Counters & desks**: +10% prices and +8% more customers per level
+- 👥 **Lines** (every shop and desk, once its first cashier works there): buy a **2ND CASHIER** to open
+  a second line served at the same time; the pad then becomes **BIGGER ORDERS** (Lv 10): customers buy
+  +20% more per visit (check-in parties pay +20% more), so the lines keep up with maxed production
 - 🌱 **Resource piles** (one pad per kind): +30% regrow speed per level
 - 👷 **CREW** (one per world): all helpers there +10% speed and +1 carry per level
 - 💼 **COLLECTORS** (one per world): Bankers and assistants grab 15% faster and
