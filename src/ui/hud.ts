@@ -52,13 +52,47 @@ export class Hud {
     this.zoneEl.textContent = text;
   }
 
-  setHint(text: string | null) {
+  /** The hint at the top (null hides it). `onSkip` adds a small "Skip" button (the tutorial). */
+  setHint(text: string | null, onSkip?: () => void) {
     if (!text) {
       this.hintEl.classList.add('hidden');
       return;
     }
     this.hintEl.textContent = text;
+    this.hintEl.classList.toggle('tut', !!onSkip); // (the tutorial's hint sits lower)
+    if (onSkip) {
+      const b = document.createElement('button');
+      b.className = 'hint-skip';
+      b.textContent = 'Skip';
+      b.setAttribute('aria-label', 'Skip the tutorial');
+      b.addEventListener('click', onSkip);
+      this.hintEl.appendChild(b);
+    }
     this.hintEl.classList.remove('hidden');
+  }
+
+  /**
+   * A card with a title, some text (HTML) and buttons: the tutorial's welcome
+   * and "you've got it" cards, and 📖 How to play. Any button closes it.
+   */
+  showGuide(title: string, html: string, buttons: { label: string; cls?: string; onClick?: () => void }[]) {
+    const panel = $('guide');
+    $('guideTitle').textContent = title;
+    $('guideBody').innerHTML = html;
+    $('guideBody').scrollTop = 0;
+    const row = $('guideBtns');
+    row.innerHTML = '';
+    for (const b of buttons) {
+      const el = document.createElement('button');
+      el.className = b.cls ?? 'menu-btn';
+      el.textContent = b.label;
+      el.addEventListener('click', () => {
+        panel.classList.add('hidden');
+        b.onClick?.();
+      });
+      row.appendChild(el);
+    }
+    panel.classList.remove('hidden');
   }
 
   /** Show the launch button with the cargo count, or hide it with null. */

@@ -1,7 +1,7 @@
 {
   "name": "anthill-airways",
   "private": true,
-  "version": "0.22.2",
+  "version": "0.23.0",
   "description": "Ant colony to airport to dino island: an idle arcade tycoon with multiplier gate runs.",
   "type": "module",
   "scripts": {

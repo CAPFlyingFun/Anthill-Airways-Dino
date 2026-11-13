@@ -19,7 +19,8 @@ import { autoCash } from '../core/income';
 import { Upgrades } from './upgradePad';
 import { trash } from './trash';
 import * as THREE from 'three';
-import { CONFIG, QUEEN_UNLOCK_LEVEL, TUTORIAL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
+import { CONFIG, QUEEN_UNLOCK_LEVEL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
+import { Tutorial } from './tutorial';
 import { Sfx } from '../core/audio';
 import { SaveData } from '../core/save';
 import { Progress, QueenProgress } from '../core/progress';
@@ -73,6 +74,8 @@ export class BaseWorld {
   active = true;
   /** ⬆️ This world's upgrade pads. */
   ups: Upgrades | null = null;
+  /** 🎓 The guided first-time tutorial (world/tutorial.ts). */
+  tutorial!: Tutorial;
 
   /** Set by main.ts: called when the player taps LAUNCH RUN. */
   onLaunch: (count: number, from: DispatchPad) => void = () => {};
@@ -113,7 +116,7 @@ export class BaseWorld {
     if (save.queen.active || save.level >= QUEEN_UNLOCK_LEVEL) this.activateQueen(false);
 
     this.hud.setCash(save.cash);
-    this.showTutorial();
+    this.tutorial = new Tutorial(this, hud, save);
     this.camera.position.copy(this.player.pos).add(this.camOffset);
     this.camera.lookAt(this.player.pos);
   }
@@ -706,17 +709,9 @@ export class BaseWorld {
   // --------------------------------------------------------------------------
   // Tutorial
   // --------------------------------------------------------------------------
-  private showTutorial() {
-    const i = this.save.tutorial;
-    this.hud.setHint(i < TUTORIAL.length ? TUTORIAL[i] : null);
-  }
-
-  /** Mark tutorial step `step` done (only if it's the current one). */
+  /** An action finished tutorial step `step` (only counts if it's the current one). */
   private tutorialDone(step: number) {
-    if (this.save.tutorial === step) {
-      this.save.tutorial++;
-      this.showTutorial();
-    }
+    this.tutorial.did(step);
   }
 
   // --------------------------------------------------------------------------
@@ -941,13 +936,14 @@ export class BaseWorld {
 
     this.flyers.update(dt);
     this.updateCamera(dt);
+    this.tutorial.update(dt, this.active); // 🎓 hint + arrow
   }
 
   /** Coming back from the airport: refresh the HUD for the colony. */
   enter() {
     this.active = true;
     this.zoneName = '';
-    this.showTutorial();
+    this.tutorial.refresh();
     this.hud.setCash(this.save.cash);
   }
 

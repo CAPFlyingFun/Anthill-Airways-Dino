@@ -241,15 +241,7 @@ export const QUEEN_STATS: QueenStatDef[] = [
   { id: 'tribute', name: 'Tribute', icon: '💰', per: '+5% on all cash Bankers collect' },
 ];
 
-/** Tutorial hints, shown one at a time until the player does each thing. */
-export const TUTORIAL = [
-  'Drag anywhere to walk. Grab crumbs from the crumb pile 🍞',
-  'Carry the crumbs to the oven\'s IN pad',
-  'Pick up fresh snack packs from the OUT pad',
-  'Stand on SELL to serve the customers',
-  'Walk over your cash 💵 to collect it',
-  'Stand on a glowing tile to unlock it',
-];
+/* (The tutorial's steps live in world/tutorial.ts; the How to play guide in ui/howto.ts.) */
 
 // ============================================================================
 // ACT 3: DINO ISLAND (human scale, like the airport). Anthill Airways flies

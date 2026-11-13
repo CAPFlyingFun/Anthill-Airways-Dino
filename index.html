@@ -119,9 +119,19 @@
         </div>
       </div>
 
+      <!-- 🎓 The tutorial's cards + 📖 How to play (hud.showGuide) -->
+      <div id="guide" class="overlay hidden">
+        <div class="card guide-card">
+          <h2 id="guideTitle"></h2>
+          <div id="guideBody" class="guide-body"></div>
+          <div id="guideBtns" class="guide-btns"></div>
+        </div>
+      </div>
+
       <div id="settings" class="overlay hidden">
         <div class="card">
           <h2>Settings</h2>
+          <button id="howtoBtn" class="menu-btn howto-btn">📖 How to play</button>
           <button id="soundBtn" class="menu-btn">Sound: On</button>
           <!-- 🎵 Music / 🔊 Effects volumes (core/audio.ts). Plays even with the iPhone's silent switch on. -->
           <div class="vol-row"><span>🎵 Music</span><input id="musicVol" type="range" min="0" max="1" step="0.05" value="0.6" aria-label="Music volume" /><b id="musicVolTxt">60%</b></div>

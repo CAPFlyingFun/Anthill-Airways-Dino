@@ -9,6 +9,16 @@ An idle arcade tycoon (walk around, stack stuff on your back, unlock new land) w
 ▶️ **Play:** https://capflyingfun.github.io/Anthill-Airways-Dino/
 On iPhone: open in Safari → Share → **Add to Home Screen** to install it as an app (works offline).
 
+## 🎓 Tutorial and How to play
+
+- A new game opens with a welcome card: **▶️ Show me how** or **Skip tutorial**.
+- The guided tutorial (`src/world/tutorial.ts`) walks the first area step by step: a hint at the
+  bottom says what to do, a yellow arrow points where (or sits on the screen edge, pointing the way,
+  when it's off-screen), and each step finishes itself when you do it. It ends once
+  🗺️ **Big Order: Tunnels** (the second area) is unlocked.
+- **⚙️ Settings → 📖 How to play** (`src/ui/howto.ts`) has the whole game explained, plus
+  **🔁 Replay the tutorial**. Saves that were already past the old hints don't get the tutorial again.
+
 ## Phase 1 prototype — Nest Entrance
 
 - Drag anywhere for a floating joystick (WASD / arrows on desktop)

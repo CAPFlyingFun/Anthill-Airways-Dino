@@ -29,6 +29,7 @@ import { VolcanoWorld } from './world/volcanoWorld';
 import { HotelWorld } from './world/hotelWorld';
 import { lod } from './core/lod';
 import { Updater, versionLabel } from './core/updater';
+import { HOWTO_HTML, HOWTO_TITLE } from './ui/howto';
 import { showStartupError, watchStartup } from './core/startupError';
 
 watchStartup(); // a friendly Retry card instead of a frozen loading screen
@@ -121,6 +122,22 @@ async function start() {
 
   // 2) Build both game modes.
   const base = new BaseWorld(hud, sfx, save, progress, queenProgress);
+  // 📖 ⚙️ Settings → How to play (ui/howto.ts), with 🔁 Replay tutorial
+  document.getElementById('howtoBtn')!.addEventListener('click', () => {
+    document.getElementById('settings')!.classList.add('hidden');
+    hud.showGuide(HOWTO_TITLE, HOWTO_HTML, [
+      {
+        label: '🔁 Replay the tutorial',
+        cls: 'menu-btn',
+        onClick: () => {
+          base.tutorial.replay();
+          writeSave(save);
+          hud.banner('🎓 Tutorial restarted', mode === 'base' ? 'Follow the yellow arrow 🔽' : 'It runs in the ant colony 🐜 (tap 🌍 to go there)', 4000);
+        },
+      },
+      { label: 'Close', cls: 'big-btn' },
+    ]);
+  });
   const run = new GateRun(hud, sfx);
   // 📊 Every gate run (colony, safari, heli tour, bellhop dash, bonus run) counts
   // toward the lifetime stats: wrap start() once instead of touching each caller.

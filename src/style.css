@@ -570,3 +570,57 @@ html, body {
 .speed-row input[type='range'] { width: 100%; accent-color: #2d6cdf; height: 28px; }
 .speed-ends { display: flex; justify-content: space-between; align-items: center; font-size: 12px; opacity: 0.85; }
 .speed-reset { border: none; border-radius: 10px; padding: 3px 10px; font: inherit; font-weight: 800; background: #e8eefc; color: #2d6cdf; }
+
+/* 🎓 Tutorial: the small "Skip" button inside the hint */
+.hint-skip {
+  margin-left: 10px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: #e8dcc8;
+  color: #6b5a44;
+  font-weight: 800;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+/* 🎓 The tutorial's cards + 📖 How to play */
+.guide-card { padding-bottom: 22px; text-align: left; width: min(420px, 90vw); display: flex; flex-direction: column; }
+.guide-card h2 { text-align: center; margin-bottom: 8px; }
+.guide-body { overflow-y: auto; max-height: 62vh; font-size: 15px; line-height: 1.4; -webkit-overflow-scrolling: touch; }
+.guide-body p { margin: 8px 0; }
+.guide-body ul, .guide-body ol { margin: 6px 0 8px; padding-left: 22px; }
+.guide-body li { margin: 4px 0; }
+.guide-body section { padding: 6px 0 8px; border-bottom: 2px dashed #ead9bf; }
+.guide-body section:last-child { border-bottom: 0; }
+.guide-body h3 { margin: 6px 0 4px; font-size: 17px; }
+.guide-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.guide-btns .big-btn, .guide-btns .menu-btn { width: 100%; margin: 0; }
+.howto-btn { background: #ffe9a8; }
+/* (inside the guide card the big button sits in the column, not pinned to the bottom) */
+.guide-btns .big-btn { position: static; left: auto; bottom: auto; transform: none; }
+.guide-btns .big-btn:active { transform: translateY(3px); }
+
+/* 🎓 The tutorial's hint sits low (above the backpack panel), so the top of the screen stays clear */
+.hint.tut { top: auto; bottom: calc(128px + var(--safe-b)); max-width: min(520px, 90vw); font-size: 15px; }
+
+/* 🎓 When the tutorial's target is off-screen: a yellow arrow at the screen edge pointing to it */
+.tut-edge {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  background: #ffd23f;
+  border: 3px solid #8a5a00;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #5a3a00;
+  pointer-events: none;
+  animation: tutEdge 0.9s ease-in-out infinite;
+}
+.tut-edge b { display: block; line-height: 1; transform-origin: center; }
+@keyframes tutEdge { 50% { filter: brightness(1.15); scale: 1.1; } }

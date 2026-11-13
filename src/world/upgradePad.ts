@@ -227,6 +227,22 @@ export class Upgrades {
     save.crewXp[world] ??= [];
   }
 
+  /** Where the nearest shown pad is (for the tutorial's arrow), or null. */
+  nearestPad(from: THREE.Vector3): THREE.Vector3 | null {
+    let best: THREE.Vector3 | null = null;
+    let d = Infinity;
+    for (const t of this.targets) {
+      if (!t.pad.mesh.visible) continue;
+      const p = t.pad.mesh.position;
+      const dd = (p.x - from.x) ** 2 + (p.z - from.z) ** 2;
+      if (dd < d) {
+        d = dd;
+        best = new THREE.Vector3(p.x, 0, p.z);
+      }
+    }
+    return best;
+  }
+
   /** Levels bought on a pad. */
   level(id: string) {
     return this.save.upgrades[id] ?? 0;
