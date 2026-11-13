@@ -526,9 +526,9 @@ async function start() {
       return;
     }
     const capped = Math.min(secs, OFFLINE.maxHours * 3600);
-    // 💤 Night Shift (shard upgrade): +10% share per level
-    // (+ 💤 Night Manager stat: +5% per point)
-    const share = Math.min(1, OFFLINE.share + progress.up('night') * 0.1 + progress.offlineBonus);
+    // 💤 Night Manager stat: +1% share per point (50 points = 100%)
+    // 💤 Night Shift (shard upgrade): +10% per level on top, up to 150%
+    const share = Math.min(1.5, OFFLINE.share + progress.up('night') * 0.1 + progress.offlineBonus);
     const amount = Math.floor(save.rate * capped * share);
     if (amount < 1) return; // no income measured yet
     welcomeOpen = true;

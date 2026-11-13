@@ -220,7 +220,7 @@ export const STATS: StatDef[] = [
   { id: 'charm', name: 'Charm', icon: '😄', per: '+5% more customers, served faster' },
   { id: 'lead', name: 'Leadership', icon: '📣', per: '+4% speed for all your helpers' },
   { id: 'tough', name: 'Toughness', icon: '🛡️', per: '-1.6% heat at the volcano, magma lasts longer' },
-  { id: 'manager', name: 'Night Manager', icon: '💤', per: '+5% offline earnings' },
+  { id: 'manager', name: 'Night Manager', icon: '💤', per: '+1% offline earnings (50 = 100%)' },
 ];
 
 /** The Queen joins the economy at this player level. */

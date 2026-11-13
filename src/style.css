@@ -342,6 +342,8 @@ html, body {
 .stat-row .nm { font-weight: 900; font-size: 16px; }
 .stat-row .ds { font-size: 12.5px; color: #7a6a5a; }
 .stat-row .lv { font-weight: 900; font-size: 18px; width: 30px; text-align: center; }
+/* A maxed stat: the number with a small green MAX under it (the + button is hidden) */
+.stat-row .lv .maxed { display: block; font-size: 11px; color: #2fa84f; letter-spacing: 0.5px; line-height: 1; margin-top: 2px; }
 .stat-row button {
   width: 40px; height: 40px;
   border: none; border-radius: 12px;

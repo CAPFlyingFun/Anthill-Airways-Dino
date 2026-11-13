@@ -118,9 +118,10 @@ export class Progress {
   get heatMult() {
     return Math.max(0.2, 1 - this.stat('tough') * (0.8 / STAT_MAX)); // 50 points = -80% heat
   }
-  /** 💤 Night Manager: extra share of offline earnings (+5% per point). */
+  /** 💤 Night Manager: extra share of offline earnings (+1% per point: 50 points takes
+   *  the base 50% share to 100%; 💎 Night Shift shards can push it past that). */
   get offlineBonus() {
-    return this.stat('manager') * 0.05;
+    return this.stat('manager') * 0.01;
   }
 
   /** One-line description of a stat's current total bonus. */
@@ -138,7 +139,7 @@ export class Progress {
       case 'charm': return `+${n * 5}% customers`;
       case 'lead': return `+${n * 4}% helper speed`;
       case 'tough': return `-${Math.round((1 - this.heatMult) * 100)}% heat`;
-      case 'manager': return `+${n * 5}% offline`;
+      case 'manager': return `+${n}% offline (${Math.round(Math.min(1.5, 0.5 + this.up('night') * 0.1 + this.offlineBonus) * 100)}% kept)`;
     }
   }
 }

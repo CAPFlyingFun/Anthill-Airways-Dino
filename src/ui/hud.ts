@@ -338,7 +338,9 @@ export class Hud {
     $('shrineBtn').textContent = `💎 Obsidian Shrine · ${s.shards} shard${s.shards === 1 ? '' : 's'}`;
     for (const def of STATS) {
       const max = p.maxed(def.id);
-      $(`lv-${def.id}`).textContent = max ? `${p.stat(def.id)} MAX` : String(p.stat(def.id));
+      // Maxed: a green MAX badge and no + button
+      $(`lv-${def.id}`).innerHTML = max ? `${p.stat(def.id)}<span class="maxed">MAX</span>` : String(p.stat(def.id));
+      ($(`add-${def.id}`) as HTMLElement).style.visibility = max ? 'hidden' : '';
       $(`ds-${def.id}`).textContent = `${def.per} · now ${p.describe(def.id)}`;
       ($(`add-${def.id}`) as HTMLButtonElement).disabled = s.points <= 0 || max;
     }
@@ -359,7 +361,9 @@ export class Hud {
     }
     for (const def of QUEEN_STATS) {
       const max = q.maxed(def.id);
-      $(`qlv-${def.id}`).textContent = max ? `${q.stat(def.id)} MAX` : String(q.stat(def.id));
+      // Maxed: a green MAX badge and no + button
+      $(`qlv-${def.id}`).innerHTML = max ? `${q.stat(def.id)}<span class="maxed">MAX</span>` : String(q.stat(def.id));
+      ($(`qadd-${def.id}`) as HTMLElement).style.visibility = max ? 'hidden' : '';
       $(`qds-${def.id}`).textContent = `${def.per} · now ${q.describe(def.id)}`;
       ($(`qadd-${def.id}`) as HTMLButtonElement).disabled = !qs.active || qs.points <= 0 || max;
     }
