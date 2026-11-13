@@ -20,7 +20,8 @@ On iPhone: open in Safari → Share → **Add to Home Screen** to install it as 
 - **XP & levels (ARK style):** every task gives XP; each level = 1 point for Carry Weight,
   Movement Speed, Work Speed, Haggling, Luck, 😄 Charm (more customers), 📣 Leadership (faster
   helpers), 🛡️ Toughness (less volcano heat) or 💤 Night Manager (+offline earnings)
-  (tap your level, top left)
+  (tap your level, top left). Every stat (and each of the Queen's) **caps at 50**; Luck and
+  Toughness reach their full bonus right at 50. Points from older saves past the cap are refunded.
 - Autosaves to the browser; Settings has sound + reset
 - Every helper wears a gold **role title** over its head (🐜 WORKER, 🏃 RUNNER, 💵 CASHIER,
   🏦 BANKER…), and so does every crew member and creature with a job in the later acts

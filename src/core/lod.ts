@@ -82,6 +82,12 @@ class Lod {
       this.sphere.center.copy(this.tmp);
       this.sphere.center.y += e.radius * 0.4;
       this.sphere.radius = e.radius + 1; // a little margin so things don't pop at the edges
+      // Something the game itself put away (e.g. the pilot is up in the helicopter):
+      // stays hidden even when the camera could see that spot.
+      if (e.obj.userData.hidden) {
+        e.obj.visible = false;
+        continue;
+      }
       const inView = this.frustum.intersectsSphere(this.sphere);
       e.obj.visible = inView;
       if (!inView) continue;

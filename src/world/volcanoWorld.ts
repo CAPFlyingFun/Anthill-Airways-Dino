@@ -476,6 +476,8 @@ class HeliTours {
   zone = new Zone(4, 27, 1.2, 1.2);
   pad: CashPad;
   hasPilot = false;
+  /** 🧑‍✈️ The Tour Pilot's figure: he climbs aboard while the helicopter is away. */
+  crew: THREE.Object3D | null = null;
   /** Seconds until the helicopter is back (0 = parked). */
   away = 0;
   blocker: Blocker = { minX: TOUR_HELI.x - 2.8, maxX: TOUR_HELI.x + 7.4, minZ: TOUR_HELI.z - 1.4, maxZ: TOUR_HELI.z + 1.4 };
@@ -559,6 +561,11 @@ class HeliTours {
       else s.rotation.y += dt * (this.away > 0 ? 28 : 3);
     }
     for (const m of this.figures) if (m.root.visible) animateCreature(m, dt, 0);
+    // The pilot is on board for every trip (yours too): gone with the helicopter, back when it lands
+    if (this.crew) {
+      this.crew.userData.hidden = this.away > 0; // (the camera culling respects this)
+      this.crew.visible = this.away <= 0;
+    }
     if (this.hasPilot) {
       this.pilotT += dt;
       if (this.pilotT >= C.pilotEvery && this.ready) {
@@ -1103,6 +1110,7 @@ export class VolcanoWorld {
         m.root.rotation.y = Math.PI / 4;
         titleTag(m, '🧑‍✈️ PILOT', TITLE.human);
         this.scene.add(m.root);
+        if (this.tours) this.tours.crew = m.root;
         grow(m.root);
         if (animate) this.hud.banner('🧑‍✈️ Tour Pilot hired', 'Flies full tours by himself (steady 1x), and evacuates in eruptions', 3800);
         break;

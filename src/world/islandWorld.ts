@@ -506,6 +506,8 @@ class SafariDock {
   zone: Zone;
   pad: CashPad;
   hasCaptain = false;
+  /** 🧑‍✈️ The Boat Captain's figure: he's aboard while the boat is out. */
+  crew: THREE.Object3D | null = null;
   onAutoTrip: (n: number) => void = () => {};
   private figures: CreatureModel[] = [];
   private label = new TextSprite(0.7, '#ffffff');
@@ -595,6 +597,11 @@ class SafariDock {
     const out = this.away > 0 ? Math.min(1, (trip - this.away) / 6, this.away / 6) : 0;
     this.boat.position.set(this.boatHome.x + out * 60, -0.25 + Math.sin(this.bobT * 1.6) * 0.08, this.boatHome.z + out * 8);
     this.boat.visible = out < 0.98;
+    // The captain sails with every trip (yours too), and steps back onto the pier after
+    if (this.crew) {
+      this.crew.userData.hidden = this.away > 0; // (the camera culling respects this)
+      this.crew.visible = this.away <= 0;
+    }
     this.boat.rotation.z = Math.sin(this.bobT * 1.1) * 0.03;
     this.drawLabel();
     for (const m of this.figures) if (m.root.visible) animateCreature(m, dt, 0);
@@ -992,6 +999,7 @@ export class IslandWorld {
         cap.root.rotation.y = -Math.PI / 2;
         titleTag(cap, '🧑‍✈️ CAPTAIN', TITLE.human);
         this.scene.add(cap.root);
+        if (this.dock) this.dock.crew = cap.root;
         grow(cap.root);
         if (animate) this.hud.banner('🧑‍✈️ Boat Captain hired', 'He takes full boats out by himself (steady 1x trips)', 3500);
         break;

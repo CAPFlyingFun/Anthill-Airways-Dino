@@ -5,7 +5,7 @@
 // (carry weight, speed, work speed, haggling, luck), and the rest of the game
 // reads the bonuses from the getters at the bottom.
 // ============================================================================
-import { CONFIG, QUEEN_STATS, QueenStatDef, SHARD_UPS, STATS, ShardUpDef, StatDef, shardCost } from '../data/config';
+import { CONFIG, QUEEN_STATS, QueenStatDef, SHARD_UPS, STAT_MAX, STATS, ShardUpDef, StatDef, shardCost } from '../data/config';
 import { SaveData } from './save';
 
 export class Progress {
@@ -15,7 +15,23 @@ export class Progress {
   onLevelUp: (level: number) => void = () => {};
 
   constructor(public save: SaveData) {
-    for (const s of STATS) save.stats[s.id] ??= 0;
+    for (const s of STATS) {
+      save.stats[s.id] ??= 0;
+      // Points put in before the cap existed: anything over the max goes back to spend again
+      if (save.stats[s.id] > STAT_MAX) {
+        save.points += save.stats[s.id] - STAT_MAX;
+        save.stats[s.id] = STAT_MAX;
+      }
+    }
+  }
+
+  /** Is this stat at its max? */
+  maxed(id: StatDef['id']) {
+    return this.stat(id) >= STAT_MAX;
+  }
+  /** Every stat is maxed (leftover points have nowhere to go). */
+  get allMaxed() {
+    return STATS.every((d) => this.maxed(d.id));
   }
 
   /** XP needed to go from `level` to `level + 1`. */
@@ -37,7 +53,7 @@ export class Progress {
 
   /** Spend one point on a stat. Returns false if there are no points. */
   spend(id: StatDef['id']) {
-    if (this.save.points <= 0) return false;
+    if (this.save.points <= 0 || this.maxed(id)) return false;
     this.save.points--;
     this.save.stats[id]++;
     this.onChange();
@@ -86,7 +102,9 @@ export class Progress {
     return (1 + this.stat('haggle') * 0.05) * (1 + this.up('riches') * 0.1) * this.powerBoost;
   }
   get luck() {
-    return this.stat('luck') + this.up('fortune') * 2;
+    // 50 Luck points = the full bonus (12 "luck" in the runs: -70% puddle loss, 80% ? wins),
+    // plus 💎 Fortune shard levels on top.
+    return (this.stat('luck') * 12) / STAT_MAX + this.up('fortune') * 2;
   }
   /** 😄 Charm: customers arrive and get served faster everywhere. */
   get charmMult() {
@@ -98,7 +116,7 @@ export class Progress {
   }
   /** 🛡️ Toughness: heat builds up slower (and magma burns away slower). */
   get heatMult() {
-    return Math.max(0.2, 1 - this.stat('tough') * 0.08);
+    return Math.max(0.2, 1 - this.stat('tough') * (0.8 / STAT_MAX)); // 50 points = -80% heat
   }
   /** 💤 Night Manager: extra share of offline earnings (+5% per point). */
   get offlineBonus() {
@@ -113,7 +131,10 @@ export class Progress {
       case 'speed': return `+${n * 5}% speed`;
       case 'work': return `+${n * 8}% work speed`;
       case 'haggle': return `+${n * 5}% cash`;
-      case 'luck': return n ? `-${Math.min(70, n * 6)}% puddle loss, ${Math.round(Math.min(80, 50 + n * 4))}% ? win` : 'No bonus yet';
+      case 'luck': {
+        const l = this.luck; // (includes 💎 Fortune)
+        return l ? `-${Math.round(Math.min(70, l * 6))}% puddle loss, ${Math.round(Math.min(80, 50 + l * 4))}% ? win` : 'No bonus yet';
+      }
       case 'charm': return `+${n * 5}% customers`;
       case 'lead': return `+${n * 4}% helper speed`;
       case 'tough': return `-${Math.round((1 - this.heatMult) * 100)}% heat`;
@@ -131,7 +152,20 @@ export class QueenProgress {
   onLevelUp: (level: number) => void = () => {};
 
   constructor(public save: SaveData) {
-    for (const s of QUEEN_STATS) save.queen.stats[s.id] ??= 0;
+    for (const s of QUEEN_STATS) {
+      save.queen.stats[s.id] ??= 0;
+      if (save.queen.stats[s.id] > STAT_MAX) {
+        save.queen.points += save.queen.stats[s.id] - STAT_MAX;
+        save.queen.stats[s.id] = STAT_MAX;
+      }
+    }
+  }
+
+  maxed(id: QueenStatDef['id']) {
+    return this.stat(id) >= STAT_MAX;
+  }
+  get allMaxed() {
+    return QUEEN_STATS.every((d) => this.maxed(d.id));
   }
 
   get q() {
@@ -155,7 +189,7 @@ export class QueenProgress {
   }
 
   spend(id: QueenStatDef['id']) {
-    if (this.q.points <= 0) return false;
+    if (this.q.points <= 0 || this.maxed(id)) return false;
     this.q.points--;
     this.q.stats[id]++;
     this.onChange();

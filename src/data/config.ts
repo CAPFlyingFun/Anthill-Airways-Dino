@@ -207,15 +207,19 @@ export interface StatDef {
   icon: string;
   per: string; // what one point does (shown in the stats screen)
 }
+/** Most points any one stat (yours or the Queen's) can hold. Luck and Toughness are
+ *  spread out so they keep improving right up to this. */
+export const STAT_MAX = 50;
+
 export const STATS: StatDef[] = [
   { id: 'carry', name: 'Carry Weight', icon: '🎒', per: '+2 items on your back' },
   { id: 'speed', name: 'Movement Speed', icon: '👟', per: '+5% walk speed' },
   { id: 'work', name: 'Work Speed', icon: '⚡', per: '+8% faster pickup and drop-off' },
   { id: 'haggle', name: 'Haggling', icon: '💰', per: '+5% cash from sales and runs' },
-  { id: 'luck', name: 'Luck', icon: '🍀', per: 'Fewer puddle losses, better ? gates' },
+  { id: 'luck', name: 'Luck', icon: '🍀', per: '-1.4% puddle loss, +0.5% ? gate wins' },
   { id: 'charm', name: 'Charm', icon: '😄', per: '+5% more customers, served faster' },
   { id: 'lead', name: 'Leadership', icon: '📣', per: '+4% speed for all your helpers' },
-  { id: 'tough', name: 'Toughness', icon: '🛡️', per: '-8% heat at the volcano, magma lasts longer' },
+  { id: 'tough', name: 'Toughness', icon: '🛡️', per: '-1.6% heat at the volcano, magma lasts longer' },
   { id: 'manager', name: 'Night Manager', icon: '💤', per: '+5% offline earnings' },
 ];
 

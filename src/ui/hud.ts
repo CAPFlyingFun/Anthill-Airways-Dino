@@ -5,7 +5,7 @@
 // ============================================================================
 import type { BoardRow } from './departures';
 import * as THREE from 'three';
-import { GAME_SPEED, QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STATS, shardCost } from '../data/config';
+import { GAME_SPEED, QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STAT_MAX, STATS, shardCost } from '../data/config';
 import { Progress, QueenProgress } from '../core/progress';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
@@ -320,7 +320,8 @@ export class Hud {
     $('lvlText').textContent = `Lv ${s.level}`;
     $('xpFill').style.width = `${Math.min(100, (s.xp / p.xpToNext()) * 100)}%`;
     const badge = $('ptsBadge');
-    const pts = s.points + (s.queen.active ? s.queen.points : 0);
+    // (points only count if there's a stat left to put them in)
+    const pts = (p.allMaxed ? 0 : s.points) + (s.queen.active && !this.queen?.allMaxed ? s.queen.points : 0);
     badge.textContent = `+${pts}`;
     badge.classList.toggle('hidden', pts <= 0);
     if (!$('stats').classList.contains('hidden')) this.renderStats();
@@ -332,13 +333,14 @@ export class Hud {
     $('statsTitle').textContent = `Level ${s.level}`;
     $('statsXpFill').style.width = `${Math.min(100, (s.xp / p.xpToNext()) * 100)}%`;
     $('statsXpText').textContent = `${Math.floor(s.xp)} / ${p.xpToNext()} XP`;
-    $('statsPoints').textContent = s.points > 0 ? `${s.points} point${s.points > 1 ? 's' : ''} to spend!` : 'Level up to earn points';
+    $('statsPoints').textContent = p.allMaxed ? '🏆 Every stat is maxed!' : s.points > 0 ? `${s.points} point${s.points > 1 ? 's' : ''} to spend! (max ${STAT_MAX} each)` : 'Level up to earn points';
     $('shrineBtn').classList.toggle('hidden', !this.shrineVisible());
     $('shrineBtn').textContent = `💎 Obsidian Shrine · ${s.shards} shard${s.shards === 1 ? '' : 's'}`;
     for (const def of STATS) {
-      $(`lv-${def.id}`).textContent = String(p.stat(def.id));
+      const max = p.maxed(def.id);
+      $(`lv-${def.id}`).textContent = max ? `${p.stat(def.id)} MAX` : String(p.stat(def.id));
       $(`ds-${def.id}`).textContent = `${def.per} · now ${p.describe(def.id)}`;
-      ($(`add-${def.id}`) as HTMLButtonElement).disabled = s.points <= 0;
+      ($(`add-${def.id}`) as HTMLButtonElement).disabled = s.points <= 0 || max;
     }
     // The Queen's section
     const q = this.queen!;
@@ -356,9 +358,10 @@ export class Hud {
       $('queenPoints').textContent = qs.points > 0 ? `${qs.points} royal point${qs.points > 1 ? 's' : ''} to spend!` : 'She earns XP from the cash your Bankers collect';
     }
     for (const def of QUEEN_STATS) {
-      $(`qlv-${def.id}`).textContent = String(q.stat(def.id));
+      const max = q.maxed(def.id);
+      $(`qlv-${def.id}`).textContent = max ? `${q.stat(def.id)} MAX` : String(q.stat(def.id));
       $(`qds-${def.id}`).textContent = `${def.per} · now ${q.describe(def.id)}`;
-      ($(`qadd-${def.id}`) as HTMLButtonElement).disabled = !qs.active || qs.points <= 0;
+      ($(`qadd-${def.id}`) as HTMLButtonElement).disabled = !qs.active || qs.points <= 0 || max;
     }
   }
 
