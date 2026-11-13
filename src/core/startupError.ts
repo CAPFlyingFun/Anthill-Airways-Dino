@@ -60,13 +60,33 @@ export function showStartupError(kind: 'webgl' | 'crash' | 'lost', detail?: unkn
   }
 }
 
+/** Did this error come from the game's own files (same website)? */
+function ours(e: ErrorEvent) {
+  if (!e.filename) return e.message !== 'Script error.' && !!e.error; // cross-origin errors arrive blank
+  try {
+    return new URL(e.filename, location.href).origin === location.origin;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Call once, first thing: catches crashes while loading, a lost 3D view, and
  * loading that takes far too long.
  */
 export function watchStartup() {
   window.addEventListener('error', (e) => {
-    if (stillLoading()) showStartupError('crash', e.error ?? e.message);
+    if (!stillLoading()) return;
+    // Only OUR crashes count. Some browsers (e.g. Phoenix, in-app browsers, ad
+    // blockers, translators) inject their own scripts into every page; when one
+    // of those fails, the browser reports a detail-less "Script error." from
+    // another origin. That's not the game's problem: keep loading.
+    if (!ours(e)) {
+      console.warn('Ignored an error from a script that is not the game:', e.message, e.filename);
+      return;
+    }
+    const where = e.filename ? ` (${e.filename.split('/').pop()}:${e.lineno}:${e.colno})` : '';
+    showStartupError('crash', `${e.error instanceof Error ? e.error.message : e.message}${where}`);
   });
   window.addEventListener('unhandledrejection', (e) => {
     if (stillLoading()) showStartupError('crash', e.reason);
