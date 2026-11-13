@@ -378,6 +378,7 @@ export class Upgrades {
       const list = this.piles.get(o.type);
       if (list) {
         list.push(o); // same pad as the first pile of this type
+        o.rateMult = up.source(this.level(this.id(`pile-${o.type}`))); // (a pile added later gets the level already bought)
         return;
       }
       const piles = [o];

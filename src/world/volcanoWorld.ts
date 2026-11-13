@@ -371,6 +371,8 @@ class Kingdom {
   tribute: Stack;
   tributeZone: Zone;
   vault: ResourcePile;
+  /** 🔶 Crystal Vault 2 (unlock v4-vault2): the colony fills both while she's pleased. */
+  vault2: ResourcePile | null = null;
   favor = 0.3;
   blockers: Blocker[] = [];
   private queen: CreatureModel | null;
@@ -425,6 +427,18 @@ class Kingdom {
     this.draw();
   }
 
+  /** Open the second crystal vault (east of the first, past the Queen's mound). */
+  addVault2(): { pile: ResourcePile; blocker: Blocker } {
+    this.vault2 = new ResourcePile(this.scene, 35, 10.5, this.flyers, 'crystal', 'vault');
+    this.vault2.spawnEvery = () => (this.favor > 0.02 ? C.crystalEvery : Infinity);
+    return { pile: this.vault2, blocker: { minX: 33.6, maxX: 36.4, minZ: 7.7, maxZ: 9.3 } };
+  }
+
+  /** Both vaults (1 or 2). */
+  get vaults() {
+    return this.vault2 ? [this.vault, this.vault2] : [this.vault];
+  }
+
   private draw() {
     const pct = Math.round(this.favor * 10) * 10;
     const txt = this.favor > 0.02 ? `👑 FIRE QUEEN · 😊 Pleased ${pct}%` : '👑 FIRE QUEEN · 😠 Bring 💎 tribute!';
@@ -436,6 +450,7 @@ class Kingdom {
   update(dt: number) {
     this.favor = Math.max(0, this.favor - dt / C.favorDrain);
     this.vault.update(dt);
+    this.vault2?.update(dt);
     // The Queen accepts one gem at a time
     this.eatT += dt;
     if (this.eatT >= 0.6) {
@@ -1012,6 +1027,11 @@ export class VolcanoWorld {
   }
 
   /** A giant fire ant hauler (with an orange hard hat). */
+  /** A fire ant that carries one vault's 🔶 crystals to the Crystal Exchange. */
+  private crystalHauler(vault: ResourcePile, x: number, z: number, animate: boolean) {
+    this.antHauler(x, z, () => ({ src: vault.stack, srcZone: vault.zone, dst: this.exchange!.shelf!, dstZone: this.exchange!.staffZone }), animate);
+  }
+
   private antHauler(x: number, z: number, route: () => Route, animate: boolean) {
     const m = spawnCreature('worker', 2.4) ?? makeAnt(0x8e2f14);
     addHat(m, 0xff7a1a);
@@ -1160,10 +1180,22 @@ export class VolcanoWorld {
       }
       case 'v4-haulers':
         // One carries crystals to the exchange, one brings gems to the Queen
-        this.antHauler(26, 8, () => ({ src: this.kingdom!.vault.stack, srcZone: this.kingdom!.vault.zone, dst: this.exchange!.shelf!, dstZone: this.exchange!.staffZone }), animate);
+        this.crystalHauler(this.kingdom!.vault, 26, 8, animate);
         this.antHauler(22, 3, () => ({ src: this.forge.output, srcZone: this.forge.outZone, dst: this.kingdom!.tribute, dstZone: this.kingdom!.tributeZone }), animate);
+        // (Crystal Vault 2 already open? It gets its own hauler too)
+        if (this.kingdom?.vault2) this.crystalHauler(this.kingdom.vault2, 33, 12, animate);
         if (animate) this.hud.banner('🔥 Fire Ant Haulers', 'Crystals -> the exchange, and gems -> the Queen\'s tribute', 3800);
         break;
+      case 'v4-vault2': {
+        // 🔶 A second vault: twice the crystals while the Fire Queen is pleased
+        if (!this.kingdom) break;
+        const { pile, blocker } = this.kingdom.addVault2();
+        this.blockers.push(blocker);
+        grow(pile.group);
+        if (this.save.unlocked.includes('v4-haulers')) this.crystalHauler(pile, 33, 12, animate);
+        if (animate) this.hud.banner('🔶 Crystal Vault 2', 'The fire ants fill two vaults now: double the crystals while the Queen is pleased', 4200);
+        break;
+      }
       case 'v4-trader':
         this.exchange?.hireStaff(person('h-balance'), animate, '💱 TRADER');
         break;
@@ -1532,7 +1564,7 @@ export class VolcanoWorld {
     if (this.lair && !this.lair.tamed) drop(this.lair.feedZone, this.lair.feedZone, this.lair.feed, 'meat');
     if (this.kingdom) {
       drop(this.kingdom.tributeZone, this.kingdom.tributeZone, this.kingdom.tribute, 'gem');
-      take(this.kingdom.vault, this.kingdom.vault.zone, this.kingdom.vault.stack);
+      for (const v of this.kingdom.vaults) take(v, v.zone, v.stack);
     }
     if (this.exchange?.shelf) drop(this.exchange.staffZone, this.exchange.staffZone, this.exchange.shelf, 'crystal');
 

@@ -86,7 +86,8 @@ tours fly in to an active volcano:
   and it's tamed (saddle and all): it hauls 40 at a time, and it's heat-proof
 - 🐜 **Fire Ant Kingdom**: giant fire ants, your colony's ancient cousins! Bring the Fire
   Queen 💎 tribute; while she's pleased, her colony fills the vault with 🔶 Fire Crystals
-  ($450 each at the Crystal Exchange)
+  ($450 each at the Crystal Exchange). **🔶 Crystal Vault 2** opens a second vault (double the
+  crystals) with its own Fire Ant Hauler; one VAULT upgrade pad speeds up both
 - Crew: Gem Shop Clerk, Obsidian Miner, Gem Runner, Tour Pilot, Crystal Trader, Fire Ant
   Haulers, and your personal assistant (Sarah's model) collecting the cash
 - **Dangers:** 🥵 **heat** (stand near the lava lake and the heat bar fills; full = you drop

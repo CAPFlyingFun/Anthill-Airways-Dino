@@ -363,6 +363,7 @@ export const VOLCANO_UNLOCKS: UnlockDef[] = [
   { id: 'v4-lair',      name: 'Lava Rex Lair',      icon: '🦖', cost: 900000,  pos: [-10, -12], requires: ['v4-plant'] },
   { id: 'v4-kingdom',   name: 'Fire Ant Kingdom',   icon: '🐜', cost: 1500000, pos: [20, 2],   requires: ['v4-lair', 'v4-runner'] },
   { id: 'v4-haulers',   name: 'Fire Ant Haulers',   icon: '🔥', cost: 1800000, pos: [28, 18],  requires: ['v4-kingdom'] },
+  { id: 'v4-vault2',    name: 'Crystal Vault 2',    icon: '🔶', cost: 2200000, pos: [35, 10.5], requires: ['v4-kingdom'] },
   { id: 'v4-trader',    name: 'Crystal Trader',     icon: '💱', cost: 2100000, pos: [6, 10],   requires: ['v4-kingdom'] },
   { id: 'v4-treasurer', name: 'Personal Assistant', icon: '👩‍💼', cost: 2500000, pos: [-2, 8],   requires: ['v4-trader', 'v4-pilot', 'v4-clerk'] },
   // Opens ACT 5 (the hotel). The hotel is yours for good: eruptions don't reset it.
