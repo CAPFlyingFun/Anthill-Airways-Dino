@@ -980,6 +980,7 @@ export class GateRun {
           this.hud.floatAt(new THREE.Vector3(this.x, 3.6, this.z), this.camera, `📦 Contract missed (${this.count}/${this.target})`, 'big bad');
         }
       }
+      this.updateLabel(); // (over the line: the label drops its "FULL")
       this.hud.setHint(null);
       const o = this.opts;
       const earned = o.payout

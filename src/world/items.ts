@@ -339,7 +339,11 @@ export class Flyers {
 
   /** Make something pop into existence with a little bounce. */
   grow(obj: THREE.Object3D, dur = 0.35) {
-    const to = obj.scale.x || 1;
+    // Already popping? Its scale right now is mid-bounce (it overshoots), so keep the size
+    // it's heading for. (Quick taps on an upgrade used to leave buildings bigger each time.)
+    const i = this.grows.findIndex((g) => g.obj === obj);
+    const to = i >= 0 ? this.grows[i].to : obj.scale.x || 1;
+    if (i >= 0) this.grows.splice(i, 1);
     obj.scale.setScalar(0.001);
     this.grows.push({ obj, t: 0, dur, to });
   }

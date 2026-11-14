@@ -107,7 +107,11 @@ export class Hud {
   private upClick: (() => void) | null = null;
   private upOwner: unknown = null; // (the world driving the ⬆️ button)
   private upRowsHtml = '';
+  private upTabsHtml = '';
   private upBound = false;
+  private upLastBuy = '';      // the buy button tapped last ("id:n:label")...
+  private upLastBuyAt = -1e9;  // ...and when
+  private launchHtml = '';
   private upOpenedAt = -1e9;
   /** Just opened? Then a click is the tail end of the tap that opened it, not a choice. */
   private upFresh = () => performance.now() - this.upOpenedAt < 450;
@@ -132,6 +136,14 @@ export class Hud {
     $('upRows').addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest('button[data-id]') as HTMLButtonElement | null;
       if (!b || b.disabled || !this.upHandler || this.upFresh()) return;
+      // (A quick second tap that lands on a DIFFERENT button, because the row changed under
+      // the finger, e.g. "Hire" turning into x1 / x5 / MAX, is a slip, not a choice.
+      // Tapping the same button again and again still buys level after level.)
+      const key = `${b.dataset.id}:${b.dataset.n}:${b.firstChild?.textContent ?? ''}`;
+      const now = performance.now();
+      if (key !== this.upLastBuy && now - this.upLastBuyAt < 400) return;
+      this.upLastBuy = key;
+      this.upLastBuyAt = now;
       this.upHandler.buy(b.dataset.id!, Number(b.dataset.n));
       this.renderUpgrades(true);
     });
@@ -154,6 +166,11 @@ export class Hud {
     this.upClick = onClick ?? null;
   }
 
+  /** Is this world the one showing the ⬆️ button right now? */
+  ownsUpgradeButton(owner: unknown) {
+    return this.upOwner === owner;
+  }
+
   /** A world you just left lets go of the ⬆️ button (unless the new one already took it). */
   releaseUpgradeButton(owner: unknown) {
     if (this.upOwner === owner) this.setUpgradeButton(null);
@@ -165,6 +182,7 @@ export class Hud {
     if (this.upHandler && this.upHandler !== handler) this.upHandler.close();
     this.upHandler = handler;
     this.upRowsHtml = '';
+    this.upTabsHtml = '';
     this.upOpenedAt = performance.now();
     $('upPanel').classList.remove('hidden');
     this.renderUpgrades(true);
@@ -191,7 +209,12 @@ export class Hud {
     const cash = (n: number) => (n < 1e5 ? `$${Math.round(n).toLocaleString()}` : `$${short(n)}`);
     $('upCash').textContent = `💵 ${cash(m.cash)}`;
     $('upTitle').textContent = m.title;
-    $('upTabs').innerHTML = m.tabs.length > 1 ? m.tabs.map((t) => `<button class="up-tab${t.on ? ' on' : ''}" data-tab="${t.key}">${t.label}</button>`).join('') : '';
+    // (tabs and rows are only rebuilt when they change, so a tap never lands mid-rebuild)
+    const tabs = m.tabs.length > 1 ? m.tabs.map((t) => `<button class="up-tab${t.on ? ' on' : ''}" data-tab="${t.key}">${t.label}</button>`).join('') : '';
+    if (force || tabs !== this.upTabsHtml) {
+      this.upTabsHtml = tabs;
+      $('upTabs').innerHTML = tabs;
+    }
     const warn = $('upWarn');
     warn.textContent = m.warn ? `⚠️ ${m.warn}` : '';
     warn.classList.toggle('hidden', !m.warn);
@@ -245,7 +268,12 @@ export class Hud {
       return;
     }
     // (🚩 and how much the cart can come back with: CONFIG.run.maxLoad x the load)
-    this.launchBtn.innerHTML = `${label} · ${count}<small>🚩 cart holds up to ${Math.round(count * CONFIG.run.maxLoad)}</small>`;
+    // (worlds call this every frame while you stand on the pad: only touch it on a change)
+    const html = `${label} · ${count}<small>🚩 cart holds up to ${Math.round(count * CONFIG.run.maxLoad)}</small>`;
+    if (html !== this.launchHtml) {
+      this.launchHtml = html;
+      this.launchBtn.innerHTML = html;
+    }
     this.launchBtn.classList.remove('hidden');
     this.launchHandler = onClick ?? null;
   }

@@ -151,12 +151,17 @@ async function start() {
   // 📦 Contract goals remember each world's usual load; ⚠️ risky gates start on the 3rd run
   run.memory = { contracts: save.contracts, runs: () => save.totals.runs ?? 0 };
   const startRun = run.start.bind(run);
-  run.start = (count, onDone, ...rest) =>
-    startRun(count, (end) => {
+  run.start = (count, onDone, ...rest) => {
+    // ⬆️ No upgrade button or panel during a run (the worlds pause, so they can't hide it;
+    // the world you're in takes the button back as soon as the run is over)
+    hud.closeUpgrades();
+    hud.setUpgradeButton(null);
+    return startRun(count, (end) => {
       bump('runs');
       best('bestRun', end);
       onDone(end);
     }, ...rest);
+  };
   // base = the ant colony, air = the airport (Act 2), island = Dino Island (Act 3),
   // volcano = Mount Anthill (Act 4), run = a gate run
   // hotel = the Anthill Grand Resort (Act 5)

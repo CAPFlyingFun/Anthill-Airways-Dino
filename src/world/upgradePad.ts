@@ -64,6 +64,12 @@ const clean = (s: string) => s.replace(/[^\p{L}\p{N} \-&']/gu, '').replace(/\s+/
 /** The emoji at the start of a label, if any ("☕ Ant Café" -> "☕"). */
 const leadEmoji = (s: string) => /^\p{Extended_Pictographic}️?/u.exec(s.trim())?.[0] ?? '';
 
+/** Drawn on screen? (itself and every parent visible) */
+const shown = (o: THREE.Object3D) => {
+  for (let x: THREE.Object3D | null = o; x; x = x.parent) if (!x.visible) return false;
+  return true;
+};
+
 const SELLER_NAME: Record<string, string> = { snack: 'SNACK SHOP', wrap: 'WRAP MARKET', candy: 'CANDY SHOP' };
 
 // ============================================================================
@@ -171,6 +177,8 @@ export class Upgrades {
   private nearby: Building | null = null;
   /** This world is driving the ⬆️ button (it's the one you're in). */
   private claimed = false;
+  /** Where you were last frame (staff upgrades float their message there). */
+  private lastPlayer = new THREE.Vector3();
   /** The panel, while it's open for this world: which building + tab. */
   private open: { b: Building | null; tab: 'building' | 'staff' } | null = null;
 
@@ -399,6 +407,7 @@ export class Upgrades {
    * the background the effects still apply so the helpers keep their boosts.
    */
   update(dt: number, root: any, playerPos: THREE.Vector3, active: boolean) {
+    this.lastPlayer.copy(playerPos);
     // New buildings? (cheap enough to check twice a second)
     this.scanT -= dt;
     if (this.scanT <= 0) {
@@ -450,7 +459,8 @@ export class Upgrades {
         this.nearby = null;
         this.hud.releaseUpgradeButton(this);
       }
-    } else if (near !== this.nearby || !this.claimed) {
+    } else if (near !== this.nearby || !this.claimed || !this.hud.ownsUpgradeButton(this)) {
+      // (also after a gate run, which hides the button: take it back right away)
       this.claimed = true;
       this.nearby = near;
       this.hud.setUpgradeButton(near ? `${near.icon} ${near.name}` : null, near ? () => this.openPanel(near!, 'building') : undefined, this.affordable(near), this);
@@ -492,6 +502,7 @@ export class Upgrades {
     const hits = this.ray.intersectObjects([...groups, ...(this.staff.length ? helpers : [])], true);
     for (const h of hits) {
       if ((h.object as THREE.Sprite).isSprite) continue; // (labels and tags don't count)
+      if (!shown(h.object)) continue; // (the raycaster also finds hidden parts: skip them)
       for (let o: THREE.Object3D | null = h.object; o; o = o.parent) {
         const b = this.buildings.find((x) => x.group === o);
         if (b) {
@@ -658,7 +669,7 @@ export class Upgrades {
     this.sfx.upgrade();
     const lv = this.level(id);
     const b = this.open?.b;
-    const where = (b?.group.position ?? this.host.camera.position).clone().setY(this.world === 'ant' ? 2.6 : 3.6);
+    const where = (b?.group.position ?? this.lastPlayer).clone().setY(this.world === 'ant' ? 2.6 : 3.6);
     const star = HAS_MILESTONES.has(u.kind) && MILESTONES.some((m) => m > lv - bought && m <= lv);
     const msg =
       u.kind === 'line' && lv === 1 ? '👥 2nd line open!'
