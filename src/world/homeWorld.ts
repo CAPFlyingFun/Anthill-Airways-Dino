@@ -13,7 +13,8 @@
 //   The CORNER CAFÉ PLOT: player level + ants working + planks + cash, on one
 //              tile by the east gate. The café buys your snack packs, and the
 //              new plot hides a 🎁 chest.
-//   Farm Lv 4: an ant CASHIER at the café · Farm Lv 5: a BANKER ant collects
+//   At the café (you hire helpers where they work): a CASHIER (a person),
+//              then a BANKER ant by the cash pad (idle income)
 //
 // Everything is "stand on a pad" like the classic game, and the building panels
 // (⬆️) work here too (world key 'home').
@@ -25,20 +26,21 @@ import { bump } from '../core/totals';
 import { Upgrades } from './upgradePad';
 import { trash } from './trash';
 import { CONFIG } from '../data/config';
-import { HOME, HOME_UNLOCKS, NEIGHBORS } from '../data/home';
+import { HOME, HOME_RENAMED, HOME_UNLOCKS, NEIGHBORS } from '../data/home';
 import { Sfx } from '../core/audio';
 import { HomeSave, SaveData } from '../core/save';
 import { Progress } from '../core/progress';
 import { Hud } from '../ui/hud';
-import { HumanKind, spawnCreature } from '../actors/creatures';
-import { CreatureModel, animateCreature, faceToward, makeAnt } from '../actors/models';
+import { HumanKind } from '../actors/creatures';
+import { CreatureModel, animateCreature, faceToward } from '../actors/models';
 import { Player, fpFov, handsSpot } from '../actors/player';
-import { Banker, Route, Worker, addHat } from '../actors/worker';
+import { Banker, Route, Worker } from '../actors/worker';
 import { Flyers, ItemType, Stack, StackItem, makeItem } from './items';
 import { TextSprite, makePad, titleTag } from './labels';
 import { Blocker, CashPad, ProcessorOpts, ResourcePile, TrashBin, UnlockTile, Zone, gridLayout } from './stations';
 import { Desk, person, stepTo } from './airportWorld';
 import { Tutorial, TutorialScript } from './tutorial';
+import type { MapArea, MapMarker, MapRect, MapSeg, MapView } from '../ui/minimap';
 
 const mat = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y = 0, z = 0) {
@@ -51,6 +53,8 @@ function box(w: number, h: number, d: number, material: THREE.Material, x = 0, y
 
 /** Title tags over the helper ants (smaller than the people's). */
 const ANT_TITLE = 0.6;
+/** The backyard's save format (HomeSave.v). 2: the café's staff are hired at the café. */
+const HOME_SAVE_V = 2;
 /** Who shows up with orders / at the café (the people models). */
 const NEIGHBOR_KINDS: HumanKind[] = ['h-ember', 'h-exec', 'h-balance', 'h-crew2', 'h-crew1', 'h-crew3', 'h-crew4', 'h-director'];
 const CAFE_KINDS: HumanKind[] = ['h-exec', 'h-balance', 'h-ember', 'h-crew1', 'h-crew2', 'h-crew4'];
@@ -354,7 +358,8 @@ class Crate {
     pad.position.set(-2.4, 0.03, 0);
     this.group.add(pad);
     this.zone = new Zone(x - 2.4, z, 1.2, 1.2);
-    this.blocker = { minX: x - 1.05, maxX: x + 1.05, minZ: z - 0.85, maxZ: z + 0.85 };
+    // (solid only while it's here: away on the truck, you can walk through its spot)
+    this.blocker = { minX: x - 1.05, maxX: x + 1.05, minZ: z - 0.85, maxZ: z + 0.85, obj: this.body };
     this.sign.sprite.position.set(0, 3.1, 0);
     this.group.add(this.sign.sprite);
   }
@@ -441,10 +446,25 @@ export class HomeWorld {
   private neighbor: { model: CreatureModel; state: 'in' | 'wait' | 'out'; path: THREE.Vector3[] } | null = null;
   /** Just bought a tile here: the next one on this spot (the farm levels share one) waits until you step off. */
   private stepOff: Zone | null = null;
+  /** 🗺️ For the minimap: the fences and trees, as they're built. */
+  private fenceSegs: MapSeg[] = [];
+  private treeSpots: { x: number; z: number; r: number }[] = [];
   private nextOrderT: number = HOME.order.wait;
 
   constructor(private hud: Hud, private sfx: Sfx, public save: SaveData, private progress: Progress) {
-    this.home = save.home ??= { made: 0, orders: 0, order: null, crate: { trips: 0, got: {}, away: 0 }, planks: 0, chest: false, cafeSales: 0 };
+    this.home = save.home ??= { made: 0, orders: 0, order: null, crate: { trips: 0, got: {}, away: 0 }, planks: 0, chest: false, cafeSales: 0, v: HOME_SAVE_V };
+    if ((this.home.v ?? 1) < 2) {
+      // v0.27 save: the café's cashier and banker were farm levels (same prices): rename them
+      // (and never twice: a save holding both names would hire two of each)
+      const renamed = [...new Set(save.unlocked.map((id) => HOME_RENAMED[id] ?? id))];
+      save.unlocked.splice(0, save.unlocked.length, ...renamed);
+      for (const [from, to] of Object.entries(HOME_RENAMED)) {
+        if (save.paid[from] === undefined) continue;
+        if (save.paid[to] === undefined && !save.unlocked.includes(to)) save.paid[to] = save.paid[from];
+        delete save.paid[from];
+      }
+    }
+    this.home.v = HOME_SAVE_V;
     this.buildEnvironment();
 
     // You: Jack's model, by the ant farm
@@ -608,10 +628,12 @@ export class HomeWorld {
     crown.castShadow = true;
     this.scene.add(trunk, crown);
     this.blockers.push({ minX: x - 0.5 * k, maxX: x + 0.5 * k, minZ: z - 0.5 * k, maxZ: z + 0.5 * k });
+    this.treeSpots.push({ x, z, r: 3 * k });
   }
 
   /** A white picket fence from (x1, z1) to (x2, z2): one InstancedMesh of pickets + two rails. */
   private fence(x1: number, z1: number, x2: number, z2: number) {
+    this.fenceSegs.push({ x0: x1, z0: z1, x1: x2, z1: z2 });
     const len = Math.hypot(x2 - x1, z2 - z1);
     const n = Math.max(2, Math.round(len / 0.45));
     const white = mat(0xffffff, 0.6);
@@ -654,13 +676,6 @@ export class HomeWorld {
     this.workers.push(w);
     if (animate) this.flyers.grow(w.model.root);
     return w;
-  }
-
-  /** An ant model in a cap (the café cashier). */
-  private antModel(color: number) {
-    const m = spawnCreature('worker', HOME.antLength * 1.15) ?? makeAnt(0x5a3a22);
-    addHat(m, color, true);
-    return m;
   }
 
   // --------------------------------------------------------------------------
@@ -723,12 +738,12 @@ export class HomeWorld {
       case 'ai-cafe':
         this.openCafe(animate);
         break;
-      case 'ai-farm4': {
-        this.cafe?.hireStaff(this.antModel(0xe63946), animate, '🐜 CASHIER');
-        this.farm.setLevel(4);
+      case 'ai-cashier':
+        // ☕ A person behind the café's counter: sells to the customers for you
+        this.cafe?.hireStaff(person('h-crew3'), animate, '☕ CASHIER');
         break;
-      }
-      case 'ai-farm5': {
+      case 'ai-banker': {
+        // 🏦 A banker ant by the café's cash pad: sweeps the bills into your wallet (idle income)
         const pad = this.cashPads[0];
         if (!pad) break;
         const b = new Banker(this.scene, pad, (amount) => {
@@ -739,7 +754,6 @@ export class HomeWorld {
         titleTag(b.model, '🏦 BANKER', ANT_TITLE);
         this.bankers.push(b);
         grow(b.model.root);
-        this.farm.setLevel(5);
         break;
       }
     }
@@ -783,8 +797,7 @@ export class HomeWorld {
       interval: HOME.cafe.interval, queueMax: HOME.cafe.queueMax, serve: HOME.cafe.serve,
       entry: [new THREE.Vector3(33, 0, 15), new THREE.Vector3(33, 0, 5)],
       exit: (from) => [new THREE.Vector3(from.x, 0, 5), new THREE.Vector3(33, 0, 15)],
-      staffOnCounter: true,
-      staff2: () => this.antModel(0x2a9d8f),
+      staff2: () => person('h-balance'), // (the ⬆️ panel's 2nd cashier: someone who looks different from the first)
     });
     cafe.onServe = (byPlayer) => {
       this.progress.addXp(byPlayer ? CONFIG.xp.sale : CONFIG.xp.autoSale);
@@ -953,13 +966,20 @@ export class HomeWorld {
       crate.sign.setText(`🚚 Planks on the way · ${Math.ceil(st.away)}s`);
       if (st.away === 0) {
         // Back, with planks!
-        crate.body.visible = true;
-        this.flyers.grow(crate.body);
         this.home.planks += HOME.crate.planks;
         this.sfx.unlocked();
         this.hud.floatAt(crate.group.position.clone().setY(3), this.camera, `+${HOME.crate.planks} 🪵 planks!`, 'big gold');
       }
       return;
+    }
+    // The crate itself shows up again once you're not standing in its spot (it doesn't shove you)
+    if (!crate.body.visible) {
+      const b = crate.blocker;
+      const p = this.player.pos;
+      if (!(p.x > b.minX && p.x < b.maxX && p.z > b.minZ && p.z < b.maxZ)) {
+        crate.body.visible = true;
+        this.flyers.grow(crate.body);
+      }
     }
     const ask = this.crateAsk();
     crate.sign.setText(`📦 CRATE · 🍪 ${st.got.snack ?? 0}/${ask.snack} · 🍞 ${st.got.crumb ?? 0}/${ask.crumb}`);
@@ -1174,6 +1194,56 @@ export class HomeWorld {
   }
 
   // --------------------------------------------------------------------------
+  // 🗺️ The minimap
+  // --------------------------------------------------------------------------
+  /** The whole map (the big view fits it): your house to the street, the yard and the café plot. */
+  static readonly MAP_BOUNDS: MapRect = { minX: -17, maxX: 38, minZ: -22, maxZ: 18 };
+
+  /** What the minimap draws right now. */
+  mapView(): MapView {
+    const Y = HOME.yard;
+    const P = HOME.cafePlot;
+    const areas: MapArea[] = [
+      { rect: { minX: -60, maxX: 90, minZ: 12.3, maxZ: 14.9 }, fill: '#c9c5bd' }, // sidewalk
+      { rect: { minX: -60, maxX: 90, minZ: 14.9, maxZ: 24 }, fill: '#4a4f55' },   // street
+      { rect: Y, fill: '#79c257', label: 'Your backyard' },
+      this.cafeOpen
+        ? { rect: P, fill: '#d8cbb3', label: 'Corner Café' }
+        : { rect: P, fill: '#b39368', edge: 'rgba(255, 220, 140, 0.9)', dashed: true, label: 'Lot for sale' },
+      { rect: { minX: -15, maxX: 5, minZ: -21, maxZ: -13 }, fill: '#f1e3c8', edge: '#8d5b4c', label: 'Your house' },
+      { rect: { minX: -12, maxX: 2, minZ: -13.1, maxZ: -10.9 }, fill: '#a0703f' }, // deck
+    ];
+    // (the gate to the café plot is a fence until the plot is yours)
+    const fences = this.cafeOpen ? this.fenceSegs : [...this.fenceSegs, { x0: Y.maxX, z0: HOME.gate.z0, x1: Y.maxX, z1: HOME.gate.z1 }];
+    const order = this.home.order;
+    const markers: MapMarker[] = [
+      { x: -10, z: -2.5, icon: '🍞', label: 'Bread' },
+      { x: -1, z: -6, icon: '🐜', label: 'Ant farm' },
+      { x: 8.8, z: -3.2, icon: '🙋', label: 'Orders', alert: !!order && this.neighbor?.state === 'wait' && order.have < order.want },
+      { x: 1.5, z: 9, icon: '🗑️', label: 'Trash' },
+    ];
+    if (this.basket) markers.push({ x: -7.5, z: 1.6, icon: '🧺' }); // (no name: it's right by the bread box)
+    if (this.crate) markers.push(this.home.crate.away > 0 ? { x: 9, z: 7, icon: '🚚', label: 'Crate (away)' } : { x: 9, z: 7, icon: '📦', label: 'Crate' });
+    if (this.cafe) {
+      markers.push({ x: 23, z: 1.5, icon: '☕', label: 'Café' }, { x: 21, z: -4, icon: '💵', label: 'Cash' });
+      if (!this.home.chest) markers.push({ x: 28, z: 8.5, icon: '🎁', label: 'Chest' });
+    } else {
+      markers.push({ x: 26, z: 0, icon: '🏷️', label: 'For sale' });
+    }
+    const p = this.player.pos;
+    const target = this.tutorial.target;
+    return {
+      areas,
+      trees: this.treeSpots,
+      fences,
+      markers,
+      tiles: this.tiles.filter((t) => t.mesh.visible).map((t) => ({ x: t.zone.x, z: t.zone.z })),
+      player: { x: p.x, z: p.z, yaw: this.player.model.root.rotation.y },
+      target: target ? { x: target.x, z: target.z } : null,
+    };
+  }
+
+  // --------------------------------------------------------------------------
   // Camera
   // --------------------------------------------------------------------------
   /** Where the camera looks (for the level-of-detail culling). */
@@ -1220,6 +1290,24 @@ export class HomeWorld {
 // ============================================================================
 function homeTutorial(w: HomeWorld): TutorialScript {
   const home = () => w.save.home!;
+  // 🎯 The quest card's bar: the order's packs handed over...
+  const orderProgress = () => {
+    const o = home().order;
+    return o ? o.have / o.want : null;
+  };
+  // ...what's in the crate (of what this trip asks for)...
+  const crateProgress = () => {
+    const st = home().crate;
+    if (!w.crate || st.away > 0) return null;
+    const ask = HOME.crate.asks[Math.min(st.trips, HOME.crate.asks.length - 1)];
+    let got = 0;
+    let want = 0;
+    for (const [t, n] of Object.entries(ask)) {
+      got += Math.min(st.got[t] ?? 0, n);
+      want += n;
+    }
+    return want ? got / want : null;
+  };
   return {
     intro: {
       title: '🏝️ Welcome to Anthill Island!',
@@ -1232,7 +1320,7 @@ function homeTutorial(w: HomeWorld): TutorialScript {
       title: '🎉 That\'s the first test!',
       html: `<p>Your ants feed the farm, the neighbors keep ordering, and the <b>Corner Café</b> buys your snack packs.</p>
         <ul>
-          <li>🐜 <b>Farm Lv 4</b> puts an ant cashier in the café, and <b>Lv 5</b> a banker ant, so it runs by itself.</li>
+          <li>☕ Hire a <b>cashier</b> at the café (Lv 8), then a <b>banker ant</b> (Lv 9) to collect its cash, so it runs by itself.</li>
           <li>📦 The crate keeps bringing 🪵 planks: they're for the next plots.</li>
           <li>⬆️ Walk up to a building and tap ⬆️ (or tap it) to upgrade it.</li>
         </ul>
@@ -1251,11 +1339,13 @@ function homeTutorial(w: HomeWorld): TutorialScript {
         },
         target: () => (home().order ? t.at(w.orderSpot.zone) : t.at(w.farm.outZone)),
         done: () => home().orders >= 1,
+        progress: orderProgress,
       },
       {
         text: () => '📋 More neighbors, more orders: they pay cash and lots of XP',
         target: () => (home().order ? t.at(w.orderSpot.zone) : null),
         done: () => home().orders >= 2,
+        progress: orderProgress,
       },
       t.unlockStep('ai-farm2', '🐜 Grow your ant farm! Lv 2 sends out a Gatherer ant'),
       t.unlockStep('ai-farm3', '🐜 Farm Lv 3: a Carrier ant feeds the farm for you'),
@@ -1263,8 +1353,17 @@ function homeTutorial(w: HomeWorld): TutorialScript {
         text: () => '📦 Fill the delivery crate with snack packs and crumbs: it brings back 🪵 planks',
         target: () => (w.crate ? t.at(w.crate.zone) : null),
         done: () => home().crate.trips > 0,
+        progress: crateProgress,
       },
-      t.unlockStep('ai-cafe', '☕ Open the next plot: the Corner Café! (the sign by the gate shows what it needs)'),
+      {
+        ...t.unlockStep('ai-cafe', '☕ Open the next plot: the Corner Café! (the sign by the gate shows what it needs)'),
+        // (the bar fills as you meet each thing the plot needs: level, ants, planks, then the cash)
+        progress: () => {
+          const def = HOME_UNLOCKS.find((d) => d.id === 'ai-cafe')!;
+          const met = (w.save.level >= (def.level ?? 0) ? 1 : 0) + (w.workers.length >= HOME.plot.ants ? 1 : 0) + (home().planks >= HOME.plot.planks ? 1 : 0);
+          return (met + (t.paidOf('ai-cafe') ?? 0)) / 4;
+        },
+      },
       {
         text: () => '☕ The café buys your snack packs: bring some to its SELL spot',
         target: () => (w.cafe ? t.at(w.cafe.staffZone) : null),

@@ -55,6 +55,7 @@ export interface HomeSave {
   planks: number;    // 🪵 building materials (from the crate), for new plots
   chest: boolean;    // the café plot's chest is open
   cafeSales: number; // snack packs the café has sold
+  v?: number;        // save format (missing = v0.27: see HOME_RENAMED in data/home.ts)
 }
 
 export interface QueenSave {

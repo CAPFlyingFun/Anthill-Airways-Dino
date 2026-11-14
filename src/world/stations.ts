@@ -29,6 +29,16 @@ export interface Blocker {
   maxX: number;
   minZ: number;
   maxZ: number;
+  /** Only solid while this is shown: hidden = walk right through (e.g. the 📦 crate
+   *  while it's away on the truck). (Never something the LOD system hides when it's
+   *  off-camera: behind you in first person, it would turn walk-through.) */
+  obj?: THREE.Object3D;
+}
+
+/** Is `o` on screen (it and every parent visible)? */
+export function isShown(o: THREE.Object3D) {
+  for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+  return true;
 }
 
 /** A rectangular "stand here" zone. */

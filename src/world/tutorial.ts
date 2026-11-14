@@ -3,7 +3,8 @@
 //
 // A brand-new game opens with a welcome card: ▶️ Show me how, or Skip.
 // The tutorial then walks you through the first area step by step:
-//   • a short hint at the top says what to do (with a small "Skip" button),
+//   • the quest card (top left) says what to do: "🎯 QUEST 3/11", a progress bar when
+//     there's something to count, a ✓ when it's done, and a small "Skip" button,
 //   • a bouncing yellow arrow + a glowing ring point at WHERE to do it,
 //   • each step finishes by itself when you've done it.
 // It ends when the second area (🗺️ Big Order: Tunnels) is unlocked, with a
@@ -31,6 +32,8 @@ export interface Step {
   target: () => THREE.Vector3 | null;
   /** Finished by itself? (Some steps are finished by actions instead: see did().) */
   done?: () => boolean;
+  /** How far along (0..1) for the quest card's bar (null / missing = no bar). */
+  progress?: () => number | null;
 }
 
 /** What a tutorial needs from its world (the colony, or 🏝️ Anthill Island's backyard). */
@@ -64,6 +67,8 @@ export class Tutorial {
   private tmp = new THREE.Vector3();
   /** 2D arrow at the screen edge when the target is off-screen. */
   private edge = document.createElement('div');
+  /** Where the arrow points right now (null = nowhere): the 🗺️ minimap shows it too. */
+  target: THREE.Vector3 | null = null;
 
   constructor(private world: TutorialWorld, private hud: Hud, private save: SaveData, private script: TutorialScript) {
     this.edge.className = 'tut-edge hidden';
@@ -99,7 +104,15 @@ export class Tutorial {
       text: () => `${text}${this.costOf(id)}`,
       target: () => this.pathTo(id),
       done: () => this.owns(id),
+      progress: () => this.paidOf(id),
     };
+  }
+
+  /** How much of a tile that's out is paid (0..1), or null if it isn't out yet. */
+  paidOf(id: string) {
+    const tile = this.world.tiles.find((t) => t.def.id === id);
+    if (!tile || !tile.mesh.visible) return null;
+    return tile.def.cost > 0 ? tile.paid / tile.def.cost : null;
   }
 
   /** " · $90" for a tile that's out (what's still left to pay). */
@@ -200,6 +213,7 @@ export class Tutorial {
   }
 
   update(dt: number, active: boolean) {
+    this.target = null;
     if (!active) {
       this.arrow.visible = false;
       this.edge.classList.add('hidden');
@@ -220,9 +234,10 @@ export class Tutorial {
     while (this.running && this.steps[this.save.tutorial]?.done?.() && guard++ < 30) this.advance();
     if (!this.running) return;
     const step = this.steps[this.save.tutorial];
-    this.setHint(step.text());
+    this.setHint(step.text(), step.progress?.() ?? null);
     // The arrow
     const target = step.target();
+    this.target = target;
     this.arrow.visible = !!target;
     if (target) {
       this.t += dt;
@@ -261,10 +276,12 @@ export class Tutorial {
     (this.edge.firstElementChild as HTMLElement).style.transform = `rotate(${angle}rad)`;
   }
 
-  private setHint(text: string | null) {
-    if (text === this.shown) return;
-    this.shown = text ?? '';
-    this.hud.setHint(text, text ? () => this.skip() : undefined);
+  /** The quest card: this step's text, number and progress (only touched when one changes). */
+  private setHint(text: string | null, progress: number | null = null) {
+    const key = text === null ? '' : `${this.save.tutorial}|${text}|${progress === null ? '' : Math.round(progress * 100)}`;
+    if (key === this.shown) return;
+    this.shown = key;
+    this.hud.setHint(text, text ? () => this.skip() : undefined, text ? { step: this.save.tutorial, total: this.steps.length, progress } : undefined);
   }
 
   /** The welcome card for a brand-new game. */

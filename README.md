@@ -19,19 +19,26 @@ You're a person (Jack's model) with an **ant farm** in the backyard; the ants be
 
 - 🍞 Grab crumbs from the bread box → the farm's **IN** tray → the ants turn them into 🍪 snack packs on **OUT**.
 - 🙋 **Neighbors' orders**: a neighbor walks up to the table by the fence (the first one once the farm has made
-  its first pack) and wants **5 snack packs**, the next one **10**, then 6-11 (a bit more as you level up).
+  its first pack) and wants **5 snack packs**, the next one **10**, then 6-11 (+1 every 3 levels).
   Stand on **ORDER** to hand them over: each order pays cash ($7 a pack, +5% per level) and **lots of XP**
-  (20 + 7 per pack). A new neighbor comes 6 s later.
+  (10 + 3 per pack). A new neighbor comes 8 s later.
 - 🐜 **Farm levels** (the glowing tile by the farm) send out an ant for a job you did by hand:
-  **Lv 2** Gatherer (bread box → a crumb basket by the farm) · **Lv 3** Carrier (basket → farm, and farm → café
-  once it's open) · **Lv 4** an ant Cashier at the café · **Lv 5** a Banker ant (your idle income).
-- 📦 **The delivery crate** turns up with Farm Lv 3: fill it with the snack packs and crumbs it asks for, it goes off
-  for 40 s and comes back with **3 🪵 planks** (shown next to the area name).
-- 🏡 **New plots**: the tile by the east gate opens the **Corner Café** plot. It needs **Lv 5**, **2 ants working**,
-  **3 planks** and **$250**; the sign over the gate ticks them off. The café buys your snack packs ($8 each) at its
-  SELL spot, and the new plot hides a 🎁 **chest**.
-- ⬆️ The building panels work here too (bread box, farm, café, Staff), and the arrow-and-hint tutorial walks
+  **Lv 2** Gatherer ($40: bread box → a crumb basket by the farm) · **Lv 3** Carrier ($100: basket → farm, and
+  farm → café once it's open).
+- 📦 **The delivery crate** turns up with Farm Lv 3: fill it with the snack packs and crumbs it asks for (6 + 6,
+  then 8 + 8, then 10 + 10), it goes off for 60 s and comes back with **3 🪵 planks** (shown next to the area
+  name). While it's away, its spot is empty: you can walk through it.
+- 🏡 **New plots**: the tile by the east gate opens the **Corner Café** plot. It needs **Lv 7**, **2 ants working**,
+  **3 planks** and **$400**; the sign over the gate ticks them off. The café buys your snack packs ($8 each) at its
+  SELL spot, and the new plot hides a 🎁 **chest** ($150 + 40 XP).
+- ☕ **You hire a helper where it works**: the café's own tiles hire a **cashier** (a person, Lv 8, $400) and then a
+  **banker ant** by its cash pad (Lv 9, $600: your idle income). (Saves from v0.27, where these two were
+  Farm Lv 4 and Lv 5, are moved over automatically.)
+- ⬆️ The building panels work here too (bread box, farm, café, Staff), and the arrow-and-quest tutorial walks
   you through all of it (⚙️ Settings → 📖 How to play has this game's guide).
+- 🗺️ **The minimap** (top right, under the 👁️ 🎒 buttons, after Beyond Extinction's): north up, centred on you
+  (the blue arrow), the stations as icons, glowing tiles as gold squares, and the quest as a pulsing gold ring
+  (or a gold arrow on the edge when it's further away). Tap it for the whole map with names (`src/ui/minimap.ts`).
 
 Code: `src/homeMain.ts` (boot + loop), `src/world/homeWorld.ts` (the backyard), `src/data/home.ts` (every number).
 Not in this test yet: offline earnings, the farm close-up and ride-along cam, more plots.
@@ -39,16 +46,21 @@ Not in this test yet: offline earnings, the farm close-up and ride-along cam, mo
 ## 🎓 Tutorial and How to play
 
 - A new game opens with a welcome card: **▶️ Show me how** or **Skip tutorial**.
-- The guided tutorial (`src/world/tutorial.ts`) walks the first area step by step: a hint at the
-  bottom says what to do, a yellow arrow points where (or sits on the screen edge, pointing the way,
-  when it's off-screen), and each step finishes itself when you do it. It ends once
-  🗺️ **Big Order: Tunnels** (the second area) is unlocked.
+- The guided tutorial (`src/world/tutorial.ts`) walks the first area step by step: the **quest card**
+  (top left, under the area name, after Beyond Extinction's) says what to do (*🎯 QUEST 3/14*, a progress
+  bar when there's something to count, a ✓ when it's done), a yellow arrow points where (or sits on the
+  screen edge, pointing the way, when it's off-screen), and each step finishes itself when you do it. It
+  ends once 🗺️ **Big Order: Tunnels** (the second area) is unlocked.
+- 📱 **The HUD keeps the bottom corners free for your thumbs**: your level and the quest top left; your cash,
+  👁️ and 🎒 (and, on Anthill Island, the minimap) top right; only the ⬆️ / 🚀 buttons, in the middle, at the bottom.
 - **⚙️ Settings → 📖 How to play** (`src/ui/howto.ts`) has the whole game explained, plus
   **🔁 Replay the tutorial**. Saves that were already past the old hints don't get the tutorial again.
 
 ## Phase 1 prototype — Nest Entrance
 
 - Drag anywhere for a floating joystick (WASD / arrows on desktop)
+- 🎒 The backpack button (top right, under your cash) shows how much you carry ("5/8", red when full);
+  tap it to see what's in it (ARK-style slots + a weight bar, closes by itself)
 - Crumb piles → oven (IN / OUT) → SELL counter → beetle customers pay → collect cash
 - Glowing tiles: pour cash in to unlock (crumb pile, cashier, gate runs, backpack,
   worker ants, faster oven, Big Order)
@@ -172,7 +184,7 @@ airline flies in needs a bed:
 
 No more pads on the ground: every building has its own **upgrade panel**, in every world.
 
-- Walk up to a building and a purple **⬆️ button** appears by the 👁️ one (*⬆️ ⚙️ Oven*); it glows
+- Walk up to a building and a purple **⬆️ button** appears at the bottom, in the middle (*⬆️ ⚙️ Oven*); it glows
   gold when you can afford a level. Tap it, or just **tap the building** (tap a helper for the
   **👷 Staff** tab), to open the panel. A quick tap opens it; dragging still walks.
 - Each upgrade shows its level pips, what it does now → after the next level, and **×1 / ×5 / MAX**
@@ -305,7 +317,7 @@ come back after a while, the colony and airport pay **50% of that rate for the t
 
 ## First-person view 👁️
 
-The eye button (bottom right) switches either world to **first person**: you see through the
+The eye button (top right, under your cash) switches either world to **first person**: you see through the
 ant Major's eyes or your human character's, and your body is hidden. The **left half** of the screen is the joystick (walk + strafe), the **right half** is drag-to-look, in portrait and landscape.
 
 ## 3D models

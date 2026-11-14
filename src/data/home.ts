@@ -56,18 +56,26 @@ export const HOME = {
 };
 
 /**
- * Walk-on tiles, in the order you meet them. The farm levels share one spot by the
- * farm (only one is out at a time). 'ai-order1' isn't a tile: it's added when the
- * first order is filled. Names are plain words (the ground-text font has no emoji
+ * Walk-on tiles, in the order you meet them. You hire a helper where it works: the
+ * farm levels (ant helpers) share one spot by the farm (only one is out at a time),
+ * the café's staff are hired at the café. 'ai-order1' isn't a tile: it's added when
+ * the first order is filled. Names are plain words (the ground-text font has no emoji
  * or accents: an unknown letter makes it fetch a fallback font, which hangs offline).
+ *
+ * (v0.27 had the café's cashier and banker as 'ai-farm4' / 'ai-farm5' at the farm:
+ * HomeWorld renames them in older saves, so those two ids are never used again.)
  */
 export const HOME_UNLOCKS: UnlockDef[] = [
   { id: 'ai-farm2', name: 'Farm Lv 2: Gatherer', icon: '🐜', cost: 40, pos: [-4.5, 3], requires: ['ai-order1'], level: 2 },
   { id: 'ai-farm3', name: 'Farm Lv 3: Carrier', icon: '🐜', cost: 100, pos: [-4.5, 3], requires: ['ai-farm2'], level: 3 },
   { id: 'ai-cafe', name: 'Corner Cafe Plot', icon: '☕', cost: 400, pos: [12.4, 2], requires: ['ai-farm2'], level: 7 },
-  { id: 'ai-farm4', name: 'Farm Lv 4: Cashier', icon: '🐜', cost: 400, pos: [-4.5, 3], requires: ['ai-farm3', 'ai-cafe'], level: 8 },
-  { id: 'ai-farm5', name: 'Farm Lv 5: Banker', icon: '🐜', cost: 600, pos: [-4.5, 3], requires: ['ai-farm4'], level: 9 },
+  // ☕ At the café, either side of its cash pad: a cashier (a person), then a banker ant
+  { id: 'ai-cashier', name: 'Cafe Cashier', icon: '☕', cost: 400, pos: [17.6, -3.2], requires: ['ai-cafe'], level: 8 },
+  { id: 'ai-banker', name: 'Cafe Banker', icon: '🏦', cost: 600, pos: [25.4, -6.6], requires: ['ai-cashier'], level: 9 },
 ];
+
+/** Old unlock ids -> new ones (see above). */
+export const HOME_RENAMED: Record<string, string> = { 'ai-farm4': 'ai-cashier', 'ai-farm5': 'ai-banker' };
 
 /** The neighbors who come by with orders (names cycle; their looks come from the people models). */
 export const NEIGHBORS = ['Rosa', 'Mr. Lee', 'Grandpa Joe', 'Mia', 'Coach Dan', 'Mrs. Patel', 'Sam', 'The Parkers'];

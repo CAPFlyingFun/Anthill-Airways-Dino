@@ -14,7 +14,7 @@ export const HOWTO_HTML = `
   <ul>
     <li><b>Drag anywhere</b> on the screen to walk. Let go to stop.</li>
     <li>You do things by <b>standing on pads</b>: no buttons needed.</li>
-    <li>👁️ (bottom right) switches between the normal and first-person view.</li>
+    <li>👁️ (top right, under your cash) switches between the normal and first-person view.</li>
   </ul>
 </section>
 
@@ -54,7 +54,7 @@ export const HOWTO_HTML = `
 <section>
   <h3>⬆️ Upgrading buildings</h3>
   <ul>
-    <li>Walk up to a building and tap the <b>⬆️ button</b> (bottom right), or just <b>tap the building</b>, to open its panel.</li>
+    <li>Walk up to a building and tap the <b>⬆️ button</b> (bottom middle), or just <b>tap the building</b>, to open its panel.</li>
     <li>Each upgrade shows what it does now and after the next level. Buy <b>×1</b>, <b>×5</b> or <b>MAX</b> (as many as you can afford). The button glows gold when you can afford a level.</li>
     <li>⭐ <b>Lv 5 and Lv 10 are milestones</b>: those levels give a bigger jump.</li>
     <li>A shop's panel also hires a <b>2nd cashier</b> (two lines), then <b>bigger orders</b>.</li>
@@ -127,7 +127,10 @@ export const HOME_HOWTO_HTML = `
   <h3>👆 Moving around</h3>
   <ul>
     <li><b>Drag anywhere</b> to walk. You do things by <b>standing on pads</b>.</li>
-    <li>👁️ (bottom right) switches to first-person view.</li>
+    <li>👁️ (top right, under your cash) switches to first-person view.</li>
+    <li>🎒 shows how much you carry (red = full): tap it to see what's in it.</li>
+    <li>🗺️ The <b>minimap</b> (top right) shows where you are (the blue arrow) and your quest (the gold ring, or a gold arrow on its edge pointing the way). Tap it for the whole map.</li>
+    <li>🎯 Your <b>quest</b> is in the card at the top left.</li>
   </ul>
 </section>
 
@@ -153,8 +156,7 @@ export const HOME_HOWTO_HTML = `
   <h3>🐜 Farm levels = ant helpers</h3>
   <ul>
     <li>The glowing tile by the farm grows it. Each level sends out an ant for a job you used to do:</li>
-    <li><b>Lv 2</b> Gatherer (bread box → crumb basket) · <b>Lv 3</b> Carrier (basket → farm, and farm → café) ·
-    <b>Lv 4</b> café Cashier · <b>Lv 5</b> Banker (collects the café's cash).</li>
+    <li><b>Lv 2</b> Gatherer (bread box → crumb basket) · <b>Lv 3</b> Carrier (basket → farm, and farm → café).</li>
   </ul>
 </section>
 
@@ -171,6 +173,7 @@ export const HOME_HOWTO_HTML = `
   <ul>
     <li>The tile by the east gate opens the next plot. It needs a <b>player level</b>, <b>ants working</b>, <b>planks</b> and <b>cash</b>: the sign over the gate ticks them off.</li>
     <li>☕ The <b>Corner Café</b> buys your snack packs: bring them to its SELL spot. Customers pay on the cash pad.</li>
+    <li>At the café: hire a <b>cashier</b> (sells for you), then a <b>banker ant</b> (collects the cash pad: your idle income).</li>
     <li>🎁 Every new plot hides a chest.</li>
   </ul>
 </section>

@@ -41,6 +41,12 @@ export interface UpPanelModel {
   cash: number;
   rows: UpRowModel[];
 }
+/** 🎯 The tutorial's step on the quest card: which one (from 0), of how many, how far along (0..1). */
+export interface QuestInfo {
+  step: number;
+  total: number;
+  progress?: number | null;
+}
 interface UpHandler {
   model: () => UpPanelModel | null;
   buy: (id: string, n: number) => void;
@@ -82,23 +88,111 @@ export class Hud {
     this.zoneEl.textContent = text;
   }
 
-  /** The hint at the top (null hides it). `onSkip` adds a small "Skip" button (the tutorial). */
-  setHint(text: string | null, onSkip?: () => void) {
-    if (!text) {
-      this.hintEl.classList.add('hidden');
+  // ---- 🎯 The quest card (top left, under the area name) -----------------------------
+  private hintArgs: [string | null, (() => void) | undefined, QuestInfo | undefined] = [null, undefined, undefined];
+  private hintStep = -1;    // the tutorial step on the card (-1 = not a tutorial step)
+  private hintTimer = 0;    // a ✓ is showing: the newest hint follows when it's done
+  private hintKey = '';     // the card's current layout (rebuilt only when it changes)
+  private hintSkip: (() => void) | null = null;
+  private hintShrink = 0;   // a new quest shows in full for a few seconds, then shrinks to one line
+  private hintFull = -1;    // the step last shown in full
+
+  /** A tap on the quest card: one line ⇄ in full (full shrinks back by itself). */
+  private bindHintTap() {
+    if (this.hintEl.dataset.tap) return;
+    this.hintEl.dataset.tap = '1';
+    this.hintEl.addEventListener('click', () => {
+      if (!this.hintEl.classList.contains('quest')) return;
+      if (this.hintEl.classList.contains('mini')) this.expandHint();
+      else this.shrinkHint();
+    });
+  }
+
+  private expandHint() {
+    this.hintEl.classList.remove('mini');
+    clearTimeout(this.hintShrink);
+    this.hintShrink = window.setTimeout(() => this.shrinkHint(), 7000);
+  }
+
+  private shrinkHint() {
+    clearTimeout(this.hintShrink);
+    if (this.hintEl.classList.contains('quest')) this.hintEl.classList.add('mini');
+  }
+
+  /**
+   * The quest card (null hides it). `onSkip` makes it the tutorial's: a "🎯 QUEST 3/11" row
+   * with a Skip button, and `quest` its step and progress (0..1, a bar). When the step goes
+   * up, the finished one gets a ✓ for a moment before the next one shows.
+   */
+  setHint(text: string | null, onSkip?: () => void, quest?: QuestInfo) {
+    this.hintArgs = [text, onSkip, quest];
+    // Gone (skipped, finished, left the world): right away, even in the middle of a ✓
+    if (!text && this.hintTimer) {
+      clearTimeout(this.hintTimer);
+      this.hintTimer = 0;
+    }
+    if (this.hintTimer) return; // (shows when the ✓ is done)
+    const showing = !this.hintEl.classList.contains('hidden');
+    if (text && quest && showing && this.hintStep >= 0 && quest.step > this.hintStep) {
+      this.hintStep = quest.step;
+      this.hintEl.classList.add('done');
+      const bar = this.hintEl.querySelector<HTMLElement>('.q-bar i');
+      if (bar) bar.style.width = '100%';
+      this.hintTimer = window.setTimeout(() => {
+        this.hintTimer = 0;
+        this.renderHint(...this.hintArgs);
+      }, 900);
       return;
     }
-    this.hintEl.textContent = text;
-    this.hintEl.classList.toggle('tut', !!onSkip); // (the tutorial's hint sits lower)
-    if (onSkip) {
-      const b = document.createElement('button');
-      b.className = 'hint-skip';
-      b.textContent = 'Skip';
-      b.setAttribute('aria-label', 'Skip the tutorial');
-      b.addEventListener('click', onSkip);
-      this.hintEl.appendChild(b);
+    this.hintStep = quest ? quest.step : -1;
+    this.renderHint(text, onSkip, quest);
+  }
+
+  private renderHint(text: string | null, onSkip?: () => void, quest?: QuestInfo) {
+    const el = this.hintEl;
+    el.classList.remove('done');
+    this.hintStep = quest ? quest.step : -1;
+    if (!text) {
+      el.classList.add('hidden');
+      return;
     }
-    this.hintEl.classList.remove('hidden');
+    const isQuest = !!onSkip;
+    const hasBar = quest?.progress != null;
+    const key = `${isQuest}|${hasBar}`;
+    if (key !== this.hintKey || !el.firstChild) {
+      this.hintKey = key;
+      el.innerHTML = (isQuest ? '<div class="q-head"><span class="q-label"></span><span class="q-tick">✓</span></div>' : '') +
+        '<div class="q-text"></div>' + (hasBar ? '<div class="q-bar"><i></i></div>' : '');
+      if (isQuest) {
+        const b = document.createElement('button');
+        b.className = 'hint-skip';
+        b.textContent = 'Skip';
+        b.setAttribute('aria-label', 'Skip the tutorial');
+        b.addEventListener('click', (e) => {
+          e.stopPropagation(); // (not a tap on the card)
+          this.hintSkip?.();
+        });
+        el.querySelector('.q-head')!.appendChild(b);
+      }
+    }
+    // The tutorial's card: a new step shows in full, then shrinks to one line (tap: in full again)
+    this.bindHintTap();
+    el.classList.toggle('quest', isQuest);
+    if (!isQuest) {
+      clearTimeout(this.hintShrink);
+      el.classList.remove('mini');
+      this.hintFull = -1;
+    } else if (quest && quest.step !== this.hintFull) {
+      this.hintFull = quest.step;
+      this.expandHint();
+    }
+    this.hintSkip = onSkip ?? null;
+    const label = el.querySelector('.q-label');
+    if (label) label.textContent = quest ? `🎯 QUEST ${quest.step + 1}/${quest.total}` : '🎯 QUEST';
+    el.querySelector('.q-text')!.textContent = text;
+    const bar = el.querySelector<HTMLElement>('.q-bar i');
+    if (bar && quest?.progress != null) bar.style.width = `${Math.round(THREE.MathUtils.clamp(quest.progress, 0, 1) * 100)}%`;
+    el.classList.remove('hidden');
   }
 
   // ---- ⬆️ Building upgrade panels -------------------------------------------------
@@ -451,23 +545,43 @@ export class Hud {
     }
   }
 
-  // ---- Inventory (ARK style) ----------------------------------------------
+  // ---- 🎒 Backpack: a button with a count badge; tap it for the slots (ARK style) ----
   private invKey = '';
+  private invOpen = false;
+  private invTimer = 0;
+  private invBound = false;
   private static ICONS: Record<string, string> = { crumb: '🍞', snack: '🍪', leaf: '🍃', wrap: '🌯', sugar: '🧊', candy: '🍬', cash: '💵', bag: '🧳', snackbox: '🍱', fruit: '🍈', smoothie: '🥤', meat: '🍖', egg: '🥚', ticket: '🎟️', obsidian: '🪨', gem: '💎', magma: '🔥', crystal: '🔶', laundry: '🧺', towel: '🧻', grocery: '🥬', tray: '🍽️' };
 
-  /** Show what you're carrying: one slot per item type + a weight bar. */
+  /** What you're carrying: the 🎒 badge ("5/8", red when full) + the slots behind it. */
   setInventory(counts: Map<string, number>, used: number, max: number) {
+    if (!this.invBound) {
+      this.invBound = true;
+      $('bagBtn').addEventListener('click', () => this.showBag(!this.invOpen));
+      $('inv').addEventListener('click', () => this.showBag(false)); // (a tap on the list closes it)
+    }
     const key = [...counts].map(([t, n]) => `${t}${n}`).join() + `|${used}/${max}`;
     if (key === this.invKey) return; // nothing changed: skip the DOM work
     this.invKey = key;
-    $('inv').classList.toggle('hidden', used === 0);
-    $('invSlots').innerHTML = [...counts]
-      .map(([t, n]) => `<div class="inv-slot">${Hud.ICONS[t] ?? '❔'}<b>${n}</b></div>`)
-      .join('');
+    const badge = $('bagBadge');
+    badge.textContent = `${used}/${max}`;
+    badge.classList.toggle('hidden', used === 0);
+    badge.classList.toggle('full', used >= max);
+    $('invSlots').innerHTML = used
+      ? [...counts].map(([t, n]) => `<div class="inv-slot">${Hud.ICONS[t] ?? '❔'}<b>${n}</b></div>`).join('')
+      : '<div class="inv-empty">Empty</div>';
     const fill = $('invFill');
     fill.style.width = `${Math.min(100, (used / max) * 100)}%`;
     fill.classList.toggle('full', used >= max);
     $('invText').textContent = `${used}/${max}`;
+  }
+
+  /** Open / close what's in the 🎒 (it closes by itself after a few seconds). */
+  showBag(open: boolean) {
+    this.invOpen = open;
+    $('inv').classList.toggle('hidden', !open);
+    $('bagBtn').classList.toggle('on', open);
+    clearTimeout(this.invTimer);
+    if (open) this.invTimer = window.setTimeout(() => this.showBag(false), 5000);
   }
 
   // ---- Loading screen ------------------------------------------------------

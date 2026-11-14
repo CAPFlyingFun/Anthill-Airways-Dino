@@ -39,9 +39,13 @@ html, body {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
+  isolation: isolate; /* (its dropdowns stack inside it: cards and panels opened later still cover them) */
 }
 .tl { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tl .row { display: flex; gap: 8px; align-items: center; }
+/* Right column: cash, the +$/min rate, the round buttons (👁️ 🎒), the minimap */
+.tr { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+.tr-btns { position: relative; display: flex; gap: 8px; }
 .zone-label {
   color: #fff;
   font-weight: 900;
@@ -145,23 +149,46 @@ html, body {
   font-size: 18px;
 }
 
+/* 🎯 The quest card (Beyond Extinction style): top left, under the area name. The
+   tutorial's steps show a "🎯 QUEST 3/11" label, a progress bar when there's something
+   to count, and a ✓ when a step is done; other tips are just the text. */
 .hint {
-  position: absolute;
-  left: 50%;
-  top: calc(84px + var(--safe-t));
-  transform: translateX(-50%);
-  max-width: min(560px, 86vw);
-  background: rgba(255, 255, 255, 0.92);
-  color: #2b3a2b;
+  position: relative;
+  align-self: flex-start;
+  width: max-content;
+  max-width: min(300px, 100%);
+  margin-top: 2px;
+  background: rgba(32, 38, 46, 0.84);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-left: 4px solid #ffd166;
+  color: #fff;
   font-weight: 800;
-  font-size: 16px;
-  text-align: center;
-  padding: 9px 16px;
-  border-radius: 14px;
-  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
+  font-size: 14px;
+  line-height: 1.3;
+  text-align: left;
+  padding: 7px 10px 8px;
+  border-radius: 12px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
   animation: hintIn 0.3s ease-out;
 }
-@keyframes hintIn { from { transform: translate(-50%, -10px); opacity: 0; } }
+@keyframes hintIn { from { transform: translateX(-10px); opacity: 0; } }
+.q-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.q-label { flex: 1; color: #ffd166; font-size: 11px; font-weight: 900; letter-spacing: 1.5px; }
+.q-bar { height: 6px; margin-top: 6px; border-radius: 4px; background: rgba(255, 255, 255, 0.16); overflow: hidden; }
+.q-bar i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ffd166, #7df9a0); transition: width 0.3s ease; }
+/* The tutorial's card: shown in full when a step starts, then one line (tap it: in full again) */
+.hint.quest { pointer-events: auto; cursor: pointer; transition: max-width 0.25s ease; }
+.hint.mini { max-width: min(270px, 100%); padding-bottom: 6px; }
+.hint.mini .q-head { margin-bottom: 1px; }
+.hint.mini .q-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.hint.mini .q-bar { margin-top: 4px; }
+/* A step done: green edge + a ✓ that pops in, for a moment, before the next one */
+.hint.done { border-left-color: #5ccf5a; }
+.hint.done .q-text { color: #b8f5c0; }
+.q-tick { display: none; color: #7df9a0; font-size: 16px; font-weight: 900; }
+.hint.done .q-tick { display: inline-block; animation: qPop 0.35s ease; }
+@keyframes qPop { 0% { transform: scale(0.4); } 60% { transform: scale(1.3); } 100% { transform: scale(1); } }
 
 .big-btn {
   position: absolute;
@@ -223,7 +250,7 @@ html, body {
 .res-row { display: flex; justify-content: space-between; font-size: 17px; padding: 7px 4px; border-bottom: 2px dashed #ead9bf; }
 .res-row.total { font-size: 21px; border-bottom: none; color: #2f8a3a; }
 .card .big-btn { bottom: 18px; animation: none; }
-/* (as wide as its text, but clear of the 👁️ button; the 🚩 line never wraps) */
+/* (as wide as its text, but clear of the bottom corners; the 🚩 line never wraps) */
 #launchBtn { width: max-content; max-width: calc(100vw - 150px); }
 #launchBtn small { display: block; margin-top: 2px; font-size: 13px; font-weight: 800; opacity: 0.92; white-space: nowrap; }
 body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom of the screen) */
@@ -287,18 +314,46 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
 
 .hidden { display: none !important; }
 
-/* ARK-style inventory panel (bottom-left). pointer-events: none so the joystick still works under it. */
+/* The round buttons under the cash (👁️ camera, 🎒 backpack with a "5/8" badge) */
+.tr-btns .round-btn { position: relative; width: 44px; height: 44px; font-size: 21px; padding: 0; }
+.bag-btn.on { background: linear-gradient(#7fd3ff, #2d8fdf); border-color: rgba(255, 255, 255, 0.6); }
+.bag-badge {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #2f8a3a;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+.bag-badge.full { background: #e63946; }
+/* What's in it (tap the 🎒): ARK-style slots dropping down under the buttons (over the
+   minimap, for a few seconds). A tap on it closes it (and doesn't reach the map under it). */
 .inv {
   position: absolute;
-  left: calc(10px + var(--safe-l));
-  bottom: calc(12px + var(--safe-b));
-  background: rgba(20, 26, 32, 0.72);
-  border: 2px solid rgba(160, 220, 255, 0.35);
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 3;
+  pointer-events: auto;
+  width: max-content;
+  max-width: calc(100vw - 24px - var(--safe-l) - var(--safe-r));
+  background: rgb(28, 35, 42);
+  border: 2px solid rgba(160, 220, 255, 0.45);
   border-radius: 12px;
   padding: 7px;
-  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25);
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25), 0 6px 16px rgba(0, 0, 0, 0.3);
+  animation: bagIn 0.2s ease-out;
 }
-.inv-slots { display: flex; gap: 5px; }
+@keyframes bagIn { from { transform: translateY(-8px); opacity: 0; } }
+.inv-empty { color: #fff; font-weight: 800; font-size: 14px; padding: 6px 8px; opacity: 0.85; }
+.inv-slots { display: flex; flex-wrap: wrap; gap: 5px; }
 .inv-slot {
   position: relative;
   width: 44px;
@@ -320,7 +375,6 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
   text-shadow: 0 1px 0 #000, 0 0 3px #000;
 }
 .inv-weight { display: flex; align-items: center; gap: 6px; margin-top: 6px; color: #fff; font-size: 13px; }
-.inv-weight span:first-child { font-size: 15px; }
 .inv-bar { flex: 1; height: 7px; border-radius: 4px; background: rgba(255, 255, 255, 0.18); overflow: hidden; min-width: 60px; }
 .inv-bar i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #7df9a0, #ffd166); border-radius: 4px; }
 .inv-bar i.full { background: #ff6b6b; }
@@ -329,7 +383,6 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
 @media (max-height: 430px) {
   .pill { font-size: 15px; padding: 6px 12px; }
   .pill.cash { font-size: 18px; }
-  .hint { top: calc(74px + var(--safe-t)); font-size: 14px; }
   .pill.level { font-size: 14px; }
   .big-btn { font-size: 19px; padding: 11px 22px; }
 }
@@ -417,23 +470,12 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
 }
 .fade.on { opacity: 1; }
 
-/* First-person / third-person toggle */
-.view-btn {
-  position: absolute;
-  right: calc(12px + var(--safe-r));
-  bottom: calc(16px + var(--safe-b));
-  width: 52px;
-  height: 52px;
-  font-size: 24px;
-}
+/* First-person / third-person toggle (in the round-button row under the cash) */
 .view-btn.on { background: linear-gradient(#7fd3ff, #2d8fdf); border-color: rgba(255, 255, 255, 0.6); }
 
 /* Income rate under the cash pill (idle games: watch it count up) */
-.pill.cash { position: relative; }
 .rate {
-  position: absolute;
-  right: 10px;
-  top: calc(100% + 3px);
+  margin: -3px 10px -2px 0;
   font-size: 13px;
   font-weight: 900;
   color: #b8ffb0;
@@ -575,17 +617,16 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
 .speed-ends { display: flex; justify-content: space-between; align-items: center; font-size: 12px; opacity: 0.85; }
 .speed-reset { border: none; border-radius: 10px; padding: 3px 10px; font: inherit; font-weight: 800; background: #e8eefc; color: #2d6cdf; }
 
-/* 🎓 Tutorial: the small "Skip" button inside the hint */
+/* 🎓 Tutorial: the small "Skip" button in the quest card's top row */
 .hint-skip {
-  margin-left: 10px;
-  padding: 3px 10px;
+  padding: 2px 9px;
   border: 0;
-  border-radius: 10px;
-  background: #e8dcc8;
-  color: #6b5a44;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #e6edf3;
   font-weight: 800;
-  font-size: 12px;
-  vertical-align: middle;
+  font-size: 11px;
+  text-shadow: none;
 }
 
 /* 🎓 The tutorial's cards + 📖 How to play */
@@ -604,9 +645,6 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
 /* (inside the guide card the big button sits in the column, not pinned to the bottom) */
 .guide-btns .big-btn { position: static; left: auto; bottom: auto; transform: none; }
 .guide-btns .big-btn:active { transform: translateY(3px); }
-
-/* 🎓 The tutorial's hint sits low (above the backpack panel), so the top of the screen stays clear */
-.hint.tut { top: auto; bottom: calc(128px + var(--safe-b)); max-width: min(520px, 90vw); font-size: 15px; }
 
 /* 🎓 When the tutorial's target is off-screen: a yellow arrow at the screen edge pointing to it */
 .tut-edge {
@@ -632,14 +670,16 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
 /* 🔄 The one-time free respec button (v0.25 balance update) */
 .respec-btn { width: 100%; margin: 6px 0 4px; background: #d8f3dc; }
 
-/* ⬆️ Building upgrades: the button by the 👁️ one, and the panel (a bottom sheet) */
+/* ⬆️ Building upgrades: the button (bottom centre: the corners are for your thumbs), and
+   the panel (a bottom sheet) */
 .up-btn {
   position: absolute;
-  right: calc(74px + var(--safe-r));
-  bottom: calc(16px + var(--safe-b));
+  left: 50%;
+  bottom: calc(18px + var(--safe-b));
+  transform: translateX(-50%);
   height: 52px;
-  max-width: calc(100vw - 250px);
-  padding: 0 14px;
+  max-width: min(320px, calc(100vw - 180px));
+  padding: 0 16px;
   border: 2px solid rgba(255, 255, 255, 0.5);
   border-radius: 16px;
   background: linear-gradient(#9b84ff, #6b4fd8);
@@ -705,3 +745,46 @@ body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom
 .up-buy.ok:active { transform: translateY(2px); box-shadow: 0 1px 0 #2a8a3e; }
 .up-empty { padding: 14px 0; color: #8a7a64; font-weight: 700; }
 .card .up-close { margin: 10px 0 0; }
+
+/* 🗺️ The minimap (🏝️ Anthill Island): round, under the 👁️ 🎒 buttons; tap it for the
+   whole map (an overlay: tap anywhere to close) */
+.map-slot:empty { display: none; }
+.minimap {
+  position: relative;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.92);
+  background: #5f9f47;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.minimap canvas { display: block; width: 100%; height: 100%; }
+.map-big {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(10, 20, 30, 0.62);
+  pointer-events: auto;
+  animation: bagIn 0.2s ease-out;
+}
+/* (content-box: the border goes outside the size the map is drawn at, so it isn't squashed) */
+.map-big canvas { box-sizing: content-box; border-radius: 14px; border: 3px solid #fff; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
+.map-big-title { color: #fff; font-weight: 900; font-size: 20px; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
+.map-big-title small { font-size: 13px; font-weight: 800; opacity: 0.8; }
+
+/* 📱↔️ Phones held sideways: little height, so the HUD gets out of the way: the quest card's
+   text, the minimap and the ⬆️ button a little smaller. (Last in the file so it wins over
+   the rules above.) */
+@media (orientation: landscape) and (max-height: 520px) {
+  .hint { max-width: min(300px, 100%); font-size: 12.5px; padding: 5px 10px 6px; }
+  .up-btn { height: 46px; bottom: calc(12px + var(--safe-b)); font-size: 15px; }
+  .minimap { width: 92px; height: 92px; }
+}

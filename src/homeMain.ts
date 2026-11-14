@@ -23,6 +23,7 @@ import { pace } from './core/pace';
 import { GAME_SPEED } from './data/config';
 import { Updater, versionLabel } from './core/updater';
 import { HOME_HOWTO_HTML, HOME_HOWTO_TITLE } from './ui/howto';
+import { Minimap } from './ui/minimap';
 
 export interface HomeContext {
   app: HTMLElement;
@@ -52,6 +53,9 @@ export async function startHome({ app, renderer, save, hud, sfx, input, progress
     hud.banner(`LEVEL UP! Lv ${level}`, 'Tap your level (top left) to spend your point', 2600);
     writeSave(save);
   };
+
+  // 🗺️ The minimap (top right, under the 👁️ 🎒 buttons): tap it for the whole map
+  const map = new Minimap(document.getElementById('mapSlot')!, HomeWorld.MAP_BOUNDS, () => home.mapView());
 
   // 3) Tapping a building (or a helper) opens its ⬆️ panel
   const tapNdc = new THREE.Vector2();
@@ -254,12 +258,13 @@ export async function startHome({ app, renderer, save, hud, sfx, input, progress
     for (const step of steps(dt)) home.update(step, input.move);
     lod.update(home.scene, home.camera, home.focus);
     renderer.render(home.scene, home.camera);
+    map.update(Math.min(0.1, rawMs / 1000)); // (after the 3D frame: the map can never cost you one)
   };
   requestAnimationFrame(frame);
 
   // Handy for testing in the browser console (and the headless tests)
   (window as unknown as { game: unknown }).game = {
-    home, save, progress, renderer,
+    home, save, progress, renderer, map,
     get time() { return gameTime; },
     get autoTotal() { return autoTotal; },
   };

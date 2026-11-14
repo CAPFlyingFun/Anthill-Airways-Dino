@@ -234,6 +234,7 @@ async function start() {
       (endCount) => {
         mode = 'base';
         base.receiveRunPayout(endCount, from.itemType, count);
+        base.tutorial.refresh(); // (the run cleared the quest card: show the step again)
         writeSave(save);
         if (pendingAway) {
           const secs = pendingAway;
@@ -787,7 +788,7 @@ async function start() {
           '⬆️ Upgrades moved into the buildings!',
           `<p>The purple pads on the ground are gone. Now:</p>
            <ul>
-             <li>Walk up to a building and tap the <b>⬆️ button</b> (bottom right), or just <b>tap the building</b>.</li>
+             <li>Walk up to a building and tap the <b>⬆️ button</b> (bottom middle), or just <b>tap the building</b>.</li>
              <li>Buy <b>×1</b>, <b>×5</b> or <b>MAX</b>. ⭐ Lv 5 and Lv 10 give a bigger jump.</li>
              <li>The <b>👷 Staff</b> tab (or tap a helper): your helpers' speed and carry, your bankers' grab speed.</li>
              <li>✅ Every level you bought on the pads is kept.</li>

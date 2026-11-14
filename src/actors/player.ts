@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../data/config';
 import { ITEM_H, ItemType, Layout, Stack } from '../world/items';
 import { TextSprite } from '../world/labels';
-import { Blocker } from '../world/stations';
+import { Blocker, isShown } from '../world/stations';
 import { CreatureModel, animateCreature, faceToward, makeAnt } from './models';
 import { spawnCreature } from './creatures';
 
@@ -201,8 +201,10 @@ export class Player {
     if (canWalk(p.x, p.z + vz * dt)) p.z += vz * dt;
 
     // Push out of anything solid (simple box collision, player radius 0.5).
+    // (Something hidden isn't there: you walk right through it.)
     const r = 0.5;
     for (const b of blockers) {
+      if (b.obj && !isShown(b.obj)) continue;
       if (p.x > b.minX - r && p.x < b.maxX + r && p.z > b.minZ - r && p.z < b.maxZ + r) {
         const pushL = p.x - (b.minX - r);
         const pushR = b.maxX + r - p.x;
