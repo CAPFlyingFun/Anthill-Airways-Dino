@@ -831,9 +831,21 @@ export class UnlockTile {
   /** The player's level (set once by main.ts; tiles with def.level stay 🔒 below it). */
   static playerLevel: () => number = () => Infinity;
 
-  /** 🔒 Needs a higher player level (def.level) before cash can go in. */
-  get locked() {
+  /**
+   * 🏝️ Anything else it needs first (Anthill Island's land plots: helpers, building
+   * materials): the reason, shown in place of the price ('' = nothing). Plain words only
+   * (the ground-text font has no emoji).
+   */
+  need: () => string = () => '';
+
+  /** Below the level the tile needs (def.level)? */
+  private get lowLevel() {
     return !!this.def.level && UnlockTile.playerLevel() < this.def.level;
+  }
+
+  /** 🔒 Can't take cash yet: a higher player level (def.level), or something else (need). */
+  get locked() {
+    return this.lowLevel || !!this.need();
   }
 
   constructor(scene: THREE.Scene, public def: UnlockDef, paid: number) {
@@ -866,15 +878,17 @@ export class UnlockTile {
 
   /** Redraw only when the number or color actually changes. */
   draw(affordable: boolean) {
-    const locked = this.locked;
-    const key = `${this.remaining}|${affordable}|${locked}`;
+    const low = this.lowLevel;
+    const need = low ? '' : this.need();
+    const locked = low || !!need;
+    const key = `${this.remaining}|${need}|${affordable}|${locked}`;
     if (key === this.shown) return;
     const repaint = !this.shown.endsWith(`|${affordable}|${locked}`); // the painted part only changes with color / lock
     this.shown = key;
     // 🔒 Level-gated: "LOCKED: Lv 12" instead of the price, a grey border and a 🔒 painted
     // where the icon goes. (The ground-text font has no emoji: an emoji here makes the text
     // library fetch a fallback font, which hangs the label when the phone is offline.)
-    const price = locked ? `LOCKED: Lv ${this.def.level}` : `$${this.remaining.toLocaleString()}`;
+    const price = low ? `LOCKED: Lv ${this.def.level}` : need || `$${this.remaining.toLocaleString()}`;
     const priceColor = locked ? '#c9c9c9' : affordable ? '#ffe066' : '#ffffff';
     if (!repaint) {
       setGroundText(this.priceText, price, priceColor, 2.2);

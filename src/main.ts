@@ -7,7 +7,8 @@ import * as THREE from 'three';
 import './style.css';
 import { Input } from './core/input';
 import { Sfx } from './core/audio';
-import { SLOTS, Slot, activeSlot, clearSave, eraseSlot, loadSave, slotSummary, switchSlot, writeSave } from './core/save';
+import { SLOTS, Slot, activeSlot, clearSave, eraseSlot, loadSave, seedSlot, slotSummary, switchSlot, writeSave } from './core/save';
+import { startHome } from './homeMain';
 import { Progress, QueenProgress } from './core/progress';
 import { bonusRunMult, GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
 import { erupt, eruptionShards } from './core/prestige';
@@ -101,7 +102,9 @@ hud.initSettings({
     writeSave(save);
   },
   onReset: () => {
+    const campaign = save.campaign; // (a reset slot keeps its game: 🏝️ Anthill Island stays Anthill Island)
     clearSave();
+    if (campaign === 'anthill') seedSlot(activeSlot(), { campaign });
     window.location.reload();
   },
   onOpen: () => showSlots(),
@@ -113,8 +116,28 @@ function showSlots() {
   hud.renderSlots(
     SLOTS.map((n) => ({ n, here: n === here, info: slotSummary(n) })),
     (n) => {
-      switchSlot(save, n as Slot); // pauses this slot (no offline income while away)
-      window.location.reload();
+      const go = (campaign?: 'anthill') => {
+        switchSlot(save, n as Slot); // pauses this slot (no offline income while away)
+        if (campaign) seedSlot(n as Slot, { campaign }); // a brand-new 🏝️ Anthill Island game
+        window.location.reload();
+      };
+      if (slotSummary(n as Slot)) return go();
+      // An empty slot: which game?
+      document.getElementById('settings')!.classList.add('hidden');
+      hud.showGuide(
+        `💾 New game in slot ${n}`,
+        `<p>Which game do you want to start?</p>
+         <ul>
+           <li>🏝️ <b>Anthill Island</b> <i>(test version)</i>: the new one-island game. You raise an ant farm in your
+           backyard and the ants become your workers. Just the backyard and the first café for now.</li>
+           <li>🐜 <b>Anthill Airways</b>: the full game, from the ant colony to the Grand Resort.</li>
+         </ul>`,
+        [
+          { label: '🏝️ Anthill Island (test)', cls: 'big-btn', onClick: () => go('anthill') },
+          { label: '🐜 Anthill Airways', cls: 'menu-btn', onClick: () => go() },
+          { label: 'Cancel', cls: 'menu-btn' },
+        ],
+      );
     },
     (n) => {
       eraseSlot(n as Slot);
@@ -124,6 +147,10 @@ function showSlots() {
 }
 
 async function start() {
+  // 🏝️ An Anthill Island slot plays the new game instead (homeMain.ts), on the same
+  // renderer, HUD, sounds, input and save.
+  if (save.campaign === 'anthill') return startHome({ app, renderer, save, hud, sfx, input, progress, queenProgress });
+
   // 1) Load the real bug models (shows the loading bar).
   await loadModels((done, total) => hud.setLoading(done / total));
 

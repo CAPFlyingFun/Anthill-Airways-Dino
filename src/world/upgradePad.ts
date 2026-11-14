@@ -33,11 +33,11 @@ import { ZONES } from '../data/config';
 import type { Worker } from '../actors/worker';
 
 /** Which world a manager belongs to (also the save key for helpers' XP). */
-export type WorldKey = 'ant' | 'air' | 'island' | 'volcano' | 'hotel';
+export type WorldKey = 'ant' | 'air' | 'island' | 'volcano' | 'hotel' | 'home'; // (home = 🏝️ Anthill Island)
 /** Id prefix per world (matches the unlock ids, so eruptions wipe i3- / v4-). */
-const PREFIX: Record<WorldKey, string> = { ant: 'c1', air: 'a2', island: 'i3', volcano: 'v4', hotel: 'h5' };
+const PREFIX: Record<WorldKey, string> = { ant: 'c1', air: 'a2', island: 'i3', volcano: 'v4', hotel: 'h5', home: 'ai' };
 /** How close (world units, from the building's edge) counts as "next to it" for the ⬆️ button. */
-const NEAR: Record<WorldKey, number> = { ant: 2.4, air: 3.2, island: 3.2, volcano: 3.2, hotel: 3.2 };
+const NEAR: Record<WorldKey, number> = { ant: 2.4, air: 3.2, island: 3.2, volcano: 3.2, hotel: 3.2, home: 3.2 };
 
 // ---- Duck types for the buildings (so this file needn't import every world) --
 interface MachineLike { group: THREE.Group; inZone: Zone; outZone: Zone; speedMult: number; opts: { label: string } }

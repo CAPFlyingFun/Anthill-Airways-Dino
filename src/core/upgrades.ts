@@ -67,4 +67,5 @@ export const UP_BASE: Record<string, number> = {
   island: 25000,
   volcano: 120000,
   hotel: 450000,
+  home: 40, // 🏝️ Anthill Island's backyard (a test version)
 };

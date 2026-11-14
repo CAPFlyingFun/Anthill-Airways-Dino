@@ -66,7 +66,7 @@ export const CONFIG = {
     runPerItem: 1,         // gate run: XP per item that reaches the finish...
     runCap: 2,             // ...counting at most 2x the load you started with
     // Unlocking a tile: a FIXED amount by world (not a share of its price)
-    tile: { ant: 15, air: 40, island: 80, volcano: 150, hotel: 250 } as Record<string, number>,
+    tile: { ant: 15, air: 40, island: 80, volcano: 150, hotel: 250, home: 20 } as Record<string, number>,
     // XP to go from level L to L+1 = levelBase + levelStep x (L - 1)
     // (Lv 10 = 1,440 XP in total, Lv 25 = 6,540, Lv 50 = 22,540, Lv 100 = 82,665)
     levelBase: 100,

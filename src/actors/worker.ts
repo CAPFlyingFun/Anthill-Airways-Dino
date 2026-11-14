@@ -205,8 +205,8 @@ export class Banker {
   royal = 1;
   private t = 0;
 
-  constructor(scene: THREE.Scene, private pad: { stack: Stack; zone: Zone }, private onCash: (amount: number) => void) {
-    this.model = spawnCreature('worker', 2.0) ?? makeAnt(0x5a3a22);
+  constructor(scene: THREE.Scene, private pad: { stack: Stack; zone: Zone }, private onCash: (amount: number) => void, length = 2.0) {
+    this.model = spawnCreature('worker', length) ?? makeAnt(0x5a3a22);
     addHat(this.model, 0xffd166, true);
     // Stand just behind the pad, facing it.
     this.model.root.position.set(pad.zone.x + pad.zone.halfW + 0.9, 0, pad.zone.z);

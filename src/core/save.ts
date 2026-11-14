@@ -39,6 +39,22 @@ export interface SaveData {
   totals: Record<string, number>;     // 📊 lifetime stats (cash earned, items sold...)
   trash: { start: number; count: number }; // 🗑️ paid trash: pieces dumped in this 5-min window
   contracts: Record<string, number>;       // 📦 usual load per run type (sets contract goals)
+  /** Which game this slot plays: the classic Anthill Airways (default), or 🏝️ Anthill
+   *  Island (the new one-island campaign, a test version for now: see world/homeWorld.ts). */
+  campaign?: 'classic' | 'anthill';
+  /** 🏝️ Anthill Island's own progress (orders, the delivery crate, materials...). */
+  home?: HomeSave;
+}
+
+/** 🏝️ Anthill Island: what the backyard remembers between sessions. */
+export interface HomeSave {
+  made: number;      // snack packs the ant farm has made (the first one brings the first order)
+  orders: number;    // neighbors' orders filled
+  order: { who: number; want: number; have: number } | null; // the open order
+  crate: { trips: number; got: Record<string, number>; away: number }; // goods in the crate; away = seconds until it's back
+  planks: number;    // 🪵 building materials (from the crate), for new plots
+  chest: boolean;    // the café plot's chest is open
+  cafeSales: number; // snack packs the café has sold
 }
 
 export interface QueenSave {
@@ -86,6 +102,7 @@ export function slotSummary(slot: Slot) {
     const raw = localStorage.getItem(keyFor(slot));
     if (!raw) return null;
     const d = { ...newSave(), ...JSON.parse(raw) } as SaveData;
+    if (d.campaign === 'anthill') return { level: d.level, cash: d.cash, act: '🏝️ Anthill Island (test)', lastSeen: d.lastSeen };
     const act = d.unlocked.includes('h5-open') ? '🏨 Act 5' : d.unlocked.includes('i3-volcano') ? '🌋 Act 4' : d.unlocked.includes('a2-island') ? '🏝️ Act 3' : d.unlocked.includes('expand3') ? '✈️ Act 2' : '🐜 Act 1';
     return { level: d.level, cash: d.cash, act: d.eruptions ? `${act} · 🌋×${d.eruptions}` : act, lastSeen: d.lastSeen };
   } catch {
@@ -107,6 +124,18 @@ export function switchSlot(current: SaveData, slot: Slot) {
     /* ignore */
   }
   locked = true;
+}
+
+/**
+ * Put a brand-new game in `slot` (e.g. a 🏝️ Anthill Island one). Used when you
+ * start a new game from the slot list, and when a slot is reset (it keeps its game).
+ */
+export function seedSlot(slot: Slot, extra: Partial<SaveData>) {
+  try {
+    localStorage.setItem(keyFor(slot), JSON.stringify({ ...newSave(), ...extra }));
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Erase one slot (if it's the one being played, the caller reloads). */

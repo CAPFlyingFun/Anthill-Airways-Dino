@@ -116,3 +116,77 @@ export const HOWTO_HTML = `
   </ul>
 </section>
 `;
+
+// ============================================================================
+// 🏝️ Anthill Island (the new game, a test version for now)
+// ============================================================================
+export const HOME_HOWTO_TITLE = '📖 How to play: Anthill Island';
+
+export const HOME_HOWTO_HTML = `
+<section>
+  <h3>👆 Moving around</h3>
+  <ul>
+    <li><b>Drag anywhere</b> to walk. You do things by <b>standing on pads</b>.</li>
+    <li>👁️ (bottom right) switches to first-person view.</li>
+  </ul>
+</section>
+
+<section>
+  <h3>🐜 Your ant farm</h3>
+  <ol>
+    <li>Grab crumbs 🍞 from the bread box.</li>
+    <li>Drop them on the farm's <b>IN</b> tray: the ants turn them into snack packs 🍪.</li>
+    <li>Pick the packs up from the <b>OUT</b> tray.</li>
+  </ol>
+</section>
+
+<section>
+  <h3>🙋 Neighbors' orders</h3>
+  <ul>
+    <li>Neighbors come to the table by the fence and ask for snack packs.</li>
+    <li>Stand on <b>ORDER</b> to hand them over: each order pays <b>cash and lots of XP</b>.</li>
+    <li>A new neighbor comes by a few seconds later.</li>
+  </ul>
+</section>
+
+<section>
+  <h3>🐜 Farm levels = ant helpers</h3>
+  <ul>
+    <li>The glowing tile by the farm grows it. Each level sends out an ant for a job you used to do:</li>
+    <li><b>Lv 2</b> Gatherer (bread box → crumb basket) · <b>Lv 3</b> Carrier (basket → farm, and farm → café) ·
+    <b>Lv 4</b> café Cashier · <b>Lv 5</b> Banker (collects the café's cash).</li>
+  </ul>
+</section>
+
+<section>
+  <h3>📦 The delivery crate and 🪵 planks</h3>
+  <ul>
+    <li>Fill the crate with the snack packs and crumbs it asks for. It goes off on a truck and comes back with <b>🪵 planks</b>.</li>
+    <li>Your planks show next to the area name (top left).</li>
+  </ul>
+</section>
+
+<section>
+  <h3>🏡 New plots</h3>
+  <ul>
+    <li>The tile by the east gate opens the next plot. It needs a <b>player level</b>, <b>ants working</b>, <b>planks</b> and <b>cash</b>: the sign over the gate ticks them off.</li>
+    <li>☕ The <b>Corner Café</b> buys your snack packs: bring them to its SELL spot. Customers pay on the cash pad.</li>
+    <li>🎁 Every new plot hides a chest.</li>
+  </ul>
+</section>
+
+<section>
+  <h3>⬆️ Upgrading</h3>
+  <ul>
+    <li>Walk up to a building and tap the <b>⬆️ button</b>, or just <b>tap the building</b> (a helper opens the Staff tab).</li>
+  </ul>
+</section>
+
+<section>
+  <h3>🧪 Test version</h3>
+  <ul>
+    <li>This is the first test of the new game: the backyard and the first café plot.</li>
+    <li>Your other games are safe in <b>⚙️ Settings → Save slots</b>.</li>
+  </ul>
+</section>
+`;

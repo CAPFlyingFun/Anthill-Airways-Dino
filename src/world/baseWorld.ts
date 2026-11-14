@@ -20,7 +20,7 @@ import { Upgrades } from './upgradePad';
 import { trash } from './trash';
 import * as THREE from 'three';
 import { CONFIG, QUEEN_UNLOCK_LEVEL, UNLOCKS, ZONES, ZoneDef } from '../data/config';
-import { Tutorial } from './tutorial';
+import { Tutorial, colonyTutorial } from './tutorial';
 import { Sfx } from '../core/audio';
 import { SaveData } from '../core/save';
 import { Progress, QueenProgress } from '../core/progress';
@@ -116,7 +116,7 @@ export class BaseWorld {
     if (save.queen.active || save.level >= QUEEN_UNLOCK_LEVEL) this.activateQueen(false);
 
     this.hud.setCash(save.cash);
-    this.tutorial = new Tutorial(this, hud, save);
+    this.tutorial = new Tutorial(this, hud, save, colonyTutorial(this));
     this.camera.position.copy(this.player.pos).add(this.camOffset);
     this.camera.lookAt(this.player.pos);
   }

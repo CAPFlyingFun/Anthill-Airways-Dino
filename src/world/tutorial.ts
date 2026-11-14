@@ -1,5 +1,5 @@
 // ============================================================================
-// tutorial.ts — 🎓 the guided first-time tutorial (colony only).
+// tutorial.ts — 🎓 the guided first-time tutorial (each game brings its own script: the colony's below, 🏝️ Anthill Island's in world/homeWorld.ts).
 //
 // A brand-new game opens with a welcome card: ▶️ Show me how, or Skip.
 // The tutorial then walks you through the first area step by step:
@@ -18,18 +18,38 @@ import * as THREE from 'three';
 import type { BaseWorld } from './baseWorld';
 import type { Hud } from '../ui/hud';
 import type { SaveData } from '../core/save';
-import { UNLOCKS } from '../data/config';
+import type { CashPad, UnlockTile } from './stations';
+import { UNLOCKS, UnlockDef } from '../data/config';
 
 /** save.tutorial value for "finished or skipped". */
 export const TUTORIAL_DONE = 100;
 
-interface Step {
+export interface Step {
   /** The hint text (may show a cost, so it's worked out each time). */
   text: () => string;
   /** Where the arrow points (null = no arrow). */
   target: () => THREE.Vector3 | null;
-  /** Finished by itself? (Steps 0-4 are finished by actions: see did().) */
+  /** Finished by itself? (Some steps are finished by actions instead: see did().) */
   done?: () => boolean;
+}
+
+/** What a tutorial needs from its world (the colony, or 🏝️ Anthill Island's backyard). */
+export interface TutorialWorld {
+  scene: THREE.Scene;
+  camera: THREE.Camera;
+  tiles: UnlockTile[];
+  cashPads: CashPad[];
+}
+
+/** A tutorial's own words and steps. */
+export interface TutorialScript {
+  intro: { title: string; html: string };
+  finish: { title: string; html: string; button: string };
+  /** The unlock tiles' definitions (to find the way to one through its requirements). */
+  defs: UnlockDef[];
+  steps: (t: Tutorial) => Step[];
+  /** One-time update of older saves (the colony's). */
+  migrate?: (save: SaveData) => void;
 }
 
 export class Tutorial {
@@ -45,17 +65,12 @@ export class Tutorial {
   /** 2D arrow at the screen edge when the target is off-screen. */
   private edge = document.createElement('div');
 
-  constructor(private world: BaseWorld, private hud: Hud, private save: SaveData) {
+  constructor(private world: TutorialWorld, private hud: Hud, private save: SaveData, private script: TutorialScript) {
     this.edge.className = 'tut-edge hidden';
     this.edge.innerHTML = '<b>➜</b>';
     document.getElementById('hud')?.appendChild(this.edge);
-    // One-time update of older saves: they finished the old 6-hint tutorial
-    // (or were past it), so they don't get the new steps or the welcome card.
-    if (!save.paid['tut-v2']) {
-      if (save.tutorial >= 6 || save.unlocked.length > 3) save.tutorial = TUTORIAL_DONE;
-      save.paid['tut-v2'] = 1;
-    }
-    this.steps = this.makeSteps();
+    script.migrate?.(save);
+    this.steps = script.steps(this);
     this.buildArrow();
     this.ring = this.arrow.userData.ring as THREE.Mesh;
   }
@@ -66,65 +81,40 @@ export class Tutorial {
   }
 
   // --------------------------------------------------------------------------
-  // The steps
+  // Helpers for the steps
   // --------------------------------------------------------------------------
-  private makeSteps(): Step[] {
-    const w = this.world;
-    const at = (z: { x: number; z: number } | null | undefined) => (z ? new THREE.Vector3(z.x, 0, z.z) : null);
-    const crumbs = () => w.piles.find((p) => p.type === 'crumb') ?? w.piles[0];
-    const owns = (id: string) => this.save.unlocked.includes(id);
-    // "Unlock X" steps: the arrow shows X's tile, or (if it isn't out yet) the
-    // tile you need to buy first.
-    const unlockStep = (id: string, text: string): Step => ({
+  /** A spot on the ground (a zone's centre), for the arrow. */
+  at(z: { x: number; z: number } | null | undefined) {
+    return z ? new THREE.Vector3(z.x, 0, z.z) : null;
+  }
+
+  /** Bought already? */
+  owns(id: string) {
+    return this.save.unlocked.includes(id);
+  }
+
+  /** "Unlock X": the arrow shows X's tile, or (if it isn't out yet) the tile you need to buy first. */
+  unlockStep(id: string, text: string): Step {
+    return {
       text: () => `${text}${this.costOf(id)}`,
       target: () => this.pathTo(id),
-      done: () => owns(id),
-    });
-    return [
-      // 0-5: the basics (same order as the old hints)
-      { text: () => '👆 Drag anywhere to walk. Go to the crumb pile 🍞 to pick up crumbs', target: () => at(crumbs()?.zone) },
-      { text: () => '🔥 Carry the crumbs to the oven\'s IN pad', target: () => at(w.bakery?.inZone) },
-      { text: () => '📦 The oven bakes snack packs. Pick them up from its OUT pad', target: () => at(w.bakery?.outZone) },
-      { text: () => '🛒 Stand on SELL to stock the counter. Customers buy the snacks', target: () => at(w.counter?.sellZone) },
-      { text: () => '💵 Customers paid! Walk over the cash to collect it', target: () => at(this.fullestPad()?.zone) },
-      {
-        text: () => '✨ Glowing tiles unlock new things. Stand on one: your cash pours in until it\'s bought',
-        target: () => this.cheapestTile(),
-        done: () => this.save.unlocked.length > 0,
-      },
-      // 6+: growing the colony
-      unlockStep('cashier', '🧾 Hire a Cashier: she serves customers even when you\'re not at the counter'),
-      unlockStep('worker1', '🐜 Hire a Worker Ant: he carries crumbs to the oven for you'),
-      {
-        text: () => '⬆️ Buildings can be upgraded now! Walk up to one and tap ⬆️ (or tap the building) to make it faster or earn more',
-        target: () => w.ups?.nearestBuilding(w.player.pos) ?? null,
-        done: () => Object.entries(this.save.upgrades).some(([k, v]) => k.startsWith('c1-') && v > 0),
-      },
-      unlockStep('runner', '🏃 A Runner Ant moves snacks from the oven to the counter'),
-      unlockStep('banker', '💼 A Banker Ant collects the cash by himself: that\'s your idle income (+$/min)'),
-      unlockStep('dispatch', '🚩 Unlock Gate Runs: a mini-game that multiplies your snacks'),
-      {
-        text: () => '🚩 Drop 5+ snacks on the cart pad, tap 🚀 LAUNCH RUN, then drag left/right through the best gates',
-        target: () => at(w.dispatches[0]?.zone),
-        done: () => (this.save.totals.runs ?? 0) > 0,
-      },
-      unlockStep('expand', '🗺️ Big goal: unlock Big Order: Tunnels to open a new area! The arrow shows what to buy next'),
-    ];
+      done: () => this.owns(id),
+    };
   }
 
   /** " · $90" for a tile that's out (what's still left to pay). */
-  private costOf(id: string) {
+  costOf(id: string) {
     const tile = this.world.tiles.find((t) => t.def.id === id);
     if (!tile || !tile.mesh.visible) return '';
     return ` · $${Math.ceil(tile.remaining).toLocaleString('en-US')}`;
   }
 
   /** The tile to stand on to get closer to unlocking `id` (follows its requirements). */
-  private pathTo(id: string, depth = 0): THREE.Vector3 | null {
+  pathTo(id: string, depth = 0): THREE.Vector3 | null {
     if (depth > 6 || this.save.unlocked.includes(id)) return null;
     const tile = this.world.tiles.find((t) => t.def.id === id);
     if (tile?.mesh.visible) return tile.mesh.position.clone().setY(0);
-    const def = UNLOCKS.find((d) => d.id === id);
+    const def = this.script.defs.find((d) => d.id === id);
     for (const r of def?.requires ?? []) {
       const p = this.pathTo(r, depth + 1);
       if (p) return p;
@@ -132,7 +122,7 @@ export class Tutorial {
     return null;
   }
 
-  private cheapestTile() {
+  cheapestTile() {
     let best: THREE.Vector3 | null = null;
     let cost = Infinity;
     for (const t of this.world.tiles) {
@@ -144,7 +134,7 @@ export class Tutorial {
     return best;
   }
 
-  private fullestPad() {
+  fullestPad() {
     const pads = this.world.cashPads;
     return pads.reduce((b, p) => (p.stack.count > (b?.stack.count ?? -1) ? p : b), pads[0] ?? null);
   }
@@ -282,10 +272,8 @@ export class Tutorial {
     this.asking = true;
     this.save.paid['tut-intro'] = 1;
     this.hud.showGuide(
-      '🐜 Welcome to Anthill Airways!',
-      `<p>You're a little ant with big plans. Collect food, make snacks, sell them, and spend the cash on
-       <b>new helpers, machines and whole new areas</b>, all the way up to your own airport ✈️, a dino island 🦖 and more.</p>
-       <p>Want a quick walkthrough? A yellow arrow 🔽 shows you where to go.</p>`,
+      this.script.intro.title,
+      this.script.intro.html,
       [
         { label: '▶️ Show me how', cls: 'big-btn', onClick: () => (this.asking = false) },
         {
@@ -314,19 +302,7 @@ export class Tutorial {
     this.arrow.visible = false;
     this.edge.classList.add('hidden');
     this.setHint(null);
-    this.hud.showGuide(
-      '🎉 You\'ve got the basics!',
-      `<p>The Tunnels are open: a new area with new food to sell. From here, keep doing what you've learned:</p>
-       <ul>
-         <li>💵 Sell, collect, and unlock the glowing tiles</li>
-         <li>🐜 Hire helpers so the colony runs (and earns) by itself</li>
-         <li>⬆️ Upgrade buildings and helpers on the round pads</li>
-         <li>🛫 Tap the <b>Next</b> chip (top left) to see what's next on your route</li>
-       </ul>
-       <p>ℹ️ Everything else (gate runs, stats, offline earnings, new worlds) is in
-       <b>⚙️ Settings → 📖 How to play</b>.</p>`,
-      [{ label: '🚀 Let\'s go!', cls: 'big-btn' }],
-    );
+    this.hud.showGuide(this.script.finish.title, this.script.finish.html, [{ label: this.script.finish.button, cls: 'big-btn' }]);
   }
 
   /** Settings → 📖 How to play → 🔁 Replay: start over (skipping what's already done). */
@@ -335,4 +311,72 @@ export class Tutorial {
     this.save.paid['tut-intro'] = 1; // (no welcome card: they asked for it)
     this.refresh();
   }
+}
+
+// ============================================================================
+// 🐜 The colony's tutorial (the classic Anthill Airways)
+// ============================================================================
+export function colonyTutorial(w: BaseWorld): TutorialScript {
+  return {
+    intro: {
+      title: '🐜 Welcome to Anthill Airways!',
+      html: `<p>You're a little ant with big plans. Collect food, make snacks, sell them, and spend the cash on
+       <b>new helpers, machines and whole new areas</b>, all the way up to your own airport ✈️, a dino island 🦖 and more.</p>
+       <p>Want a quick walkthrough? A yellow arrow 🔽 shows you where to go.</p>`,
+    },
+    finish: {
+      title: '🎉 You\'ve got the basics!',
+      html: `<p>The Tunnels are open: a new area with new food to sell. From here, keep doing what you've learned:</p>
+       <ul>
+         <li>💵 Sell, collect, and unlock the glowing tiles</li>
+         <li>🐜 Hire helpers so the colony runs (and earns) by itself</li>
+         <li>⬆️ Upgrade buildings: walk up to one and tap ⬆️ (or tap the building)</li>
+         <li>🛫 Tap the <b>Next</b> chip (top left) to see what's next on your route</li>
+       </ul>
+       <p>ℹ️ Everything else (gate runs, stats, offline earnings, new worlds) is in
+       <b>⚙️ Settings → 📖 How to play</b>.</p>`,
+      button: '🚀 Let\'s go!',
+    },
+    defs: UNLOCKS,
+    // One-time update of older saves: they finished the old 6-hint tutorial
+    // (or were past it), so they don't get the new steps or the welcome card.
+    migrate: (save) => {
+      if (save.paid['tut-v2']) return;
+      if (save.tutorial >= 6 || save.unlocked.length > 3) save.tutorial = TUTORIAL_DONE;
+      save.paid['tut-v2'] = 1;
+    },
+    steps: (t) => {
+      const crumbs = () => w.piles.find((p) => p.type === 'crumb') ?? w.piles[0];
+      return [
+        // 0-5: the basics (same order as the old hints)
+        { text: () => '👆 Drag anywhere to walk. Go to the crumb pile 🍞 to pick up crumbs', target: () => t.at(crumbs()?.zone) },
+        { text: () => '🔥 Carry the crumbs to the oven\'s IN pad', target: () => t.at(w.bakery?.inZone) },
+        { text: () => '📦 The oven bakes snack packs. Pick them up from its OUT pad', target: () => t.at(w.bakery?.outZone) },
+        { text: () => '🛒 Stand on SELL to stock the counter. Customers buy the snacks', target: () => t.at(w.counter?.sellZone) },
+        { text: () => '💵 Customers paid! Walk over the cash to collect it', target: () => t.at(t.fullestPad()?.zone) },
+        {
+          text: () => '✨ Glowing tiles unlock new things. Stand on one: your cash pours in until it\'s bought',
+          target: () => t.cheapestTile(),
+          done: () => w.save.unlocked.length > 0,
+        },
+        // 6+: growing the colony
+        t.unlockStep('cashier', '🧾 Hire a Cashier: she serves customers even when you\'re not at the counter'),
+        t.unlockStep('worker1', '🐜 Hire a Worker Ant: he carries crumbs to the oven for you'),
+        {
+          text: () => '⬆️ Buildings can be upgraded now! Walk up to one and tap ⬆️ (or tap the building) to make it faster or earn more',
+          target: () => w.ups?.nearestBuilding(w.player.pos) ?? null,
+          done: () => Object.entries(w.save.upgrades).some(([k, v]) => k.startsWith('c1-') && v > 0),
+        },
+        t.unlockStep('runner', '🏃 A Runner Ant moves snacks from the oven to the counter'),
+        t.unlockStep('banker', '💼 A Banker Ant collects the cash by himself: that\'s your idle income (+$/min)'),
+        t.unlockStep('dispatch', '🚩 Unlock Gate Runs: a mini-game that multiplies your snacks'),
+        {
+          text: () => '🚩 Drop 5+ snacks on the cart pad, tap 🚀 LAUNCH RUN, then drag left/right through the best gates',
+          target: () => t.at(w.dispatches[0]?.zone),
+          done: () => (w.save.totals.runs ?? 0) > 0,
+        },
+        t.unlockStep('expand', '🗺️ Big goal: unlock Big Order: Tunnels to open a new area! The arrow shows what to buy next'),
+      ];
+    },
+  };
 }

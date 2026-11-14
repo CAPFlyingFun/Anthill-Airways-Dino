@@ -9,6 +9,33 @@ An idle arcade tycoon (walk around, stack stuff on your back, unlock new land) w
 ▶️ **Play:** https://capflyingfun.github.io/Anthill-Airways-Dino/
 On iPhone: open in Safari → Share → **Add to Home Screen** to install it as an app (works offline).
 
+## 🏝️ Anthill Island (test version, v0.27)
+
+The new one-island game from the design doc, playable in its own save slot: **⚙️ Settings → Save slots →
+an empty slot → 🏝️ Anthill Island (test)**. Your Anthill Airways slots aren't touched. This first test is the
+opening only: the backyard and the first café plot.
+
+You're a person (Jack's model) with an **ant farm** in the backyard; the ants become your workforce:
+
+- 🍞 Grab crumbs from the bread box → the farm's **IN** tray → the ants turn them into 🍪 snack packs on **OUT**.
+- 🙋 **Neighbors' orders**: a neighbor walks up to the table by the fence (the first one once the farm has made
+  its first pack) and wants **5 snack packs**, the next one **10**, then 6-11 (a bit more as you level up).
+  Stand on **ORDER** to hand them over: each order pays cash ($7 a pack, +5% per level) and **lots of XP**
+  (20 + 7 per pack). A new neighbor comes 6 s later.
+- 🐜 **Farm levels** (the glowing tile by the farm) send out an ant for a job you did by hand:
+  **Lv 2** Gatherer (bread box → a crumb basket by the farm) · **Lv 3** Carrier (basket → farm, and farm → café
+  once it's open) · **Lv 4** an ant Cashier at the café · **Lv 5** a Banker ant (your idle income).
+- 📦 **The delivery crate** turns up with Farm Lv 3: fill it with the snack packs and crumbs it asks for, it goes off
+  for 40 s and comes back with **3 🪵 planks** (shown next to the area name).
+- 🏡 **New plots**: the tile by the east gate opens the **Corner Café** plot. It needs **Lv 5**, **2 ants working**,
+  **3 planks** and **$250**; the sign over the gate ticks them off. The café buys your snack packs ($8 each) at its
+  SELL spot, and the new plot hides a 🎁 **chest**.
+- ⬆️ The building panels work here too (bread box, farm, café, Staff), and the arrow-and-hint tutorial walks
+  you through all of it (⚙️ Settings → 📖 How to play has this game's guide).
+
+Code: `src/homeMain.ts` (boot + loop), `src/world/homeWorld.ts` (the backyard), `src/data/home.ts` (every number).
+Not in this test yet: offline earnings, the farm close-up and ride-along cam, more plots.
+
 ## 🎓 Tutorial and How to play
 
 - A new game opens with a welcome card: **▶️ Show me how** or **Skip tutorial**.
@@ -262,7 +289,8 @@ $12.5M + the $6M eruption), and things go wrong:
 
 Settings has **3 save slots**, each a completely separate game (its own cash, levels and
 unlocks). Your existing progress is Slot 1. Only the slot you're playing earns offline income;
-switching pauses the one you leave, so slots never stack.
+switching pauses the one you leave, so slots never stack. Tapping an **empty** slot asks which game to start:
+🏝️ **Anthill Island** (the new test version) or 🐜 **Anthill Airways** (`save.campaign`); resetting a slot keeps its game.
 
 ## Idle earnings 💤
 
