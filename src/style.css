@@ -223,6 +223,10 @@ html, body {
 .res-row { display: flex; justify-content: space-between; font-size: 17px; padding: 7px 4px; border-bottom: 2px dashed #ead9bf; }
 .res-row.total { font-size: 21px; border-bottom: none; color: #2f8a3a; }
 .card .big-btn { bottom: 18px; animation: none; }
+/* (as wide as its text, but clear of the 👁️ button; the 🚩 line never wraps) */
+#launchBtn { width: max-content; max-width: calc(100vw - 150px); }
+#launchBtn small { display: block; margin-top: 2px; font-size: 13px; font-weight: 800; opacity: 0.92; white-space: nowrap; }
+body.launch-on .up-btn { display: none; } /* (the launch button takes the bottom of the screen) */
 .menu-btn {
   display: block;
   width: 100%;
@@ -627,3 +631,77 @@ html, body {
 
 /* 🔄 The one-time free respec button (v0.25 balance update) */
 .respec-btn { width: 100%; margin: 6px 0 4px; background: #d8f3dc; }
+
+/* ⬆️ Building upgrades: the button by the 👁️ one, and the panel (a bottom sheet) */
+.up-btn {
+  position: absolute;
+  right: calc(74px + var(--safe-r));
+  bottom: calc(16px + var(--safe-b));
+  height: 52px;
+  max-width: calc(100vw - 250px);
+  padding: 0 14px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 16px;
+  background: linear-gradient(#9b84ff, #6b4fd8);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 4px 0 #3e2a8f, 0 8px 14px rgba(0, 0, 0, 0.25);
+}
+.up-btn.glow {
+  background: linear-gradient(#ffd866, #f2a51a);
+  color: #3a2a1a;
+  box-shadow: 0 4px 0 #b3700b, 0 8px 14px rgba(0, 0, 0, 0.25);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.overlay.sheet { align-items: flex-end; background: rgba(10, 20, 30, 0.28); }
+.card.up-card {
+  width: min(480px, 100vw);
+  max-height: 64vh;
+  border-radius: 22px 22px 0 0;
+  padding: 12px 16px calc(12px + var(--safe-b));
+  text-align: left;
+}
+.up-tabs { display: flex; gap: 6px; margin-bottom: 6px; }
+.up-tabs:empty { display: none; }
+.up-tab { flex: 1; padding: 8px 6px; border: 0; border-radius: 12px; background: #ead9bf; color: #6b5a44; font-size: 14px; font-weight: 800; }
+.up-tab.on { background: #6b4fd8; color: #fff; }
+.up-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.card .up-top h2 { font-size: 21px; margin: 2px 0 4px; }
+.up-cash { font-weight: 900; color: #2f8a3a; white-space: nowrap; }
+.up-warn { background: #fff0d6; border: 2px solid #ffb347; border-radius: 12px; padding: 6px 10px; font-weight: 800; font-size: 14px; margin: 2px 0 6px; }
+.up-row { padding: 10px 0; border-bottom: 2px dashed #ead9bf; }
+.up-head { display: flex; align-items: center; gap: 8px; }
+.up-ic { font-size: 24px; }
+.up-nm { flex: 1; font-weight: 900; font-size: 16px; }
+.up-nm small { display: block; font-weight: 700; font-size: 12px; color: #8a7a64; }
+.up-lv { font-weight: 900; color: #6b4fd8; white-space: nowrap; }
+.up-pips { display: flex; gap: 3px; margin: 7px 0 5px; }
+.up-pips i { flex: 1; height: 12px; border-radius: 4px; background: #ead9bf; font-style: normal; font-size: 9px; line-height: 12px; text-align: center; }
+.up-pips i.on { background: #8e74f0; }
+.up-pips i.star { background: #ffe6a1; }
+.up-pips i.star.on { background: #f2b21a; }
+.up-fx { font-size: 14px; color: #5a4a36; }
+.up-fx b { color: #2f8a3a; }
+.up-fx b.max { color: #e08a10; }
+.up-star { font-size: 12.5px; font-weight: 800; color: #b3700b; margin-top: 2px; }
+.up-buys { display: flex; gap: 6px; margin-top: 8px; }
+.up-buy {
+  flex: 1;
+  padding: 7px 4px;
+  border: 0;
+  border-radius: 12px;
+  background: #e4ddd2;
+  color: #9b8f80;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+.up-buy span { display: block; font-size: 13px; font-weight: 800; }
+.up-buy.ok { background: linear-gradient(#7be08f, #3fbf5a); color: #fff; box-shadow: 0 3px 0 #2a8a3e; }
+.up-buy.ok:active { transform: translateY(2px); box-shadow: 0 1px 0 #2a8a3e; }
+.up-empty { padding: 14px 0; color: #8a7a64; font-weight: 700; }
+.card .up-close { margin: 10px 0 0; }

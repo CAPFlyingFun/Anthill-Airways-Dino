@@ -52,12 +52,14 @@ export const HOWTO_HTML = `
 </section>
 
 <section>
-  <h3>⬆️ Upgrade pads</h3>
+  <h3>⬆️ Upgrading buildings</h3>
   <ul>
-    <li>Round ⬆️ pads appear next to buildings and helpers. Stand on one to buy the next level.</li>
-    <li>Machines make more, counters sell for more, helpers get faster and carry more.</li>
-    <li>A counter's pad first hires a <b>2nd cashier</b> (two lines), then unlocks <b>bigger orders</b>.</li>
-    <li>A ⚠️ tag over a building means something is backed up (shelf full, nothing to sell...).</li>
+    <li>Walk up to a building and tap the <b>⬆️ button</b> (bottom right), or just <b>tap the building</b>, to open its panel.</li>
+    <li>Each upgrade shows what it does now and after the next level. Buy <b>×1</b>, <b>×5</b> or <b>MAX</b> (as many as you can afford). The button glows gold when you can afford a level.</li>
+    <li>⭐ <b>Lv 5 and Lv 10 are milestones</b>: those levels give a bigger jump.</li>
+    <li>A shop's panel also hires a <b>2nd cashier</b> (two lines), then <b>bigger orders</b>.</li>
+    <li>The <b>👷 Staff</b> tab (or tap a helper) upgrades every helper's speed and carry, and your bankers' and assistants' grab speed and cash.</li>
+    <li>A ⚠️ tag over a building (and in its panel) means something is backed up (shelf full, nothing to sell...).</li>
   </ul>
 </section>
 
@@ -69,6 +71,9 @@ export const HOWTO_HTML = `
     <li>Puddles and hazards knock some of your load off.</li>
     <li>📦 <b>Delivery contracts:</b> reach the target number to earn a +50% bonus.</li>
     <li>⚠️ From your 3rd run, some rows offer a <b>gold RISKY ×2 gate</b> with a hazard right behind it.</li>
+    <li>🚩 The cart holds up to <b>×6</b> what you loaded (the launch button shows how many). Once it's <b>FULL</b>,
+    + and × gates add nothing: dodge the − and ÷ gates and the hazards to keep your haul. Finish-line bonuses
+    (📦 the contract's +50%, the ×1.25 photo snaps) still count on top.</li>
   </ul>
 </section>
 

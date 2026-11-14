@@ -182,6 +182,15 @@ async function start() {
     writeSave(save);
   };
 
+  // 👆 Tapping a building (or a helper) opens its ⬆️ upgrade panel (world/upgradePad.ts)
+  const tapNdc = new THREE.Vector2();
+  input.onTap = (x, y) => {
+    const r = renderer.domElement.getBoundingClientRect();
+    tapNdc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    const w = mode === 'base' ? base : mode === 'air' ? airport : mode === 'island' ? island : mode === 'volcano' ? volcano : mode === 'hotel' ? hotel : null;
+    return w?.ups?.pick(tapNdc) ?? false;
+  };
+
   // 4) Tapping LAUNCH RUN switches to the gate run; finishing switches back.
   base.onLaunch = (count, from) => {
     mode = 'run';
@@ -700,12 +709,19 @@ async function start() {
   }
   // Welcome back! (time since you last played)
   window.setTimeout(() => offerOffline(awayAtLaunch), 900);
-  // ⚖️ Tell players of older saves what changed (once, after any welcome-back card)
+  // 📰 Notices for players of older saves (each once, after any welcome-back card).
+  // (Each waits for the welcome-back card, a gate run, a world switch or any other card.)
+  const guideOpen = () => !document.getElementById('guide')?.classList.contains('hidden');
+  const whenClear = (show: () => void, ms: number) => {
+    const tryShow = () => {
+      if (welcomeOpen || mode === 'run' || switching || guideOpen()) return void window.setTimeout(tryShow, 800);
+      show();
+    };
+    window.setTimeout(tryShow, ms);
+  };
+  // ⚖️ v0.25: what changed in the balance pass
   if (rebalanced.tell) {
-    const guideOpen = () => !document.getElementById('guide')?.classList.contains('hidden');
     const tell = () => {
-      // (wait for the welcome-back card, a gate run, a world switch or any other card)
-      if (welcomeOpen || mode === 'run' || switching || guideOpen()) return void window.setTimeout(tell, 800);
       hud.showGuide(
         '⚖️ Big balance update!',
         `<p>Anthill Airways got a full economy check-up, so progress feels fair from the first ant to the Grand Resort:</p>
@@ -724,7 +740,29 @@ async function start() {
         ],
       );
     };
-    window.setTimeout(tell, 2200);
+    whenClear(tell, 2200);
+  }
+  // ⬆️ v0.26: the upgrade pads became building panels (players past the tutorial's
+  // upgrade step; anyone before it learns it there)
+  if (!save.paid['news-v26']) {
+    if ((save.tutorial ?? 0) <= 8) save.paid['news-v26'] = 1;
+    else
+      whenClear(() => {
+        save.paid['news-v26'] = 1;
+        writeSave(save);
+        hud.showGuide(
+          '⬆️ Upgrades moved into the buildings!',
+          `<p>The purple pads on the ground are gone. Now:</p>
+           <ul>
+             <li>Walk up to a building and tap the <b>⬆️ button</b> (bottom right), or just <b>tap the building</b>.</li>
+             <li>Buy <b>×1</b>, <b>×5</b> or <b>MAX</b>. ⭐ Lv 5 and Lv 10 give a bigger jump.</li>
+             <li>The <b>👷 Staff</b> tab (or tap a helper): your helpers' speed and carry, your bankers' grab speed.</li>
+             <li>✅ Every level you bought on the pads is kept.</li>
+           </ul>
+           <p>🚩 <b>Gate runs:</b> the cart now holds up to <b>×6</b> what you load. Once it's FULL, dodge the bad gates to keep your haul!</p>`,
+          [{ label: '👍 Got it', cls: 'big-btn' }],
+        );
+      }, 2600);
   }
 
   // 7) Main loop. `?speed=4` in the URL fast-forwards (handy for testing).
@@ -756,7 +794,7 @@ async function start() {
   hud.initTotals(() => {
     const t = save.totals;
     const n = (k: string) => t[k] ?? 0;
-    const money = (v: number) => `$${v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.round(v).toLocaleString()}`;
+    const money = (v: number) => `$${v >= 1e9 ? `${(v / 1e9).toFixed(2)}B` : v >= 1e6 ? `${(v / 1e6).toFixed(2)}M` : Math.round(v).toLocaleString()}`;
     const secs = n('played');
     const time = `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
     const worlds = [base, airport, island, volcano, hotel].filter((w) => w) as { workers: { level: number }[] }[];

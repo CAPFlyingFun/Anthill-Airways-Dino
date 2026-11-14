@@ -1,142 +1,70 @@
 // ============================================================================
-// upgradePad.ts — the ⬆️ UPGRADE PADS.
+// upgradePad.ts — ⬆️ BUILDING UPGRADES (the panels).
 //
 // Every world owns one `Upgrades` manager. Each frame it:
-//   1. FINDS buildings that don't have a pad yet (machines, piles, counters /
-//      desks) and puts a pad next to each one, on a free spot of floor.
-//      (So anything an unlock builds gets its pad automatically.)
-//   2. Adds a 👷 CREW pad (all helpers) and a 💼 COLLECTORS pad (bankers, the
-//      Queen, assistants) once the world has any.
-//   3. APPLIES every pad's level to its building (speed, prices, carry...).
-//   4. Lets you pour cash into the pad you're standing on (after a short
-//      pause, so walking over one doesn't spend by accident).
+//   1. FINDS buildings (machines, piles, counters / desks, the trash bin) and
+//      gives each one its upgrades. (So anything an unlock builds gets them
+//      automatically.) Piles of one type share one upgrade.
+//   2. Adds the world's 👷 STAFF upgrades (all helpers; bankers, the Queen and
+//      assistants) once it has any.
+//   3. APPLIES every upgrade's level to its building (speed, prices, carry...).
+//   4. Shows a "⬆️ OVEN" button when you walk up to a building, and opens that
+//      building's PANEL when you tap the button or tap the building itself
+//      (tap a helper for the Staff tab). The panel buys levels: x1, x5 or MAX.
+//   5. Floats a ⚠️ STATUS TAG over a station while it's stuck (idle oven,
+//      full shelf...), and shows the same warning in its panel.
 //
-// Pad ids are stable ("i3-up-blender@-12,6"), so levels load back onto the
-// same building, and island / volcano ones (i3- / v4-) reset on an eruption.
+// (Until v0.26 these were round pads on the ground that you stood on. The ids
+// stayed the same - "i3-up-blender@-12,6" - so every level bought carries over,
+// and island / volcano ones (i3- / v4-) still reset on an eruption.)
 // ============================================================================
-import { clock } from '../core/clock';
 import * as THREE from 'three';
-import type { Text } from 'troika-three-text';
 import { SaveData } from '../core/save';
 import { Sfx } from '../core/audio';
 import { Progress } from '../core/progress';
 import { bump } from '../core/totals';
-import { COLONY_ZONE_BASE, UP_BASE, UP_KINDS, UP_MAX, UpKind, up, upCost } from '../core/upgrades';
-import { Hud } from '../ui/hud';
+import { COLONY_ZONE_BASE, HAS_MILESTONES, MILESTONES, UP_BASE, UP_KINDS, UP_MAX, UpKind, up, upCost } from '../core/upgrades';
+import type { Hud, UpPanelModel, UpRowModel } from '../ui/hud';
 import { Flyers } from './items';
-import { GAME_FONT, TEXT_RES, TextSprite, groundText, roundRect, setGroundText, sharpTexture } from './labels';
-import { Blocker, Zone } from './stations';
+import { TextSprite } from './labels';
+import { Zone } from './stations';
 import { TRASH } from './trash';
-import { CONFIG, ZONES } from '../data/config';
+import { ZONES } from '../data/config';
 import type { Worker } from '../actors/worker';
 
 /** Which world a manager belongs to (also the save key for helpers' XP). */
 export type WorldKey = 'ant' | 'air' | 'island' | 'volcano' | 'hotel';
 /** Id prefix per world (matches the unlock ids, so eruptions wipe i3- / v4-). */
 const PREFIX: Record<WorldKey, string> = { ant: 'c1', air: 'a2', island: 'i3', volcano: 'v4', hotel: 'h5' };
-
-/** Pad width: the human-scale worlds are seen from farther away, so their pads are bigger. */
-const SIZES: Record<WorldKey, number> = { ant: 2.3, air: 3.0, island: 3.0, volcano: 3.0, hotel: 3.0 };
-const DWELL = 0.6; // seconds you must stand on a pad before cash starts pouring
+/** How close (world units, from the building's edge) counts as "next to it" for the ⬆️ button. */
+const NEAR: Record<WorldKey, number> = { ant: 2.4, air: 3.2, island: 3.2, volcano: 3.2, hotel: 3.2 };
 
 // ---- Duck types for the buildings (so this file needn't import every world) --
 interface MachineLike { group: THREE.Group; inZone: Zone; outZone: Zone; speedMult: number; opts: { label: string } }
 interface PileLike { group: THREE.Group; zone: Zone; type: string; rateMult: number; spawnEvery: () => number }
 interface SellerLike { group: THREE.Group; priceMult: number; paceMult: number; opts: { label?: string; itemType?: string } }
-interface CollectorLike { boost: number }
+interface CollectorLike { boost: number; model?: { root: THREE.Object3D } }
 
 const isMachine = (o: any): o is MachineLike => o && o.inZone instanceof Zone && o.outZone instanceof Zone && typeof o.speedMult === 'number';
 const isPile = (o: any): o is PileLike => o && o.zone instanceof Zone && typeof o.rateMult === 'number' && typeof o.spawnEvery === 'function';
 const isSeller = (o: any): o is SellerLike => o && typeof o.priceMult === 'number' && typeof o.paceMult === 'number' && o.group;
 const isBin = (o: any) => o && o.mouth instanceof THREE.Vector3 && o.zone instanceof Zone && o.group;
 
-/** Short names for each pile type ("CRUMBS"), shown on its pad. */
+/** Short names for each pile type ("CRUMBS"). */
 const PILE_NAME: Record<string, string> = {
   crumb: 'CRUMBS', leaf: 'LEAVES', sugar: 'SUGAR', snackbox: 'EXPORTS', fruit: 'FRUIT', meat: 'DINO FOOD', egg: 'NESTS',
   obsidian: 'OBSIDIAN', magma: 'LAVA VENT', crystal: 'VAULT', grocery: 'GROCERIES', laundry: 'LAUNDRY',
 };
-/** "☕ Ant Café" -> "ANT CAFÉ" (emoji off; the pad paints its own icons). */
+const PILE_ICON: Record<string, string> = {
+  crumb: '🍞', leaf: '🌿', sugar: '🍬', snackbox: '📦', fruit: '🍓', meat: '🍖', egg: '🥚',
+  obsidian: '🪨', magma: '🌋', crystal: '💎', grocery: '🥕', laundry: '🧺',
+};
+/** "☕ Ant Café" -> "ANT CAFÉ" (emoji off). */
 const clean = (s: string) => s.replace(/[^\p{L}\p{N} \-&']/gu, '').replace(/\s+/g, ' ').trim().toUpperCase();
+/** The emoji at the start of a label, if any ("☕ Ant Café" -> "☕"). */
+const leadEmoji = (s: string) => /^\p{Extended_Pictographic}️?/u.exec(s.trim())?.[0] ?? '';
 
 const SELLER_NAME: Record<string, string> = { snack: 'SNACK SHOP', wrap: 'WRAP MARKET', candy: 'CANDY SHOP' };
-
-// ============================================================================
-// One pad on the ground
-// ============================================================================
-export class UpgradePad {
-  mesh: THREE.Mesh;
-  zone: Zone;
-  dwell = 0;
-  private canvas = document.createElement('canvas');
-  private ctx: CanvasRenderingContext2D;
-  private tex: THREE.CanvasTexture;
-  private nameText: Text;
-  private priceText: Text;
-  private shown = '';
-  private pulseT = Math.random() * 6;
-  /** Highest level (most pads: 10). */
-  max = UP_MAX;
-  /** Price of the next level. */
-  costOf = (lv: number) => upCost(this.base, lv);
-  /** Name shown on the pad at a level. */
-  titleOf = (lv: number) => `${this.label} · Lv ${lv}`;
-  /** Second icon on the pad at a level. */
-  iconOf = (_lv: number) => UP_KINDS[this.kind].icon;
-
-  constructor(scene: THREE.Scene, public id: string, public kind: UpKind, public label: string, x: number, z: number, public base: number, private size: number) {
-    const SIZE = size;
-    this.canvas.width = this.canvas.height = 256 * TEXT_RES;
-    this.ctx = this.canvas.getContext('2d')!;
-    this.tex = sharpTexture(this.canvas);
-    this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(SIZE, SIZE), new THREE.MeshBasicMaterial({ map: this.tex, transparent: true, depthWrite: false }));
-    this.mesh.rotation.x = -Math.PI / 2;
-    this.mesh.position.set(x, 0.05, z);
-    this.mesh.renderOrder = 2;
-    this.nameText = groundText('', 0.3, '#ffffff', SIZE * 0.9);
-    this.nameText.position.y = -0.12;
-    this.priceText = groundText('', 0.46, '#ffffff', SIZE * 0.86);
-    this.priceText.position.y = -0.62;
-    this.mesh.add(this.nameText, this.priceText);
-    scene.add(this.mesh);
-    this.zone = new Zone(x, z, SIZE * 0.42, SIZE * 0.42);
-  }
-
-  /** Repaint only when something visible changed. */
-  draw(level: number, remaining: number, affordable: boolean) {
-    const SIZE = this.size;
-    const maxed = level >= this.max;
-    const key = `${level}|${remaining}|${affordable}`;
-    if (key === this.shown) return;
-    const repaint = this.shown.split('|')[2] !== String(affordable) || this.shown.split('|')[0] !== String(level);
-    this.shown = key;
-    setGroundText(this.priceText, maxed ? 'MAX' : `$${remaining.toLocaleString()}`, maxed ? '#7df9a0' : affordable ? '#ffe066' : '#ffffff', SIZE * 0.86);
-    if (!repaint) return;
-    setGroundText(this.nameText, this.titleOf(level), '#ffffff', SIZE * 0.9);
-    const c = this.ctx;
-    c.setTransform(TEXT_RES, 0, 0, TEXT_RES, 0, 0);
-    c.clearRect(0, 0, 256, 256);
-    roundRect(c, 12, 12, 232, 232, 116); // a circle-ish pill: tells pads apart from unlock tiles
-    c.fillStyle = maxed ? 'rgba(20, 70, 40, 0.55)' : 'rgba(45, 25, 80, 0.55)';
-    c.fill();
-    c.setLineDash([20, 12]);
-    c.lineWidth = 10;
-    c.strokeStyle = maxed ? '#7df9a0' : affordable ? '#ffe066' : '#c9a6ff';
-    c.stroke();
-    c.setLineDash([]);
-    c.font = `70px ${GAME_FONT}`;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillText(maxed ? '⭐' : '⬆️', 98, 78);
-    c.fillText(this.iconOf(level), 160, 78);
-    this.tex.needsUpdate = true;
-  }
-
-  pulse(dt: number, on: boolean) {
-    this.pulseT += dt;
-    const s = on ? 1 + Math.sin(this.pulseT * 5) * 0.04 : 1;
-    this.mesh.scale.set(s, s, 1);
-  }
-}
 
 // ============================================================================
 // ⚠️ STATUS TAGS: a little warning over a station only while something's wrong
@@ -186,71 +114,78 @@ export interface UpgradeHost {
   scene: THREE.Scene;
   camera: THREE.Camera;
   workers: Worker[];
-  /** Where the 👷 CREW / 💼 COLLECTORS pads try to go (near the start). */
-  home: THREE.Vector3;
-  /** Can the player stand at (x, z)? (Pads must be reachable.) */
-  canWalk: (x: number, z: number) => boolean;
-  /** Every unlock tile spot, bought or not (pads never cover a future building). */
-  tileSpots: [number, number][];
+  /** (Kept for the worlds' setup code: where the old crew pad went. Unused now.) */
+  home?: THREE.Vector3;
+  canWalk?: (x: number, z: number) => boolean;
+  tileSpots?: [number, number][];
   /** Collectors in this world right now (bankers / the Queen / an assistant). */
   collectors: () => CollectorLike[];
-  /** Pads only appear once this is true (the colony waits for your first Worker Ant). */
+  /** Upgrades only appear once this is true (the colony waits for your first Worker Ant). */
   ready?: () => boolean;
 }
 
+/** One upgrade: its level lives in save.upgrades[id] (partial payments in save.upPaid). */
+export class Upgrade {
+  /** Highest level (most: 10). */
+  max = UP_MAX;
+  /** Price of the next level. */
+  costOf = (lv: number) => upCost(this.base, lv);
+  constructor(public id: string, public kind: UpKind, public label: string, public base: number) {}
+}
+
 interface Target {
-  pad: UpgradePad;
+  up: Upgrade;
   /** Puts the level into effect (`animate` = just bought, not loading a save). */
   apply: (lv: number, animate?: boolean) => void;
-  /** The building it belongs to (pads stay near it if they have to move). */
-  near: THREE.Vector3;
   /** Only shown (and buyable) while this is true. */
   visible?: () => boolean;
+  /** How many piles share it (shown as "all 2 crumb piles"). */
+  shared?: () => number;
+}
+
+/** A building you can upgrade. */
+interface Building {
+  name: string;           // "OVEN"
+  icon: string;           // "🔥" (for the panel title + button)
+  group: THREE.Object3D;
+  targets: Target[];      // its upgrades
+  status?: Status;        // ⚠️ what's wrong, if anything
+  rect: { minX: number; maxX: number; minZ: number; maxZ: number }; // footprint (for "next to it")
 }
 
 export class Upgrades {
   private targets: Target[] = [];
+  private buildings: Building[] = [];
+  private staff: Target[] = []; // 👷 crew + 💼 collectors (the Staff tab)
   private seen = new Set<object>();
-  private buildings: THREE.Object3D[] = []; // every building's 3D group (for footprints)
   private box = new THREE.Box3();
-  /** Seconds until pads recheck for anything built on top of them (-1 = no). */
-  private recheckT = 1;
-  private unlockedSeen = -1;
-  private piles = new Map<string, PileLike[]>(); // one pad per pile TYPE
+  private piles = new Map<string, { list: PileLike[]; target: Target }>(); // one upgrade per pile TYPE
   private scanT = 0;
+  private rectT = 0;
   private crewLoaded = 0; // helpers whose saved XP has been loaded
   private statuses: Status[] = [];
   private statusT = 0;
   private active = false;
+  private ray = new THREE.Raycaster();
+  /** The building whose ⬆️ button is showing (null = none). */
+  private nearby: Building | null = null;
+  /** This world is driving the ⬆️ button (it's the one you're in). */
+  private claimed = false;
+  /** The panel, while it's open for this world: which building + tab. */
+  private open: { b: Building | null; tab: 'building' | 'staff' } | null = null;
 
   constructor(private host: UpgradeHost, private world: WorldKey, private save: SaveData, private hud: Hud, private sfx: Sfx, private flyers: Flyers, private progress: Progress) {
     save.crewXp[world] ??= [];
   }
 
-  /** A pad's base price: per world, and in the colony per zone (Nest / Tunnels / Hangar). */
+  /** An upgrade's base price: per world, and in the colony per zone (Nest / Tunnels / Hangar). */
   private baseAt(near: THREE.Vector3) {
     if (this.world !== 'ant') return UP_BASE[this.world];
     const zone = ZONES.find((z) => near.x >= z.rect.minX && near.x <= z.rect.maxX && near.z >= z.rect.minZ && near.z <= z.rect.maxZ);
     return COLONY_ZONE_BASE[zone?.id ?? 'nest'] ?? UP_BASE.ant;
   }
 
-  /** Where the nearest shown pad is (for the tutorial's arrow), or null. */
-  nearestPad(from: THREE.Vector3): THREE.Vector3 | null {
-    let best: THREE.Vector3 | null = null;
-    let d = Infinity;
-    for (const t of this.targets) {
-      if (!t.pad.mesh.visible) continue;
-      const p = t.pad.mesh.position;
-      const dd = (p.x - from.x) ** 2 + (p.z - from.z) ** 2;
-      if (dd < d) {
-        d = dd;
-        best = new THREE.Vector3(p.x, 0, p.z);
-      }
-    }
-    return best;
-  }
-
-  /** Levels bought on a pad. */
+  /** Levels bought on an upgrade. */
   level(id: string) {
     return this.save.upgrades[id] ?? 0;
   }
@@ -264,9 +199,30 @@ export class Upgrades {
     return `${PREFIX[this.world]}-up-${name}`;
   }
 
+  /** Upgrades are available here yet (the colony waits for its first Worker Ant). */
+  private get ready() {
+    return this.host.ready?.() ?? true;
+  }
+
+  /** The nearest building that has something to upgrade (for the tutorial's arrow), or null. */
+  nearestBuilding(from: THREE.Vector3): THREE.Vector3 | null {
+    if (!this.ready) return null;
+    let best: Building | null = null;
+    let d = Infinity;
+    for (const b of this.buildings) {
+      if (!this.hasRows(b)) continue;
+      const dd = this.distTo(b, from);
+      if (dd < d) {
+        d = dd;
+        best = b;
+      }
+    }
+    return best ? best.group.position.clone().setY(0) : null;
+  }
+
   // ---- Finding buildings ------------------------------------------------------
   /**
-   * Look through the world for buildings without a pad: its own fields, any
+   * Look through the world for buildings we don't know yet: its own fields, any
    * arrays of stations, and stations kept inside other objects (two levels).
    */
   private scan(root: any) {
@@ -284,27 +240,25 @@ export class Upgrades {
       if (['save', 'scene', 'camera', 'hud', 'sfx', 'flyers', 'progress', 'player', 'ups', 'tiles', 'cashPads', 'workers'].includes(k)) continue;
       visit(v, 0);
     }
-    let added = false;
     for (const o of found) {
       if (this.seen.has(o)) continue;
       this.seen.add(o);
-      this.buildings.push(o.group);
-      added = true;
-      this.register(o, root);
-      if (isMachine(o) || isSeller(o)) this.addStatus(o);
+      const status = isMachine(o) || isSeller(o) ? this.addStatus(o) : undefined;
+      this.register(o, status);
     }
-    if (added) this.recheckT = 1; // (after the new building's grow-in animation)
   }
 
   /** A (hidden) status tag over a machine or a counter / desk. */
-  private addStatus(o: any) {
+  private addStatus(o: any): Status {
     const g = o.group as THREE.Object3D;
     this.box.setFromObject(g);
     const tag = new TextSprite(this.world === 'ant' ? 1.05 : 0.95, '#ffb347');
     tag.sprite.visible = false;
     this.host.scene.add(tag.sprite);
     const top = isFinite(this.box.max.y) ? Math.min(this.box.max.y, g.position.y + 8) : 3;
-    this.statuses.push({ o, kind: isMachine(o) ? 'machine' : 'seller', tag, top, problem: '', since: 0 });
+    const st: Status = { o, kind: isMachine(o) ? 'machine' : 'seller', tag, top, problem: '', since: 0 };
+    this.statuses.push(st);
+    return st;
   }
 
   /** Show a tag once a problem has lasted a couple of seconds; hide it when fixed. */
@@ -332,7 +286,7 @@ export class Upgrades {
   }
 
   /** A building's footprint on the ground (from its real 3D shape, labels ignored). */
-  private footprint(g: THREE.Object3D): Blocker {
+  private footprint(g: THREE.Object3D) {
     this.box.makeEmpty();
     g.updateWorldMatrix(true, true);
     g.traverse((o) => {
@@ -343,64 +297,64 @@ export class Upgrades {
       if (b) this.box.union(b.clone().applyMatrix4(mesh.matrixWorld));
     });
     const b = this.box;
+    if (!isFinite(b.min.x)) {
+      const p = g.position;
+      return { minX: p.x - 1, maxX: p.x + 1, minZ: p.z - 1, maxZ: p.z + 1 };
+    }
     return { minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z };
   }
 
-  /**
-   * A new building went up: if it landed on a pad (e.g. a 2nd crumb pile's
-   * bread loaf), move that pad to a free spot by its own building.
-   */
-  private unblock(root: any) {
-    const size = SIZES[this.world];
-    const h = size / 2;
-    const obs = this.obstacles(root, false);
-    for (const t of this.targets) {
-      const p = t.pad.mesh.position;
-      const hit = obs.some((f) => p.x + h > f.minX && p.x - h < f.maxX && p.z + h > f.minZ && p.z - h < f.maxZ);
-      if (!hit) continue;
-      const others = this.targets.filter((o) => o !== t);
-      const keep = this.targets;
-      this.targets = others; // (so it doesn't avoid its own old spot)
-      const spot = this.freeSpot(t.near, root);
-      this.targets = keep;
-      p.set(spot.x, p.y, spot.z);
-      t.pad.zone.x = spot.x;
-      t.pad.zone.z = spot.z;
-    }
+  /** Distance from a point to a building's footprint (0 inside). */
+  private distTo(b: Building, p: THREE.Vector3) {
+    const r = b.rect;
+    return Math.hypot(Math.max(r.minX - p.x, 0, p.x - r.maxX), Math.max(r.minZ - p.z, 0, p.z - r.maxZ));
   }
 
-  private register(o: any, root: any) {
+  /** A new building: give it its upgrades. */
+  private register(o: any, status?: Status) {
     const at = o.group.position as THREE.Vector3;
     const key = `${Math.round(at.x)},${Math.round(at.z)}`;
+    const make = (name: string, icon: string, targets: Target[]) => {
+      const b: Building = { name, icon, group: o.group, targets, status, rect: this.footprint(o.group) };
+      this.buildings.push(b);
+      return b;
+    };
     if (isBin(o)) {
-      // 🗑️ One TRASH pad, by the colony's first bin: $ per piece in every world's bins
-      if (this.world !== 'ant' || this.targets.some((t) => t.pad.id === TRASH.padId)) return;
-      this.add('trash', 'trash', 'TRASH', at, root, () => {}, TRASH.padId, TRASH.padBase);
+      // 🗑️ One TRASH upgrade, on the colony's first bin: $ per piece in every world's bins
+      if (this.world !== 'ant' || this.targets.some((t) => t.up.id === TRASH.padId)) return;
+      const t = this.add('trash', 'trash', 'TRASH', at, () => {}, TRASH.padId, TRASH.padBase);
+      if (t) make('TRASH BIN', '🗑️', [t]);
     } else if (isMachine(o)) {
       const label = clean(o.opts.label) || 'MACHINE';
-      this.add(`${label.toLowerCase()}@${key}`, 'machine', label, at, root, (lv) => (o.speedMult = up.machine(lv)));
+      const t = this.add(`${label.toLowerCase()}@${key}`, 'machine', label, at, (lv) => (o.speedMult = up.machine(lv)));
+      if (t) make(label, leadEmoji(o.opts.label) || '⚙️', [t]);
     } else if (isPile(o)) {
       const every = o.spawnEvery();
+      const name = PILE_NAME[o.type] ?? o.type.toUpperCase();
       if (!isFinite(every) || every > 60) return; // filled by something else (laundry chute, vault)
-      const list = this.piles.get(o.type);
-      if (list) {
-        list.push(o); // same pad as the first pile of this type
-        o.rateMult = up.source(this.level(this.id(`pile-${o.type}`))); // (a pile added later gets the level already bought)
+      const known = this.piles.get(o.type);
+      if (known) {
+        // Same upgrade as the first pile of this type (a pile added later gets the level already bought)
+        known.list.push(o);
+        o.rateMult = up.source(this.level(known.target.up.id));
+        make(name, PILE_ICON[o.type] ?? '🌱', [known.target]);
         return;
       }
-      const piles = [o];
-      this.piles.set(o.type, piles);
-      const name = PILE_NAME[o.type] ?? o.type.toUpperCase();
-      this.add(`pile-${o.type}`, 'source', name, at, root, (lv) => piles.forEach((p) => (p.rateMult = up.source(lv))));
+      const list = [o];
+      const t = this.add(`pile-${o.type}`, 'source', name, at, (lv) => list.forEach((p) => (p.rateMult = up.source(lv))));
+      if (!t) return;
+      t.shared = () => list.length;
+      this.piles.set(o.type, { list, target: t });
+      make(name, PILE_ICON[o.type] ?? '🌱', [t]);
     } else if (isSeller(o)) {
       const raw = o.opts.label ?? SELLER_NAME[o.opts.itemType ?? ''] ?? 'SHOP';
       const label = clean(raw) || 'SHOP';
       const charm = () => this.progress.charmMult; // 😄 Charm stat
-      this.add(`sell-${label.toLowerCase()}@${key}`, 'seller', label, at, root, (lv) => {
+      const sell = this.add(`sell-${label.toLowerCase()}@${key}`, 'seller', label, at, (lv) => {
         o.priceMult = up.price(lv);
         o.paceMult = up.pace(lv) * charm();
       });
-      // 👥 The LINE pad, after the shop's first cashier is hired:
+      // 👥 The LINE upgrade, after the shop's first cashier is hired:
       //   Lv 0 -> buy the 2ND CASHIER (a second line, served at the same time)
       //   Lv 1-11 -> BIGGER ORDERS Lv 0-10 (+20% per level: customers buy more)
       const shop = o as SellerLike & {
@@ -409,7 +363,7 @@ export class Upgrades {
       };
       const base = this.baseAt(at); // (colony: by zone)
       const line = this.add(
-        `line-${label.toLowerCase()}@${key}`, 'line', label, at, root,
+        `line-${label.toLowerCase()}@${key}`, 'line', label, at,
         (lv, animate) => {
           if (lv >= 1 && shop.lines < 2) (shop.hireCashier2 ?? shop.hireStaff2)?.call(shop, !!animate);
           shop.bulk = up.bulk(Math.max(0, lv - 1));
@@ -418,122 +372,31 @@ export class Upgrades {
         () => !!(shop.hasCashier || shop.hasStaff), // only once the first cashier works here
       );
       if (line) {
-        line.max = 11;
-        line.costOf = (lv) => (lv === 0 ? base * 4 : upCost(base * 1.5, lv - 1));
-        line.titleOf = (lv) => (lv === 0 ? '2ND CASHIER' : `BIGGER ORDERS · Lv ${lv - 1}`);
-        line.iconOf = (lv) => (lv === 0 ? '👥' : '📦');
+        line.up.max = 11;
+        line.up.costOf = (lv) => (lv === 0 ? base * 4 : upCost(base * 1.5, lv - 1));
       }
+      const targets = [sell, line].filter((t): t is Target => !!t);
+      if (targets.length) make(label, leadEmoji(raw) || '🛒', targets);
     }
   }
 
-  /** Make a pad for `name`, on a free spot near `near`. */
+  /** Make an upgrade (once per id). */
   private add(
-    name: string, kind: UpKind, label: string, near: THREE.Vector3, root: any, apply: Target['apply'],
+    name: string, kind: UpKind, label: string, near: THREE.Vector3, apply: Target['apply'],
     fixedId?: string, base?: number, visible?: () => boolean,
-  ): UpgradePad | null {
+  ): Target | null {
     const id = fixedId ?? this.id(name);
-    if (this.targets.some((t) => t.pad.id === id)) return null;
-    const spot = this.freeSpot(near, root);
-    const pad = new UpgradePad(this.host.scene, id, kind, label, spot.x, spot.z, base ?? this.baseAt(near), SIZES[this.world]);
-    this.targets.push({ pad, apply, near: near.clone(), visible });
+    if (this.targets.some((t) => t.up.id === id)) return null;
+    const t: Target = { up: new Upgrade(id, kind, label, base ?? this.baseAt(near)), apply, visible };
+    this.targets.push(t);
     apply(this.level(id));
-    return pad;
-  }
-
-  // ---- Placing pads -----------------------------------------------------------
-  /** Everything a pad mustn't sit on: blockers, stand-here zones, unlock tiles, other pads. */
-  private obstacles(root: any, withPads = true): Blocker[] {
-    const SIZE = SIZES[this.world];
-    const out: Blocker[] = [];
-    const seen = new Set<object>();
-    const visit = (o: any, depth: number) => {
-      if (!o || typeof o !== 'object' || seen.has(o) || o instanceof THREE.Object3D || depth > 3) return;
-      seen.add(o);
-      if (o instanceof Zone) {
-        out.push({ minX: o.x - o.halfW, maxX: o.x + o.halfW, minZ: o.z - o.halfD, maxZ: o.z + o.halfD });
-        return;
-      }
-      // A shop's waiting lines (2 lines once the 2nd cashier is hired): keep them clear
-      if (isSeller(o)) {
-        const c = o as SellerLike & { opts: { facing?: number; queueMax?: number } };
-        const at = c.group.position;
-        const f = c.opts.facing ?? 1; // counters face either way; desks' lines run east (+x)
-        const n = c.opts.queueMax ?? CONFIG.counter.queueMax;
-        const x1 = at.x + f * 1.0;
-        const x2 = at.x + f * (2.3 + n * 2.3);
-        out.push({ minX: Math.min(x1, x2), maxX: Math.max(x1, x2), minZ: at.z - 2.1, maxZ: at.z + 2.1 });
-      }
-      // Anything with a 3D group (carts, bins, the hatchery, piles, machines…):
-      // its real footprint, so no pad ever ends up under an object
-      if (o.group instanceof THREE.Object3D && o !== root.player) {
-        const f = this.footprint(o.group);
-        if (isFinite(f.minX) && (f.maxX - f.minX) * (f.maxZ - f.minZ) < 300) out.push(f);
-      }
-      if (typeof o.minX === 'number' && typeof o.maxZ === 'number' && typeof o.maxX === 'number') {
-        // (Huge rects are walkable floors / zone outlines, not obstacles)
-        if ((o.maxX - o.minX) * (o.maxZ - o.minZ) < 300) out.push(o as Blocker);
-        return;
-      }
-      const vals = Array.isArray(o) ? o : Object.values(o);
-      for (const v of vals) visit(v, depth + 1);
-    };
-    for (const [k, v] of Object.entries(root)) {
-      if (['save', 'scene', 'camera', 'hud', 'sfx', 'flyers', 'progress', 'ups', 'walkable'].includes(k)) continue;
-      visit(v, 0);
-    }
-    for (const [x, z] of this.host.tileSpots) out.push({ minX: x - 1.4, maxX: x + 1.4, minZ: z - 1.4, maxZ: z + 1.4 });
-    // Every building's real footprint (a pile's bread loaf, a machine's body...)
-    for (const g of this.buildings) out.push(this.footprint(g));
-    // Decorations (rocks, twigs, trees): anything spawned with userData.decor
-    for (const o of this.host.scene.children) {
-      if (!o.userData.decor) continue;
-      const f = this.footprint(o);
-      if (!isFinite(f.minX)) continue;
-      if (o.userData.decor === 'tree') {
-        // A tree's leaves are up high: only its trunk takes up floor
-        const cx = (f.minX + f.maxX) / 2;
-        const cz = (f.minZ + f.maxZ) / 2;
-        out.push({ minX: cx - 1, maxX: cx + 1, minZ: cz - 1, maxZ: cz + 1 });
-      } else out.push(f);
-    }
-    if (withPads) {
-      for (const t of this.targets) {
-        const p = t.pad.mesh.position;
-        out.push({ minX: p.x - SIZE / 2, maxX: p.x + SIZE / 2, minZ: p.z - SIZE / 2, maxZ: p.z + SIZE / 2 });
-      }
-    }
-    return out;
-  }
-
-  /**
-   * Try spots in rings around the building, in front first (toward the
-   * camera), until one is clear of everything and walkable.
-   */
-  private freeSpot(near: THREE.Vector3, root: any) {
-    const SIZE = SIZES[this.world];
-    const obs = this.obstacles(root);
-    const h = SIZE / 2 + 0.25;
-    const clear = (x: number, z: number) =>
-      [[x, z], [x - h, z - h], [x + h, z - h], [x - h, z + h], [x + h, z + h]].every(([px, pz]) => this.host.canWalk(px, pz)) &&
-      !obs.some((b) => x + h > b.minX && x - h < b.maxX && z + h > b.minZ && z - h < b.maxZ);
-    // In front (toward the camera) at any distance beats beside it, which beats behind it
-    const arcs = [[0, 0.45, -0.45], [0.9, -0.9, 1.35, -1.35], [1.8, -1.8, 2.3, -2.3, 2.75, -2.75, Math.PI]];
-    for (const arc of arcs) {
-      for (const r of [3.4, 4.4, 5.6, 7, 8.6].map((v) => (v * SIZE) / 2.3)) {
-        for (const a of arc) {
-          const x = near.x + Math.sin(a) * r;
-          const z = near.z + Math.cos(a) * r;
-          if (clear(x, z)) return new THREE.Vector3(x, 0, z);
-        }
-      }
-    }
-    return near.clone().add(new THREE.Vector3(0, 0, 3.4)); // crowded: just in front
+    return t;
   }
 
   // ---- Every frame -------------------------------------------------------------
   /**
-   * `active` = you're playing this world (pads show + take cash). In the
-   * background the effects still apply so the helpers keep their boosts.
+   * `active` = you're playing this world (the ⬆️ button and taps work here). In
+   * the background the effects still apply so the helpers keep their boosts.
    */
   update(dt: number, root: any, playerPos: THREE.Vector3, active: boolean) {
     // New buildings? (cheap enough to check twice a second)
@@ -541,72 +404,268 @@ export class Upgrades {
     if (this.scanT <= 0) {
       this.scanT = 0.5;
       this.scan(root);
-      if (this.host.workers.length && !this.targets.some((t) => t.pad.id === this.id('crew'))) {
-        this.add('crew', 'crew', 'CREW', this.host.home, root, () => {});
+      if (this.host.workers.length && !this.targets.some((t) => t.up.id === this.id('crew'))) {
+        const t = this.add('crew', 'crew', 'CREW', new THREE.Vector3(), () => {});
+        if (t) this.staff.unshift(t);
       }
-      if (this.host.collectors().length && !this.targets.some((t) => t.pad.id === this.id('collectors'))) {
-        this.add('collectors', 'collector', 'COLLECTORS', this.host.home, root, () => {});
+      if (this.host.collectors().length && !this.targets.some((t) => t.up.id === this.id('collectors'))) {
+        const t = this.add('collectors', 'collector', 'COLLECTORS', new THREE.Vector3(), () => {});
+        if (t) this.staff.push(t);
       }
     }
-
-    // Something new was bought (a cart, a bin...): recheck the pads once it has grown in
-    if (this.save.unlocked.length !== this.unlockedSeen) {
-      this.unlockedSeen = this.save.unlocked.length;
-      this.recheckT = 1;
-    }
-    if (this.recheckT >= 0) {
-      this.recheckT -= dt;
-      if (this.recheckT < 0) this.unblock(root);
+    // Buildings grow in (and move) after an unlock: refresh their footprints now and then
+    this.rectT -= dt;
+    if (this.rectT <= 0) {
+      this.rectT = 2;
+      for (const b of this.buildings) b.rect = this.footprint(b.group);
     }
 
     // Effects (every frame: stats like Charm / Leadership can change any time)
-    for (const t of this.targets) t.apply(this.level(t.pad.id));
+    for (const t of this.targets) t.apply(this.level(t.up.id));
     this.applyCrew();
     const grab = up.grab(this.level(this.id('collectors')));
     for (const c of this.host.collectors()) c.boost = grab;
 
     this.active = active;
     this.updateStatus(dt, active); // ⚠️ station status tags (shown from the start: they guide new players too)
-    const show = active && (this.host.ready?.() ?? true);
-    for (const t of this.targets) t.pad.mesh.visible = show && (t.visible?.() ?? true);
-    if (!show) return;
 
-    // Pour cash into the pad you're standing on
-    for (const t of this.targets) {
-      const pad = t.pad;
-      if (!pad.mesh.visible) continue;
-      const lv = this.level(pad.id);
-      const cost = pad.costOf(lv);
-      const paid = this.save.upPaid[pad.id] ?? 0;
-      const remaining = Math.max(0, Math.ceil(cost - paid));
-      const canBuy = lv < pad.max;
-      pad.draw(lv, remaining, canBuy && this.save.cash >= remaining);
-      pad.pulse(dt, canBuy && this.save.cash >= remaining);
-      const on = pad.zone.contains(playerPos);
-      pad.dwell = on ? pad.dwell + dt : 0;
-      if (!on || !canBuy || pad.dwell < DWELL || this.save.cash < 1) continue;
-      const rate = Math.max(cost / 1.4, 12);
-      const pay = Math.min(this.save.cash, rate * dt * clock.scale, cost - paid);
-      this.save.upPaid[pad.id] = paid + pay;
-      this.save.cash -= pay;
-      this.hud.setCash(this.save.cash);
-      this.sfx.unlockTick();
-      if (paid + pay >= cost - 1e-6) this.levelUp(t, lv + 1, cost);
+    // The ⬆️ button for the building you're standing next to
+    let near: Building | null = null;
+    if (active && this.ready && !this.open) {
+      let d = NEAR[this.world];
+      for (const b of this.buildings) {
+        if (!this.hasRows(b)) continue;
+        const dd = this.distTo(b, playerPos);
+        if (dd < d) {
+          d = dd;
+          near = b;
+        }
+      }
+    }
+    // (Only the world you're in drives the button. Worlds keep running in the background,
+    // so one you just left lets go of it, and the new one claims it on its first frame.)
+    if (!active) {
+      if (this.claimed) {
+        this.claimed = false;
+        this.nearby = null;
+        this.hud.releaseUpgradeButton(this);
+      }
+    } else if (near !== this.nearby || !this.claimed) {
+      this.claimed = true;
+      this.nearby = near;
+      this.hud.setUpgradeButton(near ? `${near.icon} ${near.name}` : null, near ? () => this.openPanel(near!, 'building') : undefined, this.affordable(near), this);
+    } else if (near && (this.scanT === 0.5 || Math.random() < 0.1)) {
+      // (now and then: does the button glow because you can afford a level?)
+      this.hud.setUpgradeButton(`${near.icon} ${near.name}`, () => this.openPanel(near!, 'building'), this.affordable(near), this);
+    }
+    // Leaving the world closes its panel
+    if (!active && this.open) this.closePanel();
+  }
+
+  /** Does this building have anything to show in its panel? */
+  private hasRows(b: Building) {
+    return b.targets.some((t) => t.visible?.() ?? true);
+  }
+
+  /** Can you afford the next level of anything here? (makes the ⬆️ button glow) */
+  private affordable(b: Building | null) {
+    if (!b) return false;
+    return b.targets.some((t) => (t.visible?.() ?? true) && this.level(t.up.id) < t.up.max && this.save.cash >= this.remaining(t.up, this.level(t.up.id)));
+  }
+
+  /** Cash still to pay for level `lv` -> `lv + 1` (counts a part-payment from the old pads). */
+  private remaining(u: Upgrade, lv: number) {
+    const paid = lv === this.level(u.id) ? this.save.upPaid[u.id] ?? 0 : 0;
+    return Math.max(0, Math.ceil(u.costOf(lv) - paid));
+  }
+
+  // ---- Tapping ------------------------------------------------------------------
+  /**
+   * A tap on the game view at normalised screen coords (-1..1): did it hit a
+   * building (its panel) or a helper (the Staff tab)? Returns true if it opened one.
+   */
+  pick(ndc: THREE.Vector2): boolean {
+    if (!this.active || !this.ready || this.open) return false;
+    this.ray.setFromCamera(ndc, this.host.camera);
+    const groups = this.buildings.filter((b) => this.hasRows(b)).map((b) => b.group);
+    const helpers = [...this.host.workers.map((w) => w.model.root), ...this.host.collectors().map((c) => c.model?.root).filter((r): r is THREE.Object3D => !!r)];
+    const hits = this.ray.intersectObjects([...groups, ...(this.staff.length ? helpers : [])], true);
+    for (const h of hits) {
+      if ((h.object as THREE.Sprite).isSprite) continue; // (labels and tags don't count)
+      for (let o: THREE.Object3D | null = h.object; o; o = o.parent) {
+        const b = this.buildings.find((x) => x.group === o);
+        if (b) {
+          this.openPanel(b, 'building');
+          return true;
+        }
+        if (helpers.includes(o)) {
+          this.openPanel(this.nearby, 'staff');
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // ---- The panel ----------------------------------------------------------------
+  private openPanel(b: Building | null, tab: 'building' | 'staff') {
+    if (!b && !this.staff.length) return;
+    this.open = { b, tab: b ? tab : 'staff' };
+    this.nearby = null;
+    this.hud.setUpgradeButton(null, undefined, false, this);
+    this.sfx.popup();
+    this.hud.openUpgrades({
+      model: () => this.model(),
+      buy: (id, n) => this.buy(id, n),
+      tab: (key) => {
+        if (this.open) this.open.tab = key === 'staff' ? 'staff' : 'building';
+      },
+      close: () => {
+        this.open = null;
+      },
+    });
+  }
+
+  private closePanel() {
+    this.open = null;
+    this.hud.closeUpgrades();
+  }
+
+  /** What the panel shows right now. */
+  private model(): UpPanelModel | null {
+    const o = this.open;
+    if (!o) return null;
+    const tabs: UpPanelModel['tabs'] = [];
+    if (o.b) tabs.push({ key: 'building', label: `${o.b.icon} ${titleCase(o.b.name)}`, on: o.tab === 'building' });
+    if (this.staff.length) tabs.push({ key: 'staff', label: '👷 Staff', on: o.tab === 'staff' || !o.b });
+    const staffTab = o.tab === 'staff' || !o.b;
+    const list = staffTab ? this.staff : o.b!.targets;
+    const st = !staffTab ? o.b!.status : undefined;
+    return {
+      tabs,
+      title: staffTab ? '👷 Staff (every helper here)' : `${o.b!.icon} ${titleCase(o.b!.name)}`,
+      warn: st && st.problem && st.since > 2.2 ? st.problem : '',
+      cash: this.save.cash,
+      rows: list.filter((t) => t.visible?.() ?? true).map((t) => this.row(t)),
+    };
+  }
+
+  /** One upgrade's row: name, level pips (⭐ milestones), now -> next, and the buy buttons. */
+  private row(t: Target): UpRowModel {
+    const u = t.up;
+    const lv = this.level(u.id);
+    const maxed = lv >= u.max;
+    // The line: Lv 0 = the 2nd cashier, Lv 1-11 = bigger orders Lv 0-10
+    const isLine = u.kind === 'line';
+    const hiring = isLine && lv === 0;
+    const shownLv = isLine ? Math.max(0, lv - 1) : lv;
+    const shownMax = isLine ? u.max - 1 : u.max;
+    const stars = HAS_MILESTONES.has(u.kind);
+    const pips = hiring ? [] : Array.from({ length: shownMax }, (_, i) => ({ filled: i < shownLv, star: stars && MILESTONES.includes(i + 1) }));
+    const name = hiring ? '2nd cashier' : isLine ? 'Bigger orders' : UP_KINDS[u.kind].name;
+    const icon = hiring ? '👥' : isLine ? '📦' : UP_KINDS[u.kind].icon;
+    const n = t.shared?.() ?? 1;
+    const sub = u.kind === 'source' && n > 1 ? `All ${n} ${PILE_NAME_LOWER(u.label)} piles` : hiring ? 'A second line, served at the same time' : '';
+    const nextMilestone = stars && !maxed ? MILESTONES.find((m) => m === lv + 1) : undefined;
+    // Buy buttons: x1, x5 (if 2+ levels left), MAX (as many as you can afford now)
+    const buys: UpRowModel['buys'] = [];
+    if (!maxed) {
+      const left = u.max - lv;
+      const one = this.priceOf(u, 1);
+      buys.push({ n: 1, label: hiring ? 'Hire' : '×1', cost: one.cost, ok: this.save.cash >= one.cost });
+      if (left >= 2 && !hiring) {
+        const five = this.priceOf(u, 5);
+        buys.push({ n: five.n, label: `×${five.n}`, cost: five.cost, ok: this.save.cash >= five.cost });
+      }
+      const most = this.mostAffordable(u);
+      if (!hiring && most.n >= 2) buys.push({ n: most.n, label: `MAX ×${most.n}`, cost: most.cost, ok: true });
+    }
+    return {
+      id: u.id,
+      icon,
+      name,
+      sub,
+      level: maxed ? 'MAX' : hiring ? 'Not hired' : `Lv ${shownLv}/${shownMax}`,
+      pips,
+      now: this.effect(u, lv),
+      next: maxed ? null : this.effect(u, lv + 1),
+      star: nextMilestone ? `⭐ Lv ${nextMilestone} is a milestone: a bigger jump` : '',
+      buys,
+    };
+  }
+
+  /** What an upgrade does at a level, in words. */
+  private effect(u: Upgrade, lv: number) {
+    const x = (v: number) => `×${(Math.round(v * 100) / 100).toString()}`;
+    switch (u.kind) {
+      case 'machine': return `${x(up.machine(lv))} cook speed`;
+      case 'seller': return `${x(up.price(lv))} prices · ${x(up.pace(lv))} customers`;
+      case 'line': return lv === 0 ? '1 line' : `2 lines · customers buy ${x(up.bulk(lv - 1))}`;
+      case 'source': return `${x(up.source(lv))} regrow speed`;
+      case 'crew': return `${x(up.crewSpeed(lv))} speed · +${up.crewCarry(lv)} carry`;
+      case 'collector': return `${x(up.grab(lv))} grab speed · +${Math.round((up.bonus(lv) - 1) * 100)}% cash`;
+      case 'trash': return `$${TRASH.values[Math.min(lv, TRASH.values.length - 1)]} per piece`;
     }
   }
 
-  private levelUp(t: Target, lv: number, cost: number) {
-    const pad = t.pad;
-    this.save.upgrades[pad.id] = lv;
-    delete this.save.upPaid[pad.id];
-    pad.dwell = -0.6; // a short breather before the next level starts pouring
-    t.apply(lv, true);
-    bump('upgrades');
+  /** Price of the next `n` levels (fewer if it maxes out). */
+  private priceOf(u: Upgrade, n: number) {
+    const lv = this.level(u.id);
+    let cost = 0;
+    let k = 0;
+    while (k < n && lv + k < u.max) {
+      cost += this.remaining(u, lv + k);
+      k++;
+    }
+    return { n: k, cost };
+  }
+
+  /** As many levels as you can afford right now (and their price). */
+  private mostAffordable(u: Upgrade) {
+    const lv = this.level(u.id);
+    let cost = 0;
+    let k = 0;
+    while (lv + k < u.max) {
+      const next = this.remaining(u, lv + k);
+      if (cost + next > this.save.cash) break;
+      cost += next;
+      k++;
+    }
+    return { n: k, cost };
+  }
+
+  /** Buy `n` levels of an upgrade (stops early if the cash runs out). */
+  private buy(id: string, n: number) {
+    const t = this.targets.find((x) => x.up.id === id);
+    if (!t || !(t.visible?.() ?? true)) return;
+    const u = t.up;
+    let bought = 0;
+    while (bought < n) {
+      const lv = this.level(id);
+      if (lv >= u.max) break;
+      const pay = this.remaining(u, lv);
+      if (this.save.cash < pay) break;
+      this.save.cash -= pay;
+      delete this.save.upPaid[id];
+      this.save.upgrades[id] = lv + 1;
+      t.apply(lv + 1, true);
+      bump('upgrades');
+      bought++;
+    }
+    if (!bought) return;
     // (No XP: upgrades used to pay 10% of their price as XP, which flooded levels.)
+    this.hud.setCash(this.save.cash);
     this.sfx.upgrade();
-    const msg = pad.kind === 'line' && lv === 1 ? `👥 ${pad.label}: 2nd line open!` : `⬆️ ${pad.titleOf(lv)}!`;
-    this.hud.floatAt(pad.mesh.position.clone().setY(1.6), this.host.camera, msg, 'big gold');
-    this.flyers.grow(pad.mesh, 0.3);
+    const lv = this.level(id);
+    const b = this.open?.b;
+    const where = (b?.group.position ?? this.host.camera.position).clone().setY(this.world === 'ant' ? 2.6 : 3.6);
+    const star = HAS_MILESTONES.has(u.kind) && MILESTONES.some((m) => m > lv - bought && m <= lv);
+    const msg =
+      u.kind === 'line' && lv === 1 ? '👥 2nd line open!'
+        : u.kind === 'line' ? `📦 Bigger orders Lv ${lv - 1}!`
+          : `${star ? '⭐' : '⬆️'} ${titleCase(u.label)} Lv ${lv}${lv >= u.max ? ' MAX' : ''}!`;
+    this.hud.floatAt(where, this.host.camera, msg, 'big gold');
+    if (b) this.flyers.grow(b.group, 0.25);
   }
 
   /** 👷 CREW level + 📣 Leadership on every helper, and their saved XP. */
@@ -630,4 +689,14 @@ export class Upgrades {
       saved[i] = Math.round(w.xp);
     });
   }
+}
+
+/** "SNACK SHOP" -> "Snack Shop". */
+function titleCase(s: string) {
+  return s.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (_m, a: string, b: string) => a + b.toUpperCase());
+}
+/** "CRUMBS" -> "crumb" (for "All 2 crumb piles"). */
+function PILE_NAME_LOWER(label: string) {
+  const l = label.toLowerCase();
+  return l.endsWith('s') ? l.slice(0, -1) : l;
 }

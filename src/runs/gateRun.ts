@@ -130,6 +130,9 @@ export class GateRun {
   private countLabel = new TextSprite(1.1);
   private startCount = 0;
   private count = 0;
+  /** 🚩 The most the cart can hold this run (CONFIG.run.maxLoad x the load; no cap on a bonus run). */
+  private cap = Infinity;
+  private hitCap = false;
   private shownCargo = -1;
   private x = 0;
   private z = 0;
@@ -236,6 +239,10 @@ export class GateRun {
     const usual = this.memory?.contracts[theme] ?? count;
     this.target = plain ? Math.max(CONTRACT.min[theme], Math.round(Math.max(usual, 2) * CONTRACT.goalMult)) : 0;
     if (plain && this.memory) this.memory.contracts[theme] = Math.round(usual * 0.7 + count * 0.3); // remember the usual load
+    // 🚩 The cart holds ×6 the load at most (and a contract never asks for more than that)
+    this.cap = plain ? Math.round(count * CONFIG.run.maxLoad) : Infinity;
+    this.hitCap = false;
+    if (this.target > this.cap) this.target = this.cap;
     this.goalLabel.sprite.visible = this.target > 0;
     this.x = 0;
     this.z = 0;
@@ -255,7 +262,8 @@ export class GateRun {
     const names: Partial<Record<ItemType, string>> = { snack: 'snack packs', wrap: 'leaf wraps', candy: 'candies', cash: 'cash bundles', ticket: 'tourists', bag: 'suitcases' };
     const what = names[itemType] ?? 'items';
     const goal = this.target ? ` · 📦 Contract: finish with ${this.target} for +50%!` : '';
-    this.hud.banner(opts.title ?? 'Ready…', `${count} ${what} loaded${goal}`, opts.title ? 1800 : this.target ? 2200 : 1100);
+    const room = isFinite(this.cap) ? ` (the cart holds ${this.cap})` : '';
+    this.hud.banner(opts.title ?? 'Ready…', `${count} ${what} loaded${room}${goal}`, opts.title ? 1800 : this.target ? 2400 : 1500);
   }
 
   private buildCourse(S: number) {
@@ -730,7 +738,8 @@ export class GateRun {
 
   // --------------------------------------------------------------------------
   private updateLabel() {
-    this.countLabel.setText(String(this.count), this.count >= this.startCount ? '#ffffff' : '#ffb3b3');
+    const full = this.state !== 'done' && this.count >= this.cap; // (🚩 at the cart's limit)
+    this.countLabel.setText(full ? `${this.count} FULL` : String(this.count), full ? '#ffd166' : this.count >= this.startCount ? '#ffffff' : '#ffb3b3');
     if (this.target) {
       const done = this.count >= this.target;
       this.goalLabel.setText(done ? `✅ ${this.count}/${this.target}` : `📦 ${this.count}/${this.target}`, done ? '#7df9a0' : '#ffd166');
@@ -749,11 +758,21 @@ export class GateRun {
     }
   }
 
-  private changeCount(next: number, at: THREE.Vector3, text: string, good: boolean) {
+  /** Set the cargo count (and float the gate's text). `overCap` = a finish-line
+   *  bonus, which still counts once the cart is full. */
+  private changeCount(next: number, at: THREE.Vector3, text: string, good: boolean, overCap = false) {
+    let cls = good ? 'big good' : 'big bad';
+    if (!overCap && next > this.cap) {
+      // 🚩 The cart is full: the rest doesn't fit
+      text = this.count >= this.cap ? '🚩 FULL' : `${text} · 🚩 FULL!`;
+      cls = 'big gold';
+      next = this.cap;
+      this.hitCap = true;
+    }
     this.count = Math.min(9999, next);
     this.updateLabel();
     this.labelPop = 1;
-    this.hud.floatAt(at, this.camera, text, good ? 'big good' : 'big bad');
+    this.hud.floatAt(at, this.camera, text, cls);
   }
 
   update(dt: number, move: THREE.Vector2) {
@@ -935,32 +954,32 @@ export class GateRun {
 
     // Finish
     if (this.state === 'run' && this.z <= this.finishZ) {
+      this.state = 'done';
+      this.stateT = 0;
       if (this.boss && !this.bossDone) {
         // The money shot: everyone got the Megalodon on camera
         this.bossDone = true;
-        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 MEGALODON! ×1.25', true);
+        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 MEGALODON! ×1.25', true, true);
       }
       if (this.celeb && !this.bossDone) {
         this.bossDone = true;
-        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '🌟 CELEBRITY TIP ×1.25', true);
+        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '🌟 CELEBRITY TIP ×1.25', true, true);
       }
       if (this.rexBoss && !this.bossDone) {
         this.bossDone = true;
-        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 LAVA REX! ×1.25', true);
+        this.changeCount(Math.round(this.count * 1.25), new THREE.Vector3(this.x, 3, this.z), '📸 LAVA REX! ×1.25', true, true);
       }
       // 📦 The contract: +50% if filled; the regular haul either way
       let contract: { target: number; reached: number; filled: boolean } | undefined;
       if (this.target) {
         contract = { target: this.target, reached: this.count, filled: this.count >= this.target };
         if (this.count >= this.target) {
-          this.changeCount(Math.round(this.count * CONTRACT.bonus), new THREE.Vector3(this.x, 3.6, this.z), '📦 CONTRACT FILLED! +50%', true);
+          this.changeCount(Math.round(this.count * CONTRACT.bonus), new THREE.Vector3(this.x, 3.6, this.z), '📦 CONTRACT FILLED! +50%', true, true);
           this.sfx.contract();
         } else {
           this.hud.floatAt(new THREE.Vector3(this.x, 3.6, this.z), this.camera, `📦 Contract missed (${this.count}/${this.target})`, 'big bad');
         }
       }
-      this.state = 'done';
-      this.stateT = 0;
       this.hud.setHint(null);
       const o = this.opts;
       const earned = o.payout
@@ -969,7 +988,7 @@ export class GateRun {
           ? Math.round(Math.max(o.keepMin ?? 0, this.count * o.valueEach))
           : Math.round(this.count * ITEM_VALUE[this.itemType] * this.cashMult);
       window.setTimeout(() => {
-        this.hud.showResults(this.startCount, this.count, earned, contract).then(() => {
+        this.hud.showResults(this.startCount, this.count, earned, contract, this.hitCap).then(() => {
           this.active = false;
           this.onDone(this.count);
         });

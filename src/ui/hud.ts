@@ -5,17 +5,47 @@
 // ============================================================================
 import type { BoardRow } from './departures';
 import * as THREE from 'three';
-import { GAME_SPEED, QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STAT_MAX, STATS, shardCost } from '../data/config';
+import { CONFIG, GAME_SPEED, QUEEN_STATS, QUEEN_UNLOCK_LEVEL, SHARD_UPS, STAT_MAX, STATS, shardCost } from '../data/config';
 import { Progress, QueenProgress } from '../core/progress';
 
 const $ = (id: string) => document.getElementById(id) as HTMLElement;
 
 /** 1234 -> "1.2k", 2500000 -> "2.5M" */
 function short(n: number) {
+  if (n >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
+  if (n >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   if (n >= 1e4) return `${Math.round(n / 1e3)}k`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
   return String(Math.round(n));
+}
+
+/** ⬆️ One upgrade in a building's panel (built by world/upgradePad.ts). */
+export interface UpRowModel {
+  id: string;
+  icon: string;
+  name: string;
+  sub: string;            // small line under the name ("All 2 crumb piles")
+  level: string;          // "Lv 4/10", "MAX", "Not hired"
+  pips: { filled: boolean; star: boolean }[]; // one per level (⭐ = milestone)
+  now: string;            // what it does now ("x1.8 cook speed")
+  next: string | null;    // ...after the next level (null = maxed)
+  star: string;           // "⭐ Lv 5 is a milestone..." (or '')
+  buys: { n: number; label: string; cost: number; ok: boolean }[];
+}
+/** ⬆️ What a building's panel shows. */
+export interface UpPanelModel {
+  tabs: { key: string; label: string; on: boolean }[];
+  title: string;
+  warn: string;           // ⚠️ what's wrong at this station right now ('' = nothing)
+  cash: number;
+  rows: UpRowModel[];
+}
+interface UpHandler {
+  model: () => UpPanelModel | null;
+  buy: (id: string, n: number) => void;
+  tab: (key: string) => void;
+  close: () => void;
 }
 
 export class Hud {
@@ -71,6 +101,117 @@ export class Hud {
     this.hintEl.classList.remove('hidden');
   }
 
+  // ---- ⬆️ Building upgrade panels -------------------------------------------------
+  private upHandler: UpHandler | null = null;
+  private upTimer = 0;
+  private upClick: (() => void) | null = null;
+  private upOwner: unknown = null; // (the world driving the ⬆️ button)
+  private upRowsHtml = '';
+  private upBound = false;
+  private upOpenedAt = -1e9;
+  /** Just opened? Then a click is the tail end of the tap that opened it, not a choice. */
+  private upFresh = () => performance.now() - this.upOpenedAt < 450;
+
+  /** Hook the panel's buttons up once (tabs, buy buttons, close, the backdrop). */
+  private bindUpgrades() {
+    if (this.upBound) return;
+    this.upBound = true;
+    $('upBtn').addEventListener('click', () => this.upClick?.());
+    $('upClose').addEventListener('click', () => {
+      if (!this.upFresh()) this.closeUpgrades();
+    });
+    $('upPanel').addEventListener('click', (e) => {
+      if (e.target === $('upPanel') && !this.upFresh()) this.closeUpgrades(); // a tap on the dim backdrop
+    });
+    $('upTabs').addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest('button[data-tab]') as HTMLElement | null;
+      if (!b || !this.upHandler || this.upFresh()) return;
+      this.upHandler.tab(b.dataset.tab!);
+      this.renderUpgrades(true);
+    });
+    $('upRows').addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest('button[data-id]') as HTMLButtonElement | null;
+      if (!b || b.disabled || !this.upHandler || this.upFresh()) return;
+      this.upHandler.buy(b.dataset.id!, Number(b.dataset.n));
+      this.renderUpgrades(true);
+    });
+  }
+
+  /** The "⬆️ Oven" button by the 👁️ one, while you stand next to a building (null hides it). */
+  setUpgradeButton(label: string | null, onClick?: () => void, glow = false, owner: unknown = null) {
+    this.bindUpgrades();
+    this.upOwner = owner;
+    const b = $('upBtn');
+    if (!label) {
+      b.classList.add('hidden');
+      this.upClick = null;
+      return;
+    }
+    const text = `⬆️ ${label.replace(/(\p{L})(\p{L}*)/gu, (_m, a: string, r: string) => a + r.toLowerCase())}`;
+    if (b.textContent !== text) b.textContent = text;
+    b.classList.toggle('glow', glow); // (gold when you can afford a level)
+    b.classList.remove('hidden');
+    this.upClick = onClick ?? null;
+  }
+
+  /** A world you just left lets go of the ⬆️ button (unless the new one already took it). */
+  releaseUpgradeButton(owner: unknown) {
+    if (this.upOwner === owner) this.setUpgradeButton(null);
+  }
+
+  /** Open a building's upgrade panel. It refreshes itself while open (cash comes in). */
+  openUpgrades(handler: UpHandler) {
+    this.bindUpgrades();
+    if (this.upHandler && this.upHandler !== handler) this.upHandler.close();
+    this.upHandler = handler;
+    this.upRowsHtml = '';
+    this.upOpenedAt = performance.now();
+    $('upPanel').classList.remove('hidden');
+    this.renderUpgrades(true);
+    window.clearInterval(this.upTimer);
+    this.upTimer = window.setInterval(() => this.renderUpgrades(), 400);
+  }
+
+  closeUpgrades() {
+    window.clearInterval(this.upTimer);
+    $('upPanel').classList.add('hidden');
+    const h = this.upHandler;
+    this.upHandler = null;
+    h?.close();
+  }
+
+  /** Draw the panel from its model. (Rows are only rebuilt when they change, so a
+   *  button never disappears under your finger while cash ticks up.) */
+  private renderUpgrades(force = false) {
+    const m = this.upHandler?.model();
+    if (!m) {
+      this.closeUpgrades();
+      return;
+    }
+    const cash = (n: number) => (n < 1e5 ? `$${Math.round(n).toLocaleString()}` : `$${short(n)}`);
+    $('upCash').textContent = `💵 ${cash(m.cash)}`;
+    $('upTitle').textContent = m.title;
+    $('upTabs').innerHTML = m.tabs.length > 1 ? m.tabs.map((t) => `<button class="up-tab${t.on ? ' on' : ''}" data-tab="${t.key}">${t.label}</button>`).join('') : '';
+    const warn = $('upWarn');
+    warn.textContent = m.warn ? `⚠️ ${m.warn}` : '';
+    warn.classList.toggle('hidden', !m.warn);
+    const html = m.rows.length
+      ? m.rows
+        .map((r) => `<div class="up-row">
+  <div class="up-head"><span class="up-ic">${r.icon}</span><div class="up-nm">${r.name}${r.sub ? `<small>${r.sub}</small>` : ''}</div><span class="up-lv">${r.level}</span></div>
+  ${r.pips.length ? `<div class="up-pips">${r.pips.map((p) => `<i class="${p.filled ? 'on' : ''}${p.star ? ' star' : ''}">${p.star ? '⭐' : ''}</i>`).join('')}</div>` : ''}
+  <div class="up-fx">${r.now}${r.next ? ` <b>→ ${r.next}</b>` : ' <b class="max">MAX</b>'}</div>
+  ${r.star ? `<div class="up-star">${r.star}</div>` : ''}
+  ${r.buys.length ? `<div class="up-buys">${r.buys.map((b) => `<button class="up-buy${b.ok ? ' ok' : ''}" data-id="${r.id}" data-n="${b.n}"${b.ok ? '' : ' disabled'}>${b.label}<span>${cash(b.cost)}</span></button>`).join('')}</div>` : ''}
+</div>`)
+        .join('')
+      : '<div class="up-empty">Nothing to upgrade here yet.</div>';
+    if (force || html !== this.upRowsHtml) {
+      this.upRowsHtml = html;
+      $('upRows').innerHTML = html;
+    }
+  }
+
   /**
    * A card with a title, some text (HTML) and buttons: the tutorial's welcome
    * and "you've got it" cards, and 📖 How to play. Any button closes it.
@@ -97,12 +238,14 @@ export class Hud {
 
   /** Show the launch button with the cargo count, or hide it with null. */
   setLaunch(count: number | null, onClick?: () => void, label = '🚀 LAUNCH RUN') {
+    document.body.classList.toggle('launch-on', count !== null);
     if (count === null) {
       this.launchBtn.classList.add('hidden');
       this.launchHandler = null;
       return;
     }
-    this.launchBtn.textContent = `${label} · ${count}`;
+    // (🚩 and how much the cart can come back with: CONFIG.run.maxLoad x the load)
+    this.launchBtn.innerHTML = `${label} · ${count}<small>🚩 cart holds up to ${Math.round(count * CONFIG.run.maxLoad)}</small>`;
     this.launchBtn.classList.remove('hidden');
     this.launchHandler = onClick ?? null;
   }
@@ -136,7 +279,7 @@ export class Hud {
   }
 
   /** Results card after a gate run. Resolves when "Collect" is tapped. */
-  showResults(start: number, end: number, earned: number, contract?: { target: number; reached: number; filled: boolean }): Promise<void> {
+  showResults(start: number, end: number, earned: number, contract?: { target: number; reached: number; filled: boolean }, full = false): Promise<void> {
     // 📦 The run's contract (if it had one)
     $('resContract').classList.toggle('hidden', !contract);
     if (contract) {
@@ -149,7 +292,7 @@ export class Hud {
     $('resEarned').textContent = `$${earned.toLocaleString()}`;
     const ratio = start > 0 ? end / start : 0;
     $('resGrade').textContent =
-      ratio >= 3 ? 'LEGENDARY RUN! 🏆' : ratio >= 2 ? 'Great run! 🔥' : ratio >= 1 ? 'Nice run 👍' : 'Rough run 😅';
+      full && ratio >= 3 ? 'FULL CART! 🏆' : ratio >= 3 ? 'LEGENDARY RUN! 🏆' : ratio >= 2 ? 'Great run! 🔥' : ratio >= 1 ? 'Nice run 👍' : 'Rough run 😅';
     const overlay = $('results');
     overlay.classList.remove('hidden');
     return new Promise((resolve) => {

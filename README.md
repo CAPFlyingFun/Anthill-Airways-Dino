@@ -94,7 +94,7 @@ tours fly in to an active volcano:
 - 🐜 **Fire Ant Kingdom**: giant fire ants, your colony's ancient cousins! Bring the Fire
   Queen 💎 tribute; while she's pleased, her colony fills the vault with 🔶 Fire Crystals
   ($450 each at the Crystal Exchange). **🔶 Crystal Vault 2** opens a second vault (double the
-  crystals) with its own Fire Ant Hauler; one VAULT upgrade pad speeds up both
+  crystals) with its own Fire Ant Hauler; one 💎 Vault upgrade speeds up both
 - Crew: Gem Shop Clerk, Obsidian Miner, Gem Runner, Tour Pilot, Crystal Trader, Fire Ant
   Haulers, and your personal assistant (Sarah's model) collecting the cash
 - **Dangers:** 🥵 **heat** (stand near the lava lake and the heat bar fills; full = you drop
@@ -141,21 +141,32 @@ airline flies in needs a bed:
   Engineer, Concierge, and your personal assistant (Sarah's model)
 - Eruptions don't touch the resort: it's yours for good
 
-## Upgrade pads ⬆️
+## Building upgrades ⬆️ (v0.26)
 
-Every building has a round purple **⬆️ upgrade pad** in front of it, in every world. Stand on
-one for a moment and your cash pours in (like an unlock tile); each pad goes up to **Lv 10**,
-and each level costs ×1.85 more than the last.
+No more pads on the ground: every building has its own **upgrade panel**, in every world.
 
-- ⚙️ **Machines** (oven, presses, blender, forge, washers, kitchen): +25% cook speed per level
-- 💲 **Counters & desks**: +10% prices and +8% more customers per level
-- 👥 **Lines** (every shop and desk, once its first cashier works there): buy a **2ND CASHIER** to open
-  a second line served at the same time; the pad then becomes **BIGGER ORDERS** (Lv 10): customers buy
-  +20% more per visit (check-in parties pay +20% more), so the lines keep up with maxed production
-- 🌱 **Resource piles** (one pad per kind): +30% regrow speed per level
-- 👷 **CREW** (one per world): all helpers there +10% speed and +1 carry per level
-- 💼 **COLLECTORS** (one per world): Bankers and assistants grab 15% faster and
-  bring in +6% cash per level
+- Walk up to a building and a purple **⬆️ button** appears by the 👁️ one (*⬆️ ⚙️ Oven*); it glows
+  gold when you can afford a level. Tap it, or just **tap the building** (tap a helper for the
+  **👷 Staff** tab), to open the panel. A quick tap opens it; dragging still walks.
+- Each upgrade shows its level pips, what it does now → after the next level, and **×1 / ×5 / MAX**
+  buttons (MAX = as many levels as you can afford). Up to **Lv 10**; each level costs ×1.85 more.
+- ⭐ **Lv 5 and Lv 10 are milestones** with a bigger jump. The totals at Lv 5 and Lv 10 are exactly
+  what the old pads gave, so the balance didn't move, and every level bought on the pads is kept
+  (same upgrade ids in the save).
+
+What's in the panels:
+
+- ⚙️ **Machines** (oven, presses, blender, forge, washers, kitchen): cook speed (×3.5 at Lv 10)
+- 🛒 **Shops & desks**: prices (×2) and customers (×1.8). Their 👥 line upgrade (once the first
+  cashier works there) first hires a **2nd cashier** (a second line served at the same time), then
+  becomes **Bigger orders**: customers buy +20% more per visit per level (check-in parties pay +20%)
+- 🍞🌿🍬 **Resource piles** (one upgrade per kind, shared by every pile of that kind): regrow speed (×4)
+- 👷 **Staff** tab (one per world): all helpers' speed (×2) and carry (+10); Bankers' and
+  assistants' grab speed (×2.5) and cash (+60%)
+- 🗑️ **Trash bin** (on the colony's first bin): money per piece in every world's bins ($1 → $50)
+
+Code: `src/world/upgradePad.ts` (buildings, rows, effects, tapping), the panel in `src/ui/hud.ts`
+(`openUpgrades`), the curves in `src/core/upgrades.ts`.
 
 **Helper levels:** every helper earns 1 XP per item they deliver and levels up by themselves
 (up to Lv 20, +4% speed each). Their level shows on their title (🐜 WORKER · Lv 3).
@@ -171,7 +182,7 @@ and earns XP from the cash they bring in. Her points: 💰 **Tribute** (+2% on a
 ✋ **Grab Speed** (Bankers grab 4% faster) and 🗑️ **Royal Bins** (+4% trash money).
 
 **Trash pays!** Every piece you dump in a 🗑️ bin (any world) pays **$1**, up to **$50** with the
-colony's **TRASH** upgrade pad (Lv 10). The bins take **100 pieces every 5 minutes**: your first piece
+colony's 🗑️ **Trash bin** upgrade (Lv 10). The bins take **100 pieces every 5 minutes**: your first piece
 starts a ⏱️ 5-minute timer, and once 100 are in, the bin says *"Please wait… 27s remaining"* until the
 timer runs out (it keeps counting while the game is closed).
 
@@ -182,12 +193,20 @@ Under the zone name, a **🛫 Next:** chip shows your next big stop and how many
 Airport → Dino Island → Mount Anthill → Grand Resort, each marked DEPARTED ✅, NEXT (with its Big
 Order's price) or LATER, so from the very first snack pack you can see where it all leads.
 
-## 📦 Delivery contracts & ⚠️ risky gates
+## 📦 Delivery contracts, 🚩 full carts & ⚠️ risky gates
 
 Every regular gate run (cart, raft, safari, heli tour, bellhop dash) comes with a **contract**:
 *"finish with 21 snack packs"*, shown at the start and over the cart (📦 14/21 → ✅). Fill it and the
 haul pays **+50%**; miss it and you still get the regular haul. The goal is about 1.5× what you
 *usually* load in that world, so loading more makes a safe route enough, and a light load needs a gamble.
+
+🚩 **The cart holds up to ×6 what you loaded** (v0.26; the launch button says how many: *🚩 cart holds
+up to 72*). Gates past that point can't add anything: the count shows **60 FULL**, a good gate says
+*🚩 FULL*, and the rest of the run is about dodging the − / ÷ gates and the hazards to keep the haul.
+Finish-line bonuses still count on top: the contract's +50% and the ×1.25 photo snaps (Megalodon,
+celebrity, Lava Rex). A run that fills the cart is graded **FULL CART! 🏆**. The contract never asks for
+more than the cart holds. The offline **bonus run** has no cap (its payout already tops out at ×2).
+`CONFIG.run.maxLoad` in `src/data/config.ts`.
 
 From your 3rd run, one or two rows are **risky**: a small safe **+N** on one side, a gold **×2 ⚠️ RISKY**
 gate on the other with a big hazard right behind it (a puddle, shark, lava bomb or wet-floor sign).

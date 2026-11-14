@@ -96,8 +96,8 @@ export class Tutorial {
       unlockStep('cashier', '🧾 Hire a Cashier: she serves customers even when you\'re not at the counter'),
       unlockStep('worker1', '🐜 Hire a Worker Ant: he carries crumbs to the oven for you'),
       {
-        text: () => '⬆️ Upgrade pads appeared by your buildings! Stand on a round ⬆️ pad to make it faster or earn more',
-        target: () => w.ups?.nearestPad(w.player.pos) ?? null,
+        text: () => '⬆️ Buildings can be upgraded now! Walk up to one and tap ⬆️ (or tap the building) to make it faster or earn more',
+        target: () => w.ups?.nearestBuilding(w.player.pos) ?? null,
         done: () => Object.entries(this.save.upgrades).some(([k, v]) => k.startsWith('c1-') && v > 0),
       },
       unlockStep('runner', '🏃 A Runner Ant moves snacks from the oven to the counter'),

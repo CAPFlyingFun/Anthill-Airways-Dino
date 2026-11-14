@@ -54,6 +54,8 @@
       <button id="launchBtn" class="big-btn hidden">🚀 LAUNCH RUN</button>
       <!-- First-person / third-person camera (bottom right, under your thumb) -->
       <button id="viewBtn" class="round-btn view-btn" aria-label="Switch to first-person view">👁️</button>
+      <!-- ⬆️ Shows while you stand next to a building: opens its upgrade panel -->
+      <button id="upBtn" class="up-btn hidden">⬆️ Upgrade</button>
 
       <div id="banner" class="banner hidden">
         <div id="bannerTitle"></div>
@@ -116,6 +118,17 @@
           <button id="wbRun" class="menu-btn wb-run">🚀 Multiply it! Bonus gate run</button>
           <button id="wbCollect" class="menu-btn">💵 Just collect</button>
           <div class="wb-fine">The bonus run is tougher: more traps, and gates that swap sides. It pays from x0.75 up to x2, depending on how many bundles reach the finish.</div>
+        </div>
+      </div>
+
+      <!-- ⬆️ A building's upgrade panel (world/upgradePad.ts builds it, hud.openUpgrades draws it) -->
+      <div id="upPanel" class="overlay sheet hidden">
+        <div class="card up-card">
+          <div id="upTabs" class="up-tabs"></div>
+          <div class="up-top"><h2 id="upTitle">Upgrades</h2><div id="upCash" class="up-cash"></div></div>
+          <div id="upWarn" class="up-warn hidden"></div>
+          <div id="upRows"></div>
+          <button id="upClose" class="menu-btn up-close">Close</button>
         </div>
       </div>
 

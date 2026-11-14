@@ -45,6 +45,12 @@ export const CONFIG = {
     laneHalfWidth: 3.4,
     valuePerItem: 5,       // cash per item that reaches the finish
     puddleLoss: 0.15,      // fraction lost when you splash through a puddle
+    // 🚩 A regular run's cart holds at most this many times the load it started with
+    // (it shows on the launch button). Once it's FULL, + and × gates add nothing: the
+    // rest of the run is about keeping your haul. Finish-line bonuses (the 📦 contract's
+    // +50%, the ×1.25 photo snaps) still count on top. The offline bonus run isn't
+    // capped (its payout already tops out at ×2).
+    maxLoad: 6,
   },
   conveyor: {
     speed: 2.4,            // belt speed (units per second)

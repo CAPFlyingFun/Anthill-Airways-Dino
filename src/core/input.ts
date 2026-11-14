@@ -32,6 +32,18 @@ export class Input {
   private lookY = 0;
   private lookDX = 0; // pixels dragged since the last takeLook()
   private lookDY = 0;
+  /** A TAP (a short touch that barely moved) at screen x, y: e.g. tapping a building
+   *  opens its upgrade panel. Dragging still steers as usual. */
+  onTap: ((x: number, y: number) => boolean | void) | null = null;
+  /** When a tap last opened something (a panel): the phone's own "click" that follows
+   *  a touch is swallowed, so it can't land on the panel that just appeared. */
+  private tapOpened = -1e9;
+  private tapAt = 0;     // when the steering / look finger went down
+  private tapMoved = 0;  // how far it has wandered (px)
+  private lookAt = 0;
+  private lookMoved = 0;
+  private lookX0 = 0;
+  private lookY0 = 0;
 
   constructor(target: HTMLElement) {
     target.addEventListener('pointerdown', (e) => {
@@ -41,8 +53,10 @@ export class Input {
         // Right half: look around
         if (this.lookId !== null) return;
         this.lookId = e.pointerId;
-        this.lookX = e.clientX;
-        this.lookY = e.clientY;
+        this.lookX = this.lookX0 = e.clientX;
+        this.lookY = this.lookY0 = e.clientY;
+        this.lookAt = performance.now();
+        this.lookMoved = 0;
         target.setPointerCapture(e.pointerId);
         return;
       }
@@ -50,6 +64,8 @@ export class Input {
       this.pointerId = e.pointerId;
       this.originX = e.clientX;
       this.originY = e.clientY;
+      this.tapAt = performance.now();
+      this.tapMoved = 0;
       target.setPointerCapture(e.pointerId);
       this.base.style.left = `${this.originX}px`;
       this.base.style.top = `${this.originY}px`;
@@ -63,12 +79,14 @@ export class Input {
         this.lookDY += e.clientY - this.lookY;
         this.lookX = e.clientX;
         this.lookY = e.clientY;
+        this.lookMoved = Math.max(this.lookMoved, Math.hypot(e.clientX - this.lookX0, e.clientY - this.lookY0));
         return;
       }
       if (e.pointerId !== this.pointerId) return;
       let dx = e.clientX - this.originX;
       let dy = e.clientY - this.originY;
       const len = Math.hypot(dx, dy);
+      this.tapMoved = Math.max(this.tapMoved, len);
       if (len > this.radius) {
         dx = (dx / len) * this.radius;
         dy = (dy / len) * this.radius;
@@ -78,18 +96,27 @@ export class Input {
       this.stick.set(dx / this.radius, -dy / this.radius);
     });
 
+    // A tap = up again within 0.35 s, having moved less than 12 px
+    const isTap = (at: number, moved: number) => performance.now() - at < 350 && moved < 12;
     const end = (e: PointerEvent) => {
       if (e.pointerId === this.lookId) {
         this.lookId = null;
+        if (e.type === 'pointerup' && isTap(this.lookAt, this.lookMoved) && this.onTap?.(e.clientX, e.clientY)) this.tapOpened = performance.now();
         return;
       }
       if (e.pointerId !== this.pointerId) return;
       this.pointerId = null;
       this.stick.set(0, 0);
       this.base.classList.add('hidden');
+      if (e.type === 'pointerup' && isTap(this.tapAt, this.tapMoved) && this.onTap?.(e.clientX, e.clientY)) this.tapOpened = performance.now();
     };
     target.addEventListener('pointerup', end);
     target.addEventListener('pointercancel', end);
+    // (pointerup comes just before touchend: cancelling the touchend stops the browser
+    // from sending its "click" afterwards, which would hit the panel's backdrop or a button)
+    target.addEventListener('touchend', (e) => {
+      if (performance.now() - this.tapOpened < 400) e.preventDefault();
+    }, { passive: false });
 
     window.addEventListener('keydown', (e) => this.keys.add(e.key.toLowerCase()));
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
