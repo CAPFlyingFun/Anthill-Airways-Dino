@@ -624,3 +624,6 @@ html, body {
 }
 .tut-edge b { display: block; line-height: 1; transform-origin: center; }
 @keyframes tutEdge { 50% { filter: brightness(1.15); scale: 1.1; } }
+
+/* 🔄 The one-time free respec button (v0.25 balance update) */
+.respec-btn { width: 100%; margin: 6px 0 4px; background: #d8f3dc; }

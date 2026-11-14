@@ -54,6 +54,9 @@ export interface RunOpts {
   hard?: boolean;     // more traps: worse gates, more hazards, gates that swap sides
   valueEach?: number; // cash per item at the finish (instead of the item's price)
   keepMin?: number;   // never pay less than this
+  /** The exact payout for (items at the finish, items at the start): shown on the
+   *  results card, and main.ts pays the same number (the bonus run). */
+  payout?: (end: number, start: number) => number;
   title?: string;     // banner at the start
 }
 interface Puddle {
@@ -78,14 +81,14 @@ const RISK = { fromRun: 2, hazardLoss: 0.35 };
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const isGood = (k: OpKind) => k === '+' || k === 'x';
 
-/** Apply a gate's math to the current count. `luck` improves ? gate odds. */
-function applyOp(count: number, op: Op, luck = 0): number {
+/** Apply a gate's math to the current count. `win` = the chance a ? gate pays x3. */
+function applyOp(count: number, op: Op, win = 0.5): number {
   switch (op.kind) {
     case '+': return count + op.v;
     case '-': return Math.max(0, count - op.v);
     case 'x': return count * op.v;
     case '/': return Math.floor(count / op.v);
-    case '?': return Math.random() < Math.min(0.8, 0.5 + luck * 0.04) ? count * 3 : Math.floor(count / 2);
+    case '?': return Math.random() < win ? count * 3 : Math.floor(count / 2);
   }
 }
 
@@ -99,8 +102,9 @@ export class GateRun {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(55, 1, 0.1, 400);
   active = false;
-  /** Luck stat points (set by main.ts before each run). */
-  luck = 0;
+  /** 🍀 Luck (set by main.ts before each run): ? gate win chance + share of losses saved. */
+  luckWin = 0.5;
+  luckSave = 0;
   /** Haggling multiplier, for showing the right payout on the results card. */
   cashMult = 1;
   /** Set once by main.ts: each world's usual load (for contract goals) + runs done. */
@@ -228,7 +232,7 @@ export class GateRun {
     this.startCount = this.count = count;
     this.shownCargo = -1;
     // 📦 The contract: regular runs only (not the bonus run)
-    const plain = !opts.hard && opts.valueEach === undefined;
+    const plain = !opts.hard && opts.valueEach === undefined && !opts.payout;
     const usual = this.memory?.contracts[theme] ?? count;
     this.target = plain ? Math.max(CONTRACT.min[theme], Math.round(Math.max(usual, 2) * CONTRACT.goalMult)) : 0;
     if (plain && this.memory) this.memory.contracts[theme] = Math.round(usual * 0.7 + count * 0.3); // remember the usual load
@@ -804,7 +808,7 @@ export class GateRun {
       const side = this.x < 0 ? -1 : 1;
       const gate = row.gates.find((g) => g.side === side)!;
       const before = this.count;
-      const after = applyOp(before, gate.op, this.luck);
+      const after = applyOp(before, gate.op, this.luckWin);
       const good = after >= before;
       let text = opLabel(gate.op);
       if (gate.op.kind === '?') text = after >= before ? '? = x3!' : '? = ÷2';
@@ -849,7 +853,7 @@ export class GateRun {
     for (const p of this.puddles) {
       if (p.hit || Math.abs(this.z - p.z) > p.r || Math.abs(this.x - p.x) > p.r + 0.7) continue;
       p.hit = true;
-      const loss = (p.risky ? RISK.hazardLoss : CONFIG.run.puddleLoss) * Math.max(0.3, 1 - this.luck * 0.06);
+      const loss = (p.risky ? RISK.hazardLoss : CONFIG.run.puddleLoss) * (1 - this.luckSave);
       const lost = Math.max(1, Math.ceil(this.count * loss));
       this.changeCount(Math.max(0, this.count - lost), new THREE.Vector3(this.x, 2.5, this.z), `${this.theme === 'gutter' ? '🪵' : this.theme === 'ocean' ? '🦈' : this.theme === 'lava' ? (p.monster?.userData.kind === 'ash' ? '💨' : '🌋') : this.theme === 'hotel' ? (p.monster?.userData.kind === 'wet' ? '🧽' : '🛎️') : '💦'} -${lost}`, false);
       this.sfx.splash();
@@ -959,9 +963,11 @@ export class GateRun {
       this.stateT = 0;
       this.hud.setHint(null);
       const o = this.opts;
-      const earned = o.valueEach !== undefined
-        ? Math.round(Math.max(o.keepMin ?? 0, this.count * o.valueEach))
-        : Math.round(this.count * ITEM_VALUE[this.itemType] * this.cashMult);
+      const earned = o.payout
+        ? Math.round(o.payout(this.count, this.startCount))
+        : o.valueEach !== undefined
+          ? Math.round(Math.max(o.keepMin ?? 0, this.count * o.valueEach))
+          : Math.round(this.count * ITEM_VALUE[this.itemType] * this.cashMult);
       window.setTimeout(() => {
         this.hud.showResults(this.startCount, this.count, earned, contract).then(() => {
           this.active = false;

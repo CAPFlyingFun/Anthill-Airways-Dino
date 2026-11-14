@@ -27,11 +27,18 @@ On iPhone: open in Safari → Share → **Add to Home Screen** to install it as 
   worker ants, faster oven, Big Order)
 - Gate runs: load 5+ snack packs on the beetle cart, tap **LAUNCH RUN**, steer through gates
 - Automation: Cashier, Worker Ants (crumbs → oven) and the **Runner Ant** (oven → counter)
-- **XP & levels (ARK style):** every task gives XP; each level = 1 point for Carry Weight,
-  Movement Speed, Work Speed, Haggling, Luck, 😄 Charm (more customers), 📣 Leadership (faster
-  helpers), 🛡️ Toughness (less volcano heat) or 💤 Night Manager (+offline earnings)
-  (tap your level, top left). Every stat (and each of the Queen's) **caps at 50**; Luck and
-  Toughness reach their full bonus right at 50. Points from older saves past the cap are refunded.
+- **XP & levels (ARK style):** XP comes from *doing* things (picking up, dropping off, selling,
+  gate runs, helpers' sales, a fixed amount per unlock tile: 15 / 40 / 80 / 150 / 250 by world),
+  never from money spent. Level L → L+1 takes **100 + 15 × (L − 1)** XP. Each level = 1 point for
+  Carry (+1), Movement Speed (+2%), Work Speed (+3%), Haggling (+1% cash), Luck (? gates + fewer
+  run losses), 😄 Charm (+1% customers), 📣 Leadership (+1.5% helpers), 🛡️ Toughness (−1.2% heat)
+  or 💤 Night Manager (+0.5% offline share). Every stat (and each of the Queen's) **caps at 50**.
+  All per-point values live in one table: `STAT_FX` / `QUEEN_FX` / `SHARD_FX` in `src/data/config.ts`.
+- **⚖️ Balance pass (v0.25):** everything maxed used to multiply income ×141 (stats × upgrade pads ×
+  shards); now it's about ×20–25. 🔒 The Big Orders between areas need a player level (Hangar,
+  Airstrip, Island, Volcano, Resort), so a big offline payout can't skip whole areas. Older saves keep
+  their level, cash, upgrades and shards, get a backup copy, one free stat respec and their
+  half-earned eruption shards carried over (`src/core/migrate.ts`).
 - Autosaves to the browser; Settings has sound + reset
 - Every helper wears a gold **role title** over its head (🐜 WORKER, 🏃 RUNNER, 💵 CASHIER,
   🏦 BANKER…), and so does every crew member and creature with a job in the later acts
@@ -99,12 +106,14 @@ tours fly in to an active volcano:
 
 The last volcano tile (**$6M**) opens the ERUPT altar. Stand on it to blow the top off the
 mountain: **Dino Island and the Volcano reset** (unlocks + cash), and you earn
-**💎 Obsidian Shards** (12 × √millions earned since the last eruption, e.g. $30M ≈ 65 shards).
+**💎 Obsidian Shards** (12 × √millions the **island + volcano** earned since the last eruption, e.g.
+$30M ≈ 65 shards; offline pay and bonus runs don't count).
 You keep the colony, the airport, your level, stats and the Queen.
 
 Spend shards at the **💎 Obsidian Shrine** (tap your level): permanent upgrades that survive
-every eruption: 💰 Obsidian Riches (+10% all cash), 👟 Lava Legs (+6% speed), 🍀 Lucky Ash
-(better gates), 🚀 Head Start (+$100k after each eruption) and 💤 Night Shift (+10% offline).
+every eruption: 💰 Obsidian Riches (+2% all cash per level, ×2 at 50), 👟 Lava Legs (+6% speed),
+🍀 Lucky Ash (better gates), 🚀 Head Start (+$100k after each eruption) and 💤 Night Shift (+5% offline
+share and +48 min offline time per level).
 
 ## Act 5 — The Anthill Grand Resort 🏨⭐
 
@@ -158,8 +167,8 @@ your idle income.
 ## 👑 The Queen & 🗑️ paid trash
 
 At level 20 the Queen is **crowned**. She stays on her throne (the 🏦 Banker Ants do the collecting)
-and earns XP from the cash they bring in. Her points: 💰 **Tribute** (+5% on all Banker cash),
-✋ **Grab Speed** (Bankers grab 20% faster) and 🗑️ **Royal Bins** (+10% trash money).
+and earns XP from the cash they bring in. Her points: 💰 **Tribute** (+2% on all Banker cash),
+✋ **Grab Speed** (Bankers grab 4% faster) and 🗑️ **Royal Bins** (+4% trash money).
 
 **Trash pays!** Every piece you dump in a 🗑️ bin (any world) pays **$1**, up to **$50** with the
 colony's **TRASH** upgrade pad (Lv 10). The bins take **100 pieces every 5 minutes**: your first piece
@@ -242,9 +251,10 @@ While you play, the game measures your **automated** income (shown under your ca
 that helpers collect on their own (💼 Banker Ants, your assistants) counts, not bills you
 pick up yourself. The colony's first Banker Ant ($300) starts your idle income. When you
 come back after a while, the colony and airport pay **50% of that rate for the time away**
-(up to 8 hours). Collect it, or risk it on a **Bonus Run**: a tougher gate run (more ÷ gates,
-double hazards, gates that 🔀 swap sides at the last second) that multiplies it. You always keep
-at least 25%. (💤 Night Shift shards raise the 50%.)
+(up to **4 hours**). 💤 Night Manager points add up to +25%, and each 💎 Night Shift level adds +5% and
+48 minutes (best: 100% for 8 hours). Collect it, or risk it on a **Bonus Run**: a tougher gate run
+(more ÷ gates, double hazards, gates that 🔀 swap sides at the last second) that pays
+**×0.75 to ×2**: 0.5 + half the share of bundles that reach the finish (`bonusRunMult` in config).
 
 ## First-person view 👁️
 

@@ -21,13 +21,13 @@ import { SaveData } from '../core/save';
 import { Sfx } from '../core/audio';
 import { Progress } from '../core/progress';
 import { bump } from '../core/totals';
-import { UP_BASE, UP_KINDS, UP_MAX, UpKind, up, upCost } from '../core/upgrades';
+import { COLONY_ZONE_BASE, UP_BASE, UP_KINDS, UP_MAX, UpKind, up, upCost } from '../core/upgrades';
 import { Hud } from '../ui/hud';
 import { Flyers } from './items';
 import { GAME_FONT, TEXT_RES, TextSprite, groundText, roundRect, setGroundText, sharpTexture } from './labels';
 import { Blocker, Zone } from './stations';
 import { TRASH } from './trash';
-import { CONFIG } from '../data/config';
+import { CONFIG, ZONES } from '../data/config';
 import type { Worker } from '../actors/worker';
 
 /** Which world a manager belongs to (also the save key for helpers' XP). */
@@ -227,6 +227,13 @@ export class Upgrades {
     save.crewXp[world] ??= [];
   }
 
+  /** A pad's base price: per world, and in the colony per zone (Nest / Tunnels / Hangar). */
+  private baseAt(near: THREE.Vector3) {
+    if (this.world !== 'ant') return UP_BASE[this.world];
+    const zone = ZONES.find((z) => near.x >= z.rect.minX && near.x <= z.rect.maxX && near.z >= z.rect.minZ && near.z <= z.rect.maxZ);
+    return COLONY_ZONE_BASE[zone?.id ?? 'nest'] ?? UP_BASE.ant;
+  }
+
   /** Where the nearest shown pad is (for the tutorial's arrow), or null. */
   nearestPad(from: THREE.Vector3): THREE.Vector3 | null {
     let best: THREE.Vector3 | null = null;
@@ -400,7 +407,7 @@ export class Upgrades {
         bulk: number; lines: number; hasCashier?: boolean; hasStaff?: boolean;
         hireCashier2?: (animate: boolean) => void; hireStaff2?: (animate: boolean) => void;
       };
-      const base = UP_BASE[this.world];
+      const base = this.baseAt(at); // (colony: by zone)
       const line = this.add(
         `line-${label.toLowerCase()}@${key}`, 'line', label, at, root,
         (lv, animate) => {
@@ -427,7 +434,7 @@ export class Upgrades {
     const id = fixedId ?? this.id(name);
     if (this.targets.some((t) => t.pad.id === id)) return null;
     const spot = this.freeSpot(near, root);
-    const pad = new UpgradePad(this.host.scene, id, kind, label, spot.x, spot.z, base ?? UP_BASE[this.world], SIZES[this.world]);
+    const pad = new UpgradePad(this.host.scene, id, kind, label, spot.x, spot.z, base ?? this.baseAt(near), SIZES[this.world]);
     this.targets.push({ pad, apply, near: near.clone(), visible });
     apply(this.level(id));
     return pad;
@@ -595,7 +602,7 @@ export class Upgrades {
     pad.dwell = -0.6; // a short breather before the next level starts pouring
     t.apply(lv, true);
     bump('upgrades');
-    this.progress.addXp(cost * 0.1);
+    // (No XP: upgrades used to pay 10% of their price as XP, which flooded levels.)
     this.sfx.upgrade();
     const msg = pad.kind === 'line' && lv === 1 ? `👥 ${pad.label}: 2nd line open!` : `⬆️ ${pad.titleOf(lv)}!`;
     this.hud.floatAt(pad.mesh.position.clone().setY(1.6), this.host.camera, msg, 'big gold');

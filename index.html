@@ -115,7 +115,7 @@
           <div id="wbAmount" class="wb-amount">$0</div>
           <button id="wbRun" class="menu-btn wb-run">🚀 Multiply it! Bonus gate run</button>
           <button id="wbCollect" class="menu-btn">💵 Just collect</button>
-          <div class="wb-fine">The bonus run is tougher: more traps, and gates that swap sides. You always keep at least 25%.</div>
+          <div class="wb-fine">The bonus run is tougher: more traps, and gates that swap sides. It pays from x0.75 up to x2, depending on how many bundles reach the finish.</div>
         </div>
       </div>
 
@@ -159,6 +159,8 @@
           <h2 id="statsTitle">Level 1</h2>
           <div class="xp-line"><span class="xpbar big"><i id="statsXpFill"></i></span><span id="statsXpText">0 / 15 XP</span></div>
           <div id="statsPoints" class="points-line">0 points to spend</div>
+          <!-- 🔄 One free respec (the v0.25 balance update changed every stat) -->
+          <button id="respecBtn" class="menu-btn respec-btn hidden">🔄 Free respec: get your points + 💎 shards back</button>
           <div id="statRows"></div>
           <!-- The Queen's own stats (shown once she's active at Lv 20) -->
           <div id="queenSection" class="queen-section">

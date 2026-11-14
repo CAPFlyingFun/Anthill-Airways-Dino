@@ -37,6 +37,7 @@ export const HOWTO_HTML = `
     <li><b>Glowing tiles</b> on the ground show a price. Stand on one and your cash pours in.</li>
     <li>You can pay a bit at a time: what you've paid is saved.</li>
     <li>Tiles unlock helpers, faster machines, bigger backpacks and whole new areas 🗺️.</li>
+    <li>🔒 The <b>Big Orders</b> that open a new area also need a <b>player level</b> (the tile shows a 🔒 and "LOCKED: Lv 18" until you get there).</li>
   </ul>
 </section>
 
@@ -74,8 +75,8 @@ export const HOWTO_HTML = `
 <section>
   <h3>📊 Levels and stats</h3>
   <ul>
-    <li>Everything you do gives XP. Tap your <b>level</b> (top left) to spend points.</li>
-    <li>Each stat goes up to <b>50</b> (Carry, Speed, Work, Haggling, Luck, Charm, Leadership, Toughness, Night Manager).</li>
+    <li>XP comes from <b>doing things</b>: picking up, dropping off, selling (your helpers' sales count a little too), unlocking tiles and gate runs. Tap your <b>level</b> (top left) to spend points.</li>
+    <li>Each stat goes up to <b>50</b> (Carry, Speed, Work, Haggling, Luck, Charm, Leadership, Toughness, Night Manager). Every point is a small boost, so choose what fits how you play.</li>
     <li>👑 At level 20 the <b>Queen</b> is crowned. Her own points boost your Bankers and trash money.</li>
     <li>📊 <b>Lifetime stats</b> (in the same screen) show your all-time totals.</li>
   </ul>
@@ -84,9 +85,9 @@ export const HOWTO_HTML = `
 <section>
   <h3>💤 Offline earnings</h3>
   <ul>
-    <li>While you're away, you earn a share of your <b>+$/min</b> (50% to start, up to 8 hours).</li>
-    <li>💤 Night Manager points raise that share (50 points = 100%).</li>
-    <li>When you come back you can just collect, or play a 💰 <b>bonus run</b> to multiply it (you always keep at least 25%).</li>
+    <li>While you're away, you earn <b>50%</b> of your <b>+$/min</b> for up to <b>4 hours</b>.</li>
+    <li>💤 Night Manager points raise the share (up to +25%). 💎 Night Shift shards add +5% and 48 more minutes each, so the best is <b>100% for 8 hours</b>.</li>
+    <li>When you come back you can just collect, or play a 💰 <b>bonus run</b>: it pays from <b>x0.75 up to x2</b>, depending on how many bundles reach the finish.</li>
   </ul>
 </section>
 
@@ -94,10 +95,10 @@ export const HOWTO_HTML = `
   <h3>🗺️ Your route</h3>
   <ul>
     <li>Colony 🐜 → Tunnels → Hangar → Airport ✈️ → Dino Island 🦖 → Mount Anthill 🌋 → Grand Resort 🏨.</li>
-    <li>The <b>🛫 Next</b> chip (top left) shows what to unlock next; tap it for the full departures board.</li>
+    <li>The <b>🛫 Next</b> chip (top left) shows what to unlock next (and the level its Big Order needs); tap it for the full departures board.</li>
     <li>Tap 🌍 (top left) to travel between the worlds you've opened. Each keeps working while you're away.</li>
     <li>🌋 At Mount Anthill you can set off <b>the Big Eruption</b>: the island and volcano reset for 💎 Obsidian
-    Shards, which buy permanent boosts at the Obsidian Shrine (tap your level).</li>
+    Shards (worth more the more the island and volcano earned), which buy permanent boosts at the Obsidian Shrine (tap your level).</li>
   </ul>
 </section>
 

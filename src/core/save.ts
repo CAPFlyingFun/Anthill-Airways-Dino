@@ -31,7 +31,7 @@ export interface SaveData {
   shards: number;                     // 💎 Obsidian Shards to spend
   eruptions: number;                  // how many times you've erupted the volcano
   shardUps: Record<string, number>;   // levels bought in each shard upgrade
-  cycleEarned: number;                // cash earned since the last eruption (sets the shard payout)
+  cycleEarned: number;                // island + volcano cash earned since the last eruption (sets the shard payout)
   // ⬆️ Upgrade pads
   upgrades: Record<string, number>;   // level bought on each upgrade pad (by pad id)
   upPaid: Record<string, number>;     // cash poured into the next level so far
@@ -60,6 +60,11 @@ const SLOT_KEY = 'anthill-airways-slot';
 /** The localStorage key for a slot (slot 1 = the original key). */
 function keyFor(slot: Slot) {
   return slot === 1 ? CONFIG.saveKey : `${CONFIG.saveKey}-slot${slot}`;
+}
+
+/** The localStorage key of the slot being played. */
+export function activeSaveKey() {
+  return keyFor(activeSlot());
 }
 
 /** Which slot is being played. */

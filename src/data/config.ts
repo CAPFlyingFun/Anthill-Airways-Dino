@@ -51,14 +51,20 @@ export const CONFIG = {
     spacing: 0.7,          // gap between snack packs on the belt
   },
   xp: {
+    // XP comes from DOING things, never from money spent (price-based XP made
+    // late-game levels explode: Lv 500+). Balance pass v0.25.
     pickup: 1,             // each item you pick up
     drop: 1,               // each item you drop off at a station
     sale: 2,               // each sale while YOU work the register
     autoSale: 0.5,         // each sale made by the cashier
-    unlockFraction: 0.2,   // unlocking gives 20% of its cost as XP
-    runPerItem: 1,         // gate run: XP per item that reaches the finish
-    curveBase: 15,         // XP to reach level 2
-    curveExp: 1.55,        // how fast levels get harder
+    runPerItem: 1,         // gate run: XP per item that reaches the finish...
+    runCap: 2,             // ...counting at most 2x the load you started with
+    // Unlocking a tile: a FIXED amount by world (not a share of its price)
+    tile: { ant: 15, air: 40, island: 80, volcano: 150, hotel: 250 } as Record<string, number>,
+    // XP to go from level L to L+1 = levelBase + levelStep x (L - 1)
+    // (Lv 10 = 1,440 XP in total, Lv 25 = 6,540, Lv 50 = 22,540, Lv 100 = 82,665)
+    levelBase: 100,
+    levelStep: 15,
   },
   unlockDrainTime: 1.4,    // seconds to pour cash into an unlock tile (minimum rate below)
   unlockMinRate: 12,       // cash per second, at least
@@ -73,6 +79,11 @@ export interface UnlockDef {
   cost: number;
   pos: [number, number];   // [x, z] on the ground
   requires: string[];      // other unlock ids that must be bought first
+  /** 🔒 Player level needed before cash can go in (the Big Orders between areas:
+   *  money alone, e.g. a big offline payout, can't skip ahead). Hangar 11 + Airstrip 16
+   *  come from a bot playing fresh saves (an attentive player gets there 1-6 min before
+   *  they can afford the tile); Island 30 / Volcano 45 / Resort 60 from measured XP rates. */
+  level?: number;
 }
 
 // The order here is also roughly the order the player will meet them.
@@ -100,7 +111,7 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'press2',     name: 'Faster Press',    icon: '🔥', cost: 1200, pos: [-35, -10.6], requires: ['leafant'] },
   { id: 'leafant2',   name: 'Leaf Ant',        icon: '🐜', cost: 1000, pos: [-24, -1.5],  requires: ['leafant'] },
   { id: 'banker2',    name: 'Banker Ant',      icon: '💼', cost: 1400, pos: [-37.5, 4.6], requires: ['cashier2', 'wraprunner'] },
-  { id: 'expand2',    name: 'Big Order: Hangar', icon: '🗺️', cost: 3500, pos: [7, 9.3], requires: ['hatchery', 'raft', 'press2', 'wraprunner'] },
+  { id: 'expand2',    name: 'Big Order: Hangar', icon: '🗺️', cost: 3500, pos: [7, 9.3], requires: ['hatchery', 'raft', 'press2', 'wraprunner'], level: 11 },
 
   // ---- Zone 3: Hangar Floor (south) — vending machine sugar -> candy press -> candy ----
   { id: 'sugar2',      name: 'Vending Machine', icon: '🍬', cost: 1500,  pos: [-8, 28],   requires: ['expand2'] },
@@ -110,7 +121,7 @@ export const UNLOCKS: UnlockDef[] = [
   { id: 'candy2',      name: 'Faster Press',    icon: '🔥', cost: 4000,  pos: [-3, 33.5], requires: ['sugarant'] },
   { id: 'sugarant2',   name: 'Sugar Ant',       icon: '🐜', cost: 3200,  pos: [-3, 24.5], requires: ['sugarant'] },
   { id: 'banker3',     name: 'Banker Ant',      icon: '💼', cost: 4500,  pos: [3.4, 32.2], requires: ['cashier3', 'candyrunner'] },
-  { id: 'expand3',     name: 'Big Order: Airstrip', icon: '✈️', cost: 12000, pos: [-10, 34], requires: ['candy2', 'candyrunner'] },
+  { id: 'expand3',     name: 'Big Order: Airstrip', icon: '✈️', cost: 12000, pos: [-10, 34], requires: ['candy2', 'candyrunner'], level: 16 },
 ];
 
 /**
@@ -119,12 +130,22 @@ export const UNLOCKS: UnlockDef[] = [
  * that for the time you were away (the colony + airport kept working).
  */
 export const OFFLINE = {
-  share: 0.5,        // 50% of your measured income rate while away
-  maxHours: 8,       // counts up to 8 hours away
+  share: 0.5,        // 50% of your measured income rate while away (+ Night Manager, Night Shift: 100% max)
+  maxHours: 4,       // counts up to 4 hours away (+48 min per 💎 Night Shift level: 8 max)
   minAwaySecs: 60,   // shorter breaks don't count
   runBundles: 20,    // the bonus run starts with this many cash bundles
-  keepMin: 0.25,     // the bonus run always pays at least 25% of the earnings
+  runMin: 0.75,      // the bonus run always pays at least 75% of the earnings...
+  runMax: 2,         // ...and at most double (it used to have no cap: x4 or more)
 };
+
+/**
+ * 💰 The bonus run's payout multiplier: 0.5 + half the share of bundles that made it,
+ * between 0.75 and 2 (20 of 20 bundles = x1, 40 = x1.5, 60+ = x2). The results card
+ * and the actual payment both use this, so they always agree.
+ */
+export function bonusRunMult(end: number, start: number) {
+  return Math.min(OFFLINE.runMax, Math.max(OFFLINE.runMin, 0.5 + (0.5 * end) / Math.max(1, start)));
+}
 
 // ============================================================================
 // ACT 2: THE AIRPORT (human scale). You (the terminal manager) run the terminal for Anthill Airways:
@@ -182,7 +203,7 @@ export const AIR_UNLOCKS: UnlockDef[] = [
   { id: 'a2-jet',     name: 'Plane: Learjet',   icon: '🛫', cost: 28000, pos: [8.5, -10.5], requires: ['a2-twin'] },
   { id: 'a2-sarah',   name: 'Personal Assistant', icon: '👩‍💼', cost: 36000, pos: [3, 6.5],  requires: ['a2-barista', 'a2-host', 'a2-handler'] },
   { id: 'a2-liner',   name: 'Plane: Airliner',  icon: '✈️', cost: 52000, pos: [8.5, -10.5], requires: ['a2-jet', 'a2-sarah'] },
-  { id: 'a2-island',  name: 'Big Order: Island', icon: '🏝️', cost: 90000, pos: [-2.5, 9.6], requires: ['a2-liner', 'a2-heli'] },
+  { id: 'a2-island',  name: 'Big Order: Island', icon: '🏝️', cost: 90000, pos: [-2.5, 9.6], requires: ['a2-liner', 'a2-heli'], level: 30 },
 ];
 
 /** The map grows zone by zone. A zone opens when its `unlock` is bought. */
@@ -211,16 +232,50 @@ export interface StatDef {
  *  spread out so they keep improving right up to this. */
 export const STAT_MAX = 50;
 
+/**
+ * What ONE point / level of each bonus does (balance pass v0.25: the old values
+ * multiplied up to x141 at max; these aim for roughly x24-30 with everything maxed).
+ */
+export const STAT_FX = {
+  carry: 1,         // +1 item on your back
+  speed: 0.02,      // +2% walk speed
+  work: 0.03,       // +3% pickup / drop-off speed
+  haggle: 0.01,     // +1% cash
+  charm: 0.01,      // +1% customers + service speed
+  lead: 0.015,      // +1.5% helper speed
+  tough: 0.012,     // -1.2% heat (50 points = -60%)
+  manager: 0.005,   // +0.5 percentage points of offline share (50 points = +25)
+  luckWin: 0.005,   // +0.5 points on ? gates (50% base -> 75% at 50 points)
+  luckSave: 0.01,   // -1% of what puddles / hazards knock off (-50% at 50 points)
+};
+/** Luck + 💎 Lucky Ash together can't go past these. */
+export const LUCK_CAP = { win: 0.8, save: 0.7 };
+/** The Queen's points. */
+export const QUEEN_FX = {
+  bins: 0.04,       // 🗑️ Royal Bins: +4% trash money
+  grab: 0.04,       // ✋ +4% Banker pickup speed
+  tribute: 0.02,    // 💰 +2% on cash the Bankers collect
+};
+/** 💎 Obsidian Shard upgrades, per level. */
+export const SHARD_FX = {
+  riches: 0.02,     // +2% on ALL cash (50 levels = x2)
+  swift: 0.06,      // +6% walk speed
+  fortuneWin: 0.005, // Lucky Ash: +0.5 points on ? gates...
+  fortuneSave: 0.02, // ...and -2% run losses
+  nightShare: 0.05, // Night Shift: +5 points of offline share...
+  nightHours: 0.8,  // ...and +48 minutes of offline time
+};
+
 export const STATS: StatDef[] = [
-  { id: 'carry', name: 'Carry Weight', icon: '🎒', per: '+2 items on your back' },
-  { id: 'speed', name: 'Movement Speed', icon: '👟', per: '+5% walk speed' },
-  { id: 'work', name: 'Work Speed', icon: '⚡', per: '+8% faster pickup and drop-off' },
-  { id: 'haggle', name: 'Haggling', icon: '💰', per: '+5% cash from sales and runs' },
-  { id: 'luck', name: 'Luck', icon: '🍀', per: '-1.4% puddle loss, +0.5% ? gate wins' },
-  { id: 'charm', name: 'Charm', icon: '😄', per: '+5% more customers, served faster' },
-  { id: 'lead', name: 'Leadership', icon: '📣', per: '+4% speed for all your helpers' },
-  { id: 'tough', name: 'Toughness', icon: '🛡️', per: '-1.6% heat at the volcano, magma lasts longer' },
-  { id: 'manager', name: 'Night Manager', icon: '💤', per: '+1% offline earnings (50 = 100%)' },
+  { id: 'carry', name: 'Carry Weight', icon: '🎒', per: '+1 item on your back' },
+  { id: 'speed', name: 'Movement Speed', icon: '👟', per: '+2% walk speed' },
+  { id: 'work', name: 'Work Speed', icon: '⚡', per: '+3% faster pickup and drop-off' },
+  { id: 'haggle', name: 'Haggling', icon: '💰', per: '+1% cash from sales and runs' },
+  { id: 'luck', name: 'Luck', icon: '🍀', per: '+0.5% ? gate wins, -1% run losses' },
+  { id: 'charm', name: 'Charm', icon: '😄', per: '+1% more customers, served faster' },
+  { id: 'lead', name: 'Leadership', icon: '📣', per: '+1.5% speed for all your helpers' },
+  { id: 'tough', name: 'Toughness', icon: '🛡️', per: '-1.2% heat at the volcano, magma lasts longer' },
+  { id: 'manager', name: 'Night Manager', icon: '💤', per: '+0.5% offline earnings (50 = +25%)' },
 ];
 
 /** The Queen joins the economy at this player level. */
@@ -236,9 +291,9 @@ export interface QueenStatDef {
 export const QUEEN_STATS: QueenStatDef[] = [
   // (The Queen stays home now: her points boost the 🏦 Bankers and the 🗑️ trash money.
   //  'speed' keeps its save id; it used to be Royal Stride.)
-  { id: 'speed', name: 'Royal Bins', icon: '🗑️', per: '+10% trash money' },
-  { id: 'grab', name: 'Grab Speed', icon: '✋', per: '+20% faster Banker pickup' },
-  { id: 'tribute', name: 'Tribute', icon: '💰', per: '+5% on all cash Bankers collect' },
+  { id: 'speed', name: 'Royal Bins', icon: '🗑️', per: '+4% trash money' },
+  { id: 'grab', name: 'Grab Speed', icon: '✋', per: '+4% faster Banker pickup' },
+  { id: 'tribute', name: 'Tribute', icon: '💰', per: '+2% on all cash Bankers collect' },
 ];
 
 /* (The tutorial's steps live in world/tutorial.ts; the How to play guide in ui/howto.ts.) */
@@ -292,7 +347,7 @@ export const ISLAND_UNLOCKS: UnlockDef[] = [
   { id: 'i3-dock',     name: 'Sea Safari Dock',  icon: '🚤', cost: 240000,  pos: [27, 13],   requires: ['i3-dodo'] },
   { id: 'i3-captain',  name: 'Boat Captain',     icon: '🧑‍✈️', cost: 300000, pos: [25, 25],   requires: ['i3-dock'] },
   { id: 'i3-cashdodo', name: 'Sarah: Assistant', icon: '👩‍💼', cost: 360000,  pos: [4, 14],    requires: ['i3-cashier', 'i3-keeper', 'i3-clerk'] },
-  { id: 'i3-volcano',  name: 'Big Order: Volcano', icon: '🌋', cost: 1000000, pos: [0, -20], requires: ['i3-cashdodo', 'i3-captain'] },
+  { id: 'i3-volcano',  name: 'Big Order: Volcano', icon: '🌋', cost: 1000000, pos: [0, -20], requires: ['i3-cashdodo', 'i3-captain'], level: 45 },
 ];
 
 // ============================================================================
@@ -367,7 +422,7 @@ export const VOLCANO_UNLOCKS: UnlockDef[] = [
   { id: 'v4-trader',    name: 'Crystal Trader',     icon: '💱', cost: 2100000, pos: [6, 10],   requires: ['v4-kingdom'] },
   { id: 'v4-treasurer', name: 'Personal Assistant', icon: '👩‍💼', cost: 2500000, pos: [-2, 8],   requires: ['v4-trader', 'v4-pilot', 'v4-clerk'] },
   // Opens ACT 5 (the hotel). The hotel is yours for good: eruptions don't reset it.
-  { id: 'v4-resort',    name: 'Big Order: Resort',  icon: '🏨', cost: 4000000, pos: [-14, 20], requires: ['v4-treasurer'] },
+  { id: 'v4-resort',    name: 'Big Order: Resort',  icon: '🏨', cost: 4000000, pos: [-14, 20], requires: ['v4-treasurer'], level: 60 },
   { id: 'v4-eruption',  name: 'THE BIG ERUPTION',   icon: '🌋', cost: 6000000, pos: [-8, -30],  requires: ['v4-treasurer', 'v4-haulers'] },
 ];
 
@@ -377,7 +432,7 @@ export const VOLCANO_UNLOCKS: UnlockDef[] = [
 // You keep the colony, the airport, your level, stats and the Queen.
 // ============================================================================
 export const PRESTIGE = {
-  /** Shards for the cash earned since the last eruption: 12 x sqrt(millions). */
+  /** Shards for the island + volcano cash earned since the last eruption: 12 x sqrt(millions). */
   shardsPerSqrtMillion: 12,
   minShards: 5,
 };
@@ -389,11 +444,11 @@ export interface ShardUpDef {
   max: number;
 }
 export const SHARD_UPS: ShardUpDef[] = [
-  { id: 'riches',  name: 'Obsidian Riches', icon: '💰', per: '+10% on ALL cash',            max: 50 },
+  { id: 'riches',  name: 'Obsidian Riches', icon: '💰', per: '+2% on ALL cash',             max: 50 },
   { id: 'swift',   name: 'Lava Legs',       icon: '👟', per: '+6% walk speed',              max: 10 },
-  { id: 'fortune', name: 'Lucky Ash',       icon: '🍀', per: 'Better ? gates, fewer losses', max: 10 },
+  { id: 'fortune', name: 'Lucky Ash',       icon: '🍀', per: 'Better ? gates, fewer run losses', max: 10 },
   { id: 'head',    name: 'Head Start',      icon: '🚀', per: '+$100k cash after each eruption', max: 20 },
-  { id: 'night',   name: 'Night Shift',     icon: '💤', per: '+10% offline earnings',        max: 5 },
+  { id: 'night',   name: 'Night Shift',     icon: '💤', per: '+5% offline share, +48 min offline time', max: 5 },
 ];
 /** Shard price of the next level of an upgrade (3, 5, 7, ...). */
 export const shardCost = (level: number) => 3 + level * 2;

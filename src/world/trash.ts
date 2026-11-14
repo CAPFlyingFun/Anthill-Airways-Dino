@@ -3,7 +3,7 @@
 //
 // Every piece you dump in a trash bin (any world) pays you:
 //   $1 a piece, up to $50 with the colony's 🗑️ TRASH upgrade pad (Lv 10),
-//   + 10% per point of the Queen's 🗑️ Royal Bins stat.
+//   + 4% per point of the Queen's 🗑️ Royal Bins stat.
 // But the bins only take 100 pieces every 5 minutes:
 //   • your first piece starts a 5-minute timer ⏱️
 //   • after 100 pieces, the bins won't take more until the timer runs out;
@@ -44,8 +44,8 @@ export function bindTrash(s: SaveData, h: Hud, q: QueenProgress) {
 export function trashValue() {
   if (!save) return 1;
   const lv = save.upgrades[TRASH.padId] ?? 0;
-  const royal = 1 + (qp?.stat('speed') ?? 0) * 0.1; // 🗑️ Royal Bins (the Queen's old Royal Stride point)
-  return TRASH.values[Math.min(lv, 10)] * royal; // (cents count: $1.20 with 2 Royal Bins points)
+  const royal = qp?.binMult ?? 1; // 🗑️ Royal Bins (the Queen's old Royal Stride point)
+  return TRASH.values[Math.min(lv, 10)] * royal; // (cents count: $1.08 with 2 Royal Bins points)
 }
 
 /** Start a fresh window if the old one ran out. */

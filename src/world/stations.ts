@@ -828,6 +828,14 @@ export class UnlockTile {
   private nameText: Text;
   private priceText: Text;
 
+  /** The player's level (set once by main.ts; tiles with def.level stay 🔒 below it). */
+  static playerLevel: () => number = () => Infinity;
+
+  /** 🔒 Needs a higher player level (def.level) before cash can go in. */
+  get locked() {
+    return !!this.def.level && UnlockTile.playerLevel() < this.def.level;
+  }
+
   constructor(scene: THREE.Scene, public def: UnlockDef, paid: number) {
     this.paid = paid;
     // Extra sharp: the tile is seen at a low angle, and its name is small.
@@ -858,12 +866,18 @@ export class UnlockTile {
 
   /** Redraw only when the number or color actually changes. */
   draw(affordable: boolean) {
-    const key = `${this.remaining}|${affordable}`;
+    const locked = this.locked;
+    const key = `${this.remaining}|${affordable}|${locked}`;
     if (key === this.shown) return;
-    const repaint = !this.shown.endsWith(`|${affordable}`); // the painted part only changes with color
+    const repaint = !this.shown.endsWith(`|${affordable}|${locked}`); // the painted part only changes with color / lock
     this.shown = key;
+    // 🔒 Level-gated: "LOCKED: Lv 12" instead of the price, a grey border and a 🔒 painted
+    // where the icon goes. (The ground-text font has no emoji: an emoji here makes the text
+    // library fetch a fallback font, which hangs the label when the phone is offline.)
+    const price = locked ? `LOCKED: Lv ${this.def.level}` : `$${this.remaining.toLocaleString()}`;
+    const priceColor = locked ? '#c9c9c9' : affordable ? '#ffe066' : '#ffffff';
     if (!repaint) {
-      setGroundText(this.priceText, `$${this.remaining.toLocaleString()}`, affordable ? '#ffe066' : '#ffffff', 2.2);
+      setGroundText(this.priceText, price, priceColor, 2.2);
       return;
     }
     const c = this.ctx;
@@ -874,15 +888,15 @@ export class UnlockTile {
     c.fill();
     c.setLineDash([24, 14]);
     c.lineWidth = 10;
-    c.strokeStyle = affordable ? '#ffe066' : '#bdefff';
+    c.strokeStyle = locked ? '#9a9a9a' : affordable ? '#ffe066' : '#bdefff';
     c.stroke();
     c.setLineDash([]);
     c.font = `84px ${GAME_FONT}`;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(this.def.icon, 128, 78);
+    c.fillText(locked ? '🔒' : this.def.icon, 128, 78);
     this.tex.needsUpdate = true;
-    setGroundText(this.priceText, `$${this.remaining.toLocaleString()}`, affordable ? '#ffe066' : '#ffffff', 2.2);
+    setGroundText(this.priceText, price, priceColor, 2.2);
   }
 
   update(dt: number, affordable: boolean) {

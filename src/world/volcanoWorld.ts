@@ -1249,7 +1249,7 @@ export class VolcanoWorld {
     delete this.save.paid[id];
     tile.mesh.visible = false;
     this.applyUnlock(id, true);
-    this.progress.addXp(tile.def.cost * CONFIG.xp.unlockFraction * 0.3);
+    this.progress.addXp(CONFIG.xp.tile.volcano);
     this.sfx.unlocked();
     this.hud.floatAt(tile.mesh.position.clone().setY(2), this.camera, 'UNLOCKED!', 'big gold');
     this.refreshTiles(true);
@@ -1267,6 +1267,8 @@ export class VolcanoWorld {
 
   addCash(amount: number) {
     this.save.cash += amount;
+    // 🌋 Shards count only what the island + volcano earn (not offline pay or bonus runs)
+    if (amount > 0) this.save.cycleEarned += amount;
     this.hud.setCash(this.save.cash);
   }
 
@@ -1279,10 +1281,10 @@ export class VolcanoWorld {
   }
 
   /** A heli tour run finished: pay for every tourist who made it. */
-  receiveTour(endCount: number) {
+  receiveTour(endCount: number, startCount?: number) {
     const earned = Math.round(endCount * ITEM_VALUE.ticket * C.tourFare * this.progress.cashMult);
     this.addCash(earned);
-    this.progress.addXp(endCount * CONFIG.xp.runPerItem * 3);
+    this.progress.addXp(Progress.runXp(endCount, startCount) * 3);
     this.sfx.unlocked();
     this.hud.floatAt(this.player.pos.clone().setY(3), this.camera, `+$${earned}`, 'big gold');
   }
@@ -1617,7 +1619,7 @@ export class VolcanoWorld {
     // Unlock tiles
     for (const t of this.tiles) {
       if (!t.mesh.visible) continue;
-      const affordable = this.save.cash >= 1;
+      const affordable = this.save.cash >= 1 && !t.locked; // (🔒 level-gated tiles take no cash yet)
       t.update(dt, affordable && this.save.cash >= t.remaining);
       if (affordable && t.zone.contains(p)) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);

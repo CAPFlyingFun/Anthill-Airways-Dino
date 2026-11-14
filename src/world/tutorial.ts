@@ -216,7 +216,9 @@ export class Tutorial {
       return;
     }
     // A brand-new game: the welcome card first
-    if (this.save.tutorial === 0 && !this.save.paid['tut-intro'] && !this.asking) this.intro();
+    // (and only when no other card is up: one card at a time)
+    const cardUp = !document.getElementById('guide')?.classList.contains('hidden');
+    if (this.save.tutorial === 0 && !this.save.paid['tut-intro'] && !this.asking && !cardUp) this.intro();
     if (this.asking || !this.running) {
       this.arrow.visible = false;
       this.edge.classList.add('hidden');

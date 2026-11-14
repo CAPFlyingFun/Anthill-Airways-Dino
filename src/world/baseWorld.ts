@@ -688,7 +688,7 @@ export class BaseWorld {
     delete this.save.paid[id];
     tile.mesh.visible = false;
     this.applyUnlock(id, true);
-    this.progress.addXp(tile.def.cost * CONFIG.xp.unlockFraction);
+    this.progress.addXp(CONFIG.xp.tile.ant); // (a fixed amount, not a share of the price)
     this.sfx.unlocked();
     this.hud.floatAt(tile.mesh.position.clone().setY(1.5), this.camera, 'UNLOCKED!', 'big gold');
     this.tutorialDone(5);
@@ -723,10 +723,10 @@ export class BaseWorld {
   }
 
   /** Called by main.ts when a gate run finishes. */
-  receiveRunPayout(endCount: number, itemType: ItemType = 'snack') {
+  receiveRunPayout(endCount: number, itemType: ItemType = 'snack', startCount?: number) {
     const earned = Math.round(endCount * ITEM_VALUE[itemType] * this.progress.cashMult);
     this.addCash(earned);
-    this.progress.addXp(endCount * CONFIG.xp.runPerItem * (ITEM_VALUE[itemType] / ITEM_VALUE.snack) ** 0.5);
+    this.progress.addXp(Progress.runXp(endCount, startCount) * (ITEM_VALUE[itemType] / ITEM_VALUE.snack) ** 0.5);
     this.sfx.unlocked();
     this.hud.floatAt(this.player.pos.clone().setY(2.5), this.camera, `+$${earned}`, 'big gold');
   }
@@ -905,7 +905,7 @@ export class BaseWorld {
     // 7) Unlock tiles: stand on one to pour cash in
     for (const t of this.tiles) {
       if (!t.mesh.visible) continue;
-      const affordable = this.save.cash >= 1;
+      const affordable = this.save.cash >= 1 && !t.locked; // (🔒 level-gated tiles take no cash yet)
       t.update(dt, affordable && this.save.cash >= t.remaining);
       if (affordable && t.zone.contains(p)) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);

@@ -37,10 +37,12 @@ export interface BoardRow {
   /** For the NEXT stop: steps done before its Big Order can be bought. */
   ready?: number;
   steps?: number;
+  /** For the NEXT stop: 🔒 the player level its Big Order needs (if not reached yet). */
+  needLevel?: number;
 }
 
 /** The board's rows for this save's unlocks. */
-export function departures(unlocked: string[]): BoardRow[] {
+export function departures(unlocked: string[], level = Infinity): BoardRow[] {
   const has = (id?: string) => !!id && unlocked.includes(id);
   let nextFound = false;
   return ROUTE.map((stop) => {
@@ -50,15 +52,17 @@ export function departures(unlocked: string[]): BoardRow[] {
     const d = def(stop.id);
     const req = d?.requires ?? [];
     const ready = req.filter((r) => unlocked.includes(r)).length;
-    const detail = d ? `${d.name} (at ${stop.where}) · $${d.cost.toLocaleString()}` : '';
-    return { stop, status: 'next', detail, ready, steps: req.length };
+    const detail = d ? `${d.name} (at ${stop.where}) · $${d.cost.toLocaleString()}${d.level ? ` · Lv ${d.level}` : ''}` : '';
+    const needLevel = d?.level && level < d.level ? d.level : undefined;
+    return { stop, status: 'next', detail, ready, steps: req.length, needLevel };
   });
 }
 
 /** The chip's text ("🛫 Next: Hangar · 2/4 ready"), or null when the whole route is done. */
-export function nextChip(unlocked: string[]) {
-  const next = departures(unlocked).find((r) => r.status === 'next');
+export function nextChip(unlocked: string[], level = Infinity) {
+  const next = departures(unlocked, level).find((r) => r.status === 'next');
   if (!next) return null;
   const allReady = next.ready === next.steps;
-  return `🛫 Next: ${next.stop.icon} ${next.stop.name} · ${allReady ? 'Big Order ready!' : `${next.ready}/${next.steps} steps`}`;
+  const status = !allReady ? `${next.ready}/${next.steps} steps` : next.needLevel ? `🔒 reach Lv ${next.needLevel}` : 'Big Order ready!';
+  return `🛫 Next: ${next.stop.icon} ${next.stop.name} · ${status}`;
 }

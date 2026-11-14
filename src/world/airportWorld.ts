@@ -942,7 +942,7 @@ export class AirportWorld {
     delete this.save.paid[id];
     tile.mesh.visible = false;
     this.applyUnlock(id, true);
-    this.progress.addXp(tile.def.cost * CONFIG.xp.unlockFraction * 0.5);
+    this.progress.addXp(CONFIG.xp.tile.air);
     this.sfx.unlocked();
     this.hud.floatAt(tile.mesh.position.clone().setY(2), this.camera, 'UNLOCKED!', 'big gold');
     this.refreshTiles(true);
@@ -1102,7 +1102,7 @@ export class AirportWorld {
     // Unlock tiles
     for (const t of this.tiles) {
       if (!t.mesh.visible) continue;
-      const affordable = this.save.cash >= 1;
+      const affordable = this.save.cash >= 1 && !t.locked; // (🔒 level-gated tiles take no cash yet)
       t.update(dt, affordable && this.save.cash >= t.remaining);
       if (affordable && t.zone.contains(p)) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);

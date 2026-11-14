@@ -5,8 +5,14 @@
 // (carry weight, speed, work speed, haggling, luck), and the rest of the game
 // reads the bonuses from the getters at the bottom.
 // ============================================================================
-import { CONFIG, QUEEN_STATS, QueenStatDef, SHARD_UPS, STAT_MAX, STATS, ShardUpDef, StatDef, shardCost } from '../data/config';
+import { CONFIG, LUCK_CAP, OFFLINE, QUEEN_FX, QUEEN_STATS, QueenStatDef, SHARD_FX, SHARD_UPS, STAT_FX, STAT_MAX, STATS, ShardUpDef, StatDef, shardCost } from '../data/config';
 import { SaveData } from './save';
+import { shardsSpent } from './migrate';
+
+/** 0.125 -> "12.5%" (no trailing .0). */
+const pct = (f: number) => `${+(f * 100).toFixed(1)}%`;
+/** 4.8 -> "4h 48m". */
+const hours = (h: number) => (h % 1 ? `${Math.floor(h)}h ${Math.round((h % 1) * 60)}m` : `${h}h`);
 
 export class Progress {
   /** Called whenever XP, level or points change (to refresh the HUD). */
@@ -36,7 +42,14 @@ export class Progress {
 
   /** XP needed to go from `level` to `level + 1`. */
   xpToNext(level = this.save.level) {
-    return Math.round(CONFIG.xp.curveBase * Math.pow(level, CONFIG.xp.curveExp));
+    return CONFIG.xp.levelBase + CONFIG.xp.levelStep * (Math.max(1, level) - 1);
+  }
+
+  /** Gate-run XP: items that reached the finish, but at most 2x the starting load
+   *  (so one lucky run with big x gates can't dominate leveling). */
+  static runXp(endCount: number, startCount?: number) {
+    const capped = startCount ? Math.min(endCount, startCount * CONFIG.xp.runCap) : endCount;
+    return Math.max(0, capped) * CONFIG.xp.runPerItem;
   }
 
   addXp(amount: number) {
@@ -64,6 +77,27 @@ export class Progress {
     return this.save.stats[id] ?? 0;
   }
 
+  /** 🔄 Take back every 💎 shard spent at the Obsidian Shrine (to spend again). Returns how many. */
+  respecShards() {
+    const n = shardsSpent(this.save);
+    this.save.shardUps = {};
+    this.save.shards += n;
+    this.onChange();
+    return n;
+  }
+
+  /** 🔄 Take every point back out of the stats (to spend again). Returns how many. */
+  respec() {
+    let n = 0;
+    for (const d of STATS) {
+      n += this.stat(d.id);
+      this.save.stats[d.id] = 0;
+    }
+    this.save.points += n;
+    this.onChange();
+    return n;
+  }
+
   // ---- 💎 Obsidian Shard upgrades (prestige: permanent) ---------------------
   /** Levels bought in a shard upgrade. */
   up(id: ShardUpDef['id']) {
@@ -88,58 +122,67 @@ export class Progress {
   powerBoost = 1;
 
   // ---- Bonuses the game uses ---------------------------------------------
+  // (Per-point values: STAT_FX / SHARD_FX in config.ts.)
   get carryBonus() {
-    return this.stat('carry') * 2;
+    return this.stat('carry') * STAT_FX.carry;
   }
   get speedMult() {
-    return (1 + this.stat('speed') * 0.05) * (1 + this.up('swift') * 0.06);
+    return (1 + this.stat('speed') * STAT_FX.speed) * (1 + this.up('swift') * SHARD_FX.swift);
   }
   get workMult() {
-    return 1 + this.stat('work') * 0.08;
+    return 1 + this.stat('work') * STAT_FX.work;
   }
   /** Haggling x Obsidian Riches x geothermal power. */
   get cashMult() {
-    return (1 + this.stat('haggle') * 0.05) * (1 + this.up('riches') * 0.1) * this.powerBoost;
+    return (1 + this.stat('haggle') * STAT_FX.haggle) * (1 + this.up('riches') * SHARD_FX.riches) * this.powerBoost;
   }
-  get luck() {
-    // 50 Luck points = the full bonus (12 "luck" in the runs: -70% puddle loss, 80% ? wins),
-    // plus 💎 Fortune shard levels on top.
-    return (this.stat('luck') * 12) / STAT_MAX + this.up('fortune') * 2;
+  /** 🍀 Chance a ? gate pays x3 (50% base; Luck + 💎 Lucky Ash, max 80%). */
+  get luckWin() {
+    return Math.min(LUCK_CAP.win, 0.5 + this.stat('luck') * STAT_FX.luckWin + this.up('fortune') * SHARD_FX.fortuneWin);
+  }
+  /** 🍀 Share of puddle / hazard losses Luck saves (max 70%). */
+  get luckSave() {
+    return Math.min(LUCK_CAP.save, this.stat('luck') * STAT_FX.luckSave + this.up('fortune') * SHARD_FX.fortuneSave);
   }
   /** 😄 Charm: customers arrive and get served faster everywhere. */
   get charmMult() {
-    return 1 + this.stat('charm') * 0.05;
+    return 1 + this.stat('charm') * STAT_FX.charm;
   }
   /** 📣 Leadership: every helper is faster. */
   get leadMult() {
-    return 1 + this.stat('lead') * 0.04;
+    return 1 + this.stat('lead') * STAT_FX.lead;
   }
-  /** 🛡️ Toughness: heat builds up slower (and magma burns away slower). */
+  /** 🛡️ Toughness: heat builds up slower (and magma burns away slower). 50 points = -60%. */
   get heatMult() {
-    return Math.max(0.2, 1 - this.stat('tough') * (0.8 / STAT_MAX)); // 50 points = -80% heat
+    return Math.max(0.4, 1 - this.stat('tough') * STAT_FX.tough);
   }
-  /** 💤 Night Manager: extra share of offline earnings (+1% per point: 50 points takes
-   *  the base 50% share to 100%; 💎 Night Shift shards can push it past that). */
+  /** 💤 Night Manager: extra share of offline earnings (+0.5 points each, 50 = +25). */
   get offlineBonus() {
-    return this.stat('manager') * 0.01;
+    return this.stat('manager') * STAT_FX.manager;
+  }
+  /** 💤 Share of the idle rate paid while away: 50% + Night Manager (25) + Night Shift (25) = 100% max. */
+  get offlineShare() {
+    return Math.min(1, OFFLINE.share + this.offlineBonus + this.up('night') * SHARD_FX.nightShare);
+  }
+  /** 💤 Hours away that count: 4 to start, +48 min per Night Shift level (8 max). */
+  get offlineHours() {
+    return OFFLINE.maxHours + this.up('night') * SHARD_FX.nightHours;
   }
 
   /** One-line description of a stat's current total bonus. */
   describe(id: StatDef['id']) {
     const n = this.stat(id);
     switch (id) {
-      case 'carry': return `+${n * 2} carry`;
-      case 'speed': return `+${n * 5}% speed`;
-      case 'work': return `+${n * 8}% work speed`;
-      case 'haggle': return `+${n * 5}% cash`;
-      case 'luck': {
-        const l = this.luck; // (includes 💎 Fortune)
-        return l ? `-${Math.round(Math.min(70, l * 6))}% puddle loss, ${Math.round(Math.min(80, 50 + l * 4))}% ? win` : 'No bonus yet';
-      }
-      case 'charm': return `+${n * 5}% customers`;
-      case 'lead': return `+${n * 4}% helper speed`;
-      case 'tough': return `-${Math.round((1 - this.heatMult) * 100)}% heat`;
-      case 'manager': return `+${n}% offline (${Math.round(Math.min(1.5, 0.5 + this.up('night') * 0.1 + this.offlineBonus) * 100)}% kept)`;
+      case 'carry': return `+${n * STAT_FX.carry} carry`;
+      case 'speed': return `+${pct(n * STAT_FX.speed)} speed`;
+      case 'work': return `+${pct(n * STAT_FX.work)} work speed`;
+      case 'haggle': return `+${pct(n * STAT_FX.haggle)} cash`;
+      case 'luck': // (includes 💎 Lucky Ash)
+        return this.luckSave > 0 || this.luckWin > 0.5 ? `${pct(this.luckWin)} ? wins, -${pct(this.luckSave)} losses` : 'No bonus yet';
+      case 'charm': return `+${pct(n * STAT_FX.charm)} customers`;
+      case 'lead': return `+${pct(n * STAT_FX.lead)} helper speed`;
+      case 'tough': return `-${pct(1 - this.heatMult)} heat`;
+      case 'manager': return `+${pct(this.offlineBonus)} offline (${pct(this.offlineShare)} kept, up to ${hours(this.offlineHours)})`;
     }
   }
 }
@@ -201,20 +244,37 @@ export class QueenProgress {
     return this.q.stats[id] ?? 0;
   }
 
+  /** 🔄 Take every point back out of the Queen's stats. Returns how many. */
+  respec() {
+    let n = 0;
+    for (const d of QUEEN_STATS) {
+      n += this.stat(d.id);
+      this.q.stats[d.id] = 0;
+    }
+    this.q.points += n;
+    this.onChange();
+    return n;
+  }
+
+  /** (Her old "Royal Stride": she stays on her throne now, so this only paces her idle shuffle.) */
   get speedMult() {
-    return 1 + this.stat('speed') * 0.12;
+    return 1;
+  }
+  /** 🗑️ Royal Bins: trash money multiplier. */
+  get binMult() {
+    return 1 + this.stat('speed') * QUEEN_FX.bins;
   }
   get grabMult() {
-    return 1 + this.stat('grab') * 0.2;
+    return 1 + this.stat('grab') * QUEEN_FX.grab;
   }
   get tributeMult() {
-    return 1 + this.stat('tribute') * 0.05;
+    return 1 + this.stat('tribute') * QUEEN_FX.tribute;
   }
 
   describe(id: QueenStatDef['id']) {
     const n = this.stat(id);
-    if (id === 'speed') return `+${n * 10}% trash money`; // 🗑️ Royal Bins
-    if (id === 'grab') return `+${n * 20}% grab`;
-    return `+${n * 5}% cash`;
+    if (id === 'speed') return `+${pct(n * QUEEN_FX.bins)} trash money`; // 🗑️ Royal Bins
+    if (id === 'grab') return `+${pct(n * QUEEN_FX.grab)} grab`;
+    return `+${pct(n * QUEEN_FX.tribute)} cash`;
   }
 }

@@ -640,7 +640,7 @@ export class HotelWorld {
     tile.mesh.visible = false;
     this.applyUnlock(id, true);
     this.rebuildTower(); // every unlock = one more floor
-    this.progress.addXp(tile.def.cost * CONFIG.xp.unlockFraction * 0.2);
+    this.progress.addXp(CONFIG.xp.tile.hotel);
     this.sfx.unlocked();
     this.hud.floatAt(tile.mesh.position.clone().setY(2), this.camera, 'UNLOCKED! +1 FLOOR', 'big gold');
     this.refreshTiles(true);
@@ -660,12 +660,12 @@ export class HotelWorld {
   }
 
   /** A Bellhop Dash finished: tips for every bag that made it, and guests settle in. */
-  receiveDash(endCount: number) {
+  receiveDash(endCount: number, startCount?: number) {
     const earned = Math.round(endCount * ITEM_VALUE.bag * C.bellhopTip * this.priceMult);
     this.addCash(earned);
     const settled = Math.min(endCount, this.freeRooms);
     this.occupied += settled;
-    this.progress.addXp(endCount * CONFIG.xp.runPerItem * 3);
+    this.progress.addXp(Progress.runXp(endCount, startCount) * 3);
     this.sfx.unlocked();
     this.hud.floatAt(this.player.pos.clone().setY(3), this.camera, `+$${earned} in tips`, 'big gold');
     this.paintWindows();
@@ -1117,7 +1117,7 @@ export class HotelWorld {
     // Unlock tiles
     for (const t of this.tiles) {
       if (!t.mesh.visible) continue;
-      const affordable = this.save.cash >= 1;
+      const affordable = this.save.cash >= 1 && !t.locked; // (🔒 level-gated tiles take no cash yet)
       t.update(dt, affordable && this.save.cash >= t.remaining);
       if (affordable && t.zone.contains(p)) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);

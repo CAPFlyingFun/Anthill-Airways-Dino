@@ -9,9 +9,17 @@
 import { PRESTIGE } from '../data/config';
 import { SaveData } from './save';
 
-/** Shards for the cash earned since the last eruption: 12 x sqrt(millions). */
+/** Shards for the island + volcano cash earned since the last eruption: 12 x sqrt(millions). */
 export function shardsFor(earned: number) {
   return Math.max(PRESTIGE.minShards, Math.floor(PRESTIGE.shardsPerSqrtMillion * Math.sqrt(Math.max(0, earned) / 1e6)));
+}
+
+/** What the next eruption pays: this cycle's shards + any carried over once from the
+ *  v0.25 balance change (core/migrate.ts). */
+export function eruptionShards(save: SaveData) {
+  const carry = save.paid['shard-carry'] ?? 0;
+  if (!carry) return shardsFor(save.cycleEarned);
+  return Math.max(PRESTIGE.minShards, carry + Math.floor(PRESTIGE.shardsPerSqrtMillion * Math.sqrt(Math.max(0, save.cycleEarned) / 1e6)));
 }
 
 /** Acts 3 + 4 (island + volcano) ids: everything an eruption wipes. */
@@ -31,6 +39,7 @@ export function erupt(save: SaveData, gain: number) {
   // 🚀 Head Start: $100k per level to get the island going again
   save.cash = 100000 * (save.shardUps.head ?? 0);
   save.cycleEarned = 0;
+  delete save.paid['shard-carry']; // (paid out with this eruption)
   save.world = 'island';
   // The island + volcano income is gone for now (offline earnings re-measure it)
   save.rate *= 0.3;

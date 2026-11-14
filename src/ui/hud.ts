@@ -172,10 +172,15 @@ export class Hud {
   }
 
   /** The "welcome back" card. Resolves 'run' (multiply it) or 'collect'. */
-  showWelcome(awaySecs: number, amount: number): Promise<'run' | 'collect'> {
-    const h = Math.floor(awaySecs / 3600);
-    const m = Math.floor((awaySecs % 3600) / 60);
-    $('wbAway').textContent = `You were away ${h ? `${h}h ` : ''}${m}m`;
+  showWelcome(awaySecs: number, countedSecs: number, share: number, amount: number): Promise<'run' | 'collect'> {
+    const t = (secs: number) => {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      return h && !m ? `${h}h` : `${h ? `${h}h ` : ''}${m}m`; // "4h", "5h 36m", "12m"
+    };
+    // e.g. "You were away 9h 12m · 4h counted at 50%" (the cap + share are upgradable)
+    const capped = countedSecs < awaySecs - 59;
+    $('wbAway').textContent = `You were away ${t(awaySecs)}${capped ? ` · ${t(countedSecs)} counted` : ''} at ${Math.round(share * 100)}%`;
     $('wbAmount').textContent = `$${Math.round(amount).toLocaleString()}`;
     const overlay = $('welcome');
     overlay.classList.remove('hidden');
@@ -211,9 +216,9 @@ export class Hud {
   }
 
   /** "Erupt the volcano?" Resolves true if you confirm. */
-  confirmEruption(shards: number, earned: number, eruptions: number): Promise<boolean> {
+  confirmEruption(shards: number, earned: number, eruptions: number, carried = 0): Promise<boolean> {
     $('erShards').textContent = `💎 ${shards}`;
-    $('erEarned').textContent = `$${short(earned)} earned since ${eruptions ? 'the last eruption' : 'you started'}`;
+    $('erEarned').textContent = `$${short(earned)} earned on the island + volcano since ${eruptions ? 'the last eruption' : 'you started'}${carried ? ` (+💎 ${carried} carried over from before the v0.25 update)` : ''}`;
     const overlay = $('erupt');
     overlay.classList.remove('hidden');
     return new Promise((resolve) => {
@@ -329,6 +334,25 @@ export class Hud {
       panel.classList.remove('hidden');
     });
     $('closeStats').addEventListener('click', () => panel.classList.add('hidden'));
+    // 🔄 The one free respec (set by core/migrate.ts for saves from before v0.25)
+    $('respecBtn').addEventListener('click', () => {
+      panel.classList.add('hidden');
+      this.showGuide('🔄 Free respec', `<p>All your stat points (and the Queen's) and every 💎 Obsidian Shard you spent at the Shrine come back, so you can spend them again with the new numbers.</p><p>This free respec can be used <b>once</b>.</p>`, [
+        {
+          label: '🔄 Yes, give them back',
+          cls: 'big-btn',
+          onClick: () => {
+            const n = progress.respec() + queen.respec();
+            const shards = progress.respecShards();
+            delete progress.save.paid['respec-free'];
+            this.banner('🔄 Refunded!', `${n} points${shards ? ` + 💎 ${shards} shards` : ''} to spend again`, 3500);
+            this.renderStats();
+            panel.classList.remove('hidden');
+          },
+        },
+        { label: 'Not now', cls: 'menu-btn', onClick: () => panel.classList.remove('hidden') },
+      ]);
+    });
     // Build one row per stat; the "+" button spends a point.
     const rows = $('statRows');
     for (const def of STATS) {
@@ -365,6 +389,7 @@ export class Hud {
     const p = this.progress!;
     const s = p.save;
     $('statsTitle').textContent = `Level ${s.level}`;
+    $('respecBtn').classList.toggle('hidden', !s.paid['respec-free']);
     $('statsXpFill').style.width = `${Math.min(100, (s.xp / p.xpToNext()) * 100)}%`;
     $('statsXpText').textContent = `${Math.floor(s.xp)} / ${p.xpToNext()} XP`;
     $('statsPoints').textContent = p.allMaxed ? '🏆 Every stat is maxed!' : s.points > 0 ? `${s.points} point${s.points > 1 ? 's' : ''} to spend! (max ${STAT_MAX} each)` : 'Level up to earn points';
@@ -420,7 +445,7 @@ export class Hud {
           const st = r.status === 'departed' ? 'DEPARTED ✅' : r.status === 'next' ? 'NEXT' : 'LATER';
           const line = `<div class="board-row ${r.status}"><div class="ic">${r.stop.icon}</div><div class="nm">${r.stop.name}</div><div class="st">${st}</div></div>`;
           const more = r.status === 'next'
-            ? `<div class="board-detail">${r.detail}<br>${r.ready === r.steps ? '✅ Ready to buy!' : `Steps done: ${r.ready}/${r.steps} (unlock everything it needs nearby)`}</div>`
+            ? `<div class="board-detail">${r.detail}<br>${r.ready !== r.steps ? `Steps done: ${r.ready}/${r.steps} (unlock everything it needs nearby)` : r.needLevel ? `🔒 Reach level ${r.needLevel} to open it (play, sell and unlock to earn XP)` : '✅ Ready to buy!'}</div>`
             : '';
           return line + more;
         })

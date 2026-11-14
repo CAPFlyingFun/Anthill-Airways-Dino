@@ -9,8 +9,9 @@ import { Input } from './core/input';
 import { Sfx } from './core/audio';
 import { SLOTS, Slot, activeSlot, clearSave, eraseSlot, loadSave, slotSummary, switchSlot, writeSave } from './core/save';
 import { Progress, QueenProgress } from './core/progress';
-import { GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
-import { erupt, shardsFor } from './core/prestige';
+import { bonusRunMult, GAME_SPEED, HOTEL_CFG, OFFLINE, QUEEN_UNLOCK_LEVEL, VOLCANO_CFG } from './data/config';
+import { erupt, eruptionShards } from './core/prestige';
+import { migrateBalance } from './core/migrate';
 import { pace } from './core/pace';
 import { tickClock } from './core/clock';
 import { income } from './core/income';
@@ -31,6 +32,7 @@ import { lod } from './core/lod';
 import { Updater, versionLabel } from './core/updater';
 import { HOWTO_HTML, HOWTO_TITLE } from './ui/howto';
 import { showStartupError, watchStartup } from './core/startupError';
+import { UnlockTile } from './world/stations';
 
 watchStartup(); // a friendly Retry card instead of a frozen loading screen
 
@@ -71,6 +73,7 @@ if (!save.paid['rate-auto']) {
   save.paid['rate-auto'] = 1;
 }
 bindTotals(save); // 📊 lifetime stats (bump('sold') etc. write into save.totals)
+UnlockTile.playerLevel = () => save.level; // 🔒 level-gated Big Orders
 // How long since the last save (= since you last played), for offline earnings.
 const awayAtLaunch = save.lastSeen ? (Date.now() - save.lastSeen) / 1000 : 0;
 const hud = new Hud();
@@ -82,6 +85,10 @@ input.onFirstTouch(() => sfx.unlock());
 document.addEventListener('pointerdown', () => sfx.unlock(), { once: true, capture: true });
 const progress = new Progress(save);
 const queenProgress = new QueenProgress(save);
+// ⚖️ v0.25 balance pass: convert older saves once (keeps level, cash, upgrades, shards;
+// backup copy, free respec, shards carried over). See core/migrate.ts.
+// (It saves the converted game itself, without touching lastSeen: time away still counts.)
+const rebalanced = migrateBalance(save, (level) => progress.xpToNext(level));
 bindTrash(save, hud, queenProgress); // 🗑️ paid trash (world/trash.ts)
 
 hud.initVolumes(sfx.musicVolume, sfx.sfxVolume, (music, effects) => sfx.setVolumes(music, effects));
@@ -178,13 +185,14 @@ async function start() {
   // 4) Tapping LAUNCH RUN switches to the gate run; finishing switches back.
   base.onLaunch = (count, from) => {
     mode = 'run';
-    run.luck = progress.luck;
+    run.luckWin = progress.luckWin;
+    run.luckSave = progress.luckSave;
     run.cashMult = progress.cashMult;
     run.start(
       count,
       (endCount) => {
         mode = 'base';
-        base.receiveRunPayout(endCount, from.itemType);
+        base.receiveRunPayout(endCount, from.itemType, count);
         writeSave(save);
         if (pendingAway) {
           const secs = pendingAway;
@@ -223,12 +231,13 @@ async function start() {
     island.onSafari = (count) => {
       mode = 'run';
       hud.setLaunch(null);
-      run.luck = progress.luck;
+      run.luckWin = progress.luckWin;
+      run.luckSave = progress.luckSave;
       run.cashMult = progress.cashMult;
       run.start(count, (end) => {
         mode = 'island';
         island!.enter(false);
-        island!.receiveSafari(end);
+        island!.receiveSafari(end, count);
         writeSave(save);
       }, 'ocean', 'ticket');
     };
@@ -251,19 +260,20 @@ async function start() {
       mode = 'run';
       hud.setLaunch(null);
       hud.setHeat(null);
-      run.luck = progress.luck;
+      run.luckWin = progress.luckWin;
+      run.luckSave = progress.luckSave;
       run.cashMult = progress.cashMult * VOLCANO_CFG.tourFare;
       run.start(count, (end) => {
         mode = 'volcano';
         volcano!.enter(false);
-        volcano!.receiveTour(end);
+        volcano!.receiveTour(end, count);
         writeSave(save);
       }, 'lava', 'ticket');
     };
     // 🌋 The Big Eruption (prestige)
     volcano.onErupt = async () => {
-      const gain = shardsFor(save.cycleEarned);
-      const ok = await hud.confirmEruption(gain, save.cycleEarned, save.eruptions);
+      const gain = eruptionShards(save); // (+ any shards carried over from the v0.25 change)
+      const ok = await hud.confirmEruption(gain, save.cycleEarned, save.eruptions, save.paid['shard-carry'] ?? 0);
       if (!ok || !volcano) return;
       volcano.bigBang();
       hud.banner('🌋 KA-BOOOOM!', `+💎 ${gain} Obsidian Shards`, 4000);
@@ -302,12 +312,13 @@ async function start() {
     hotel.onDash = (count) => {
       mode = 'run';
       hud.setLaunch(null);
-      run.luck = progress.luck;
+      run.luckWin = progress.luckWin;
+      run.luckSave = progress.luckSave;
       run.cashMult = hotel!.priceMult * HOTEL_CFG.bellhopTip; // (shows the tips on the results card)
       run.start(count, (end) => {
         mode = 'hotel';
         hotel!.enter(false);
-        hotel!.receiveDash(end);
+        hotel!.receiveDash(end, count);
         writeSave(save);
       }, 'hotel', 'bag');
     };
@@ -505,8 +516,12 @@ async function start() {
   let winEarned = 0;
   let winT = 0;
   hud.setRate(save.rate * 60);
+  let autoTotal = 0; // (all cash helpers ever collected this session: for tests)
+  let sessionT = 0; // seconds since the game started (the first 30 s, worlds are still loading)
   function trackIncome(dt: number) {
     bump('played', dt); // 📊 time played (runs included)
+    sessionT += dt;
+    autoTotal += income.auto;
     if (mode === 'run') {
       prevCash = save.cash;
       income.auto = 0;
@@ -514,7 +529,8 @@ async function start() {
     }
     const gained = save.cash - prevCash;
     if (gained > 0) {
-      save.cycleEarned += gained; // ALL cash counts toward the next eruption's shards
+      // (🌋 Shards: islandWorld / volcanoWorld add to save.cycleEarned themselves, at the
+      // moment they credit cash: only their own earnings count, not offline pay or bonus runs.)
       bump('earned', gained); // 📊 lifetime, and per world
       bump(`earned_${mode}`, gained);
     }
@@ -525,7 +541,13 @@ async function start() {
     winT += dt;
     if (winT >= 10) {
       const r = winEarned / winT;
-      save.rate = save.rate * 0.85 + r * 0.15;
+      // ⚖️ Just rebalanced (core/migrate.ts): a few windows re-measure faster, so the old
+      // bonuses' rate doesn't linger in future offline pay. (Counted in the save, so a short
+      // session doesn't lose it; skipped in the first 30 s while the worlds load.)
+      const fast = (save.paid['rate-fast'] ?? 0) > 0 && sessionT > 30;
+      const w = fast ? 0.5 : 0.15;
+      if (fast && --save.paid['rate-fast'] <= 0) delete save.paid['rate-fast'];
+      save.rate = save.rate * (1 - w) + r * w;
       if (save.rate < 0.02) save.rate = 0; // nobody's earning: show/pay nothing
       hud.setRate(save.rate * 60);
       winEarned = 0;
@@ -542,14 +564,14 @@ async function start() {
       pendingAway += secs; // ask after the run
       return;
     }
-    const capped = Math.min(secs, OFFLINE.maxHours * 3600);
-    // 💤 Night Manager stat: +1% share per point (50 points = 100%)
-    // 💤 Night Shift (shard upgrade): +10% per level on top, up to 150%
-    const share = Math.min(1.5, OFFLINE.share + progress.up('night') * 0.1 + progress.offlineBonus);
+    // 💤 4 hours count to start (+48 min per Night Shift level, 8 max); share 50% +
+    // Night Manager (+25) + Night Shift (+25), 100% max. (progress.offlineHours / offlineShare)
+    const capped = Math.min(secs, progress.offlineHours * 3600);
+    const share = progress.offlineShare;
     const amount = Math.floor(save.rate * capped * share);
     if (amount < 1) return; // no income measured yet
     welcomeOpen = true;
-    const choice = await hud.showWelcome(capped, amount);
+    const choice = await hud.showWelcome(secs, capped, share, amount);
     welcomeOpen = false;
     if (choice === 'collect') {
       sfx.welcome();
@@ -560,8 +582,10 @@ async function start() {
     const back = mode === 'air' ? 'air' : mode === 'island' ? 'island' : mode === 'volcano' ? 'volcano' : mode === 'hotel' ? 'hotel' : 'base';
     mode = 'run';
     hud.setLaunch(null);
-    run.luck = progress.luck;
-    const per = amount / OFFLINE.runBundles;
+    run.luckWin = progress.luckWin;
+    run.luckSave = progress.luckSave;
+    // (Pays amount x bonusRunMult: x0.75 to x2, the same number the results card shows)
+    const pay = (end: number, start: number) => Math.round(amount * bonusRunMult(end, start));
     run.start(
       OFFLINE.runBundles,
       (end) => {
@@ -571,11 +595,11 @@ async function start() {
         else if (back === 'volcano') volcano?.enter(false);
         else if (back === 'hotel') hotel?.enter(false);
         else base.enter();
-        payOffline(Math.max(amount * OFFLINE.keepMin, end * per));
+        payOffline(pay(end, OFFLINE.runBundles));
       },
       'grass',
       'cash',
-      { hard: true, valueEach: per, keepMin: amount * OFFLINE.keepMin, title: '💰 BONUS RUN' },
+      { hard: true, payout: pay, title: '💰 BONUS RUN' },
     );
   }
   function payOffline(amount: number) {
@@ -676,9 +700,39 @@ async function start() {
   }
   // Welcome back! (time since you last played)
   window.setTimeout(() => offerOffline(awayAtLaunch), 900);
+  // ⚖️ Tell players of older saves what changed (once, after any welcome-back card)
+  if (rebalanced.tell) {
+    const guideOpen = () => !document.getElementById('guide')?.classList.contains('hidden');
+    const tell = () => {
+      // (wait for the welcome-back card, a gate run, a world switch or any other card)
+      if (welcomeOpen || mode === 'run' || switching || guideOpen()) return void window.setTimeout(tell, 800);
+      hud.showGuide(
+        '⚖️ Big balance update!',
+        `<p>Anthill Airways got a full economy check-up, so progress feels fair from the first ant to the Grand Resort:</p>
+         <ul>
+           <li>📈 <b>Levels</b> now come from playing (picking up, selling, unlocking, gate runs), not from money spent.</li>
+           <li>💪 <b>Stats and bonuses</b> are smaller per point, so prices in every world matter again.</li>
+           <li>💤 <b>Offline</b>: 4 hours count at first (up to 8 with 💎 Night Shift), at 50% of your idle rate (up to 100%).</li>
+           <li>💰 The <b>bonus run</b> pays x0.75 to x2.</li>
+           <li>🔒 The Big Orders between areas need a <b>player level</b>.</li>
+         </ul>
+         <p>✅ Your level, cash and upgrades are kept, and the shards you'd already earned toward your next eruption carry over.
+         🔄 You also get one <b>free respec</b> in your level screen: your stat points (and the Queen's) and the 💎 shards you spent come back to spend again.</p>`,
+        [
+          { label: '🔄 Respec my stats', cls: 'big-btn', onClick: () => document.getElementById('levelBtn')?.click() },
+          { label: '👍 Got it', cls: 'menu-btn' },
+        ],
+      );
+    };
+    window.setTimeout(tell, 2200);
+  }
 
   // 7) Main loop. `?speed=4` in the URL fast-forwards (handy for testing).
   const testSpeed = Math.min(10, Number(new URLSearchParams(location.search).get('speed')) || 1);
+  // 🧪 Testing only: ?sim=1 runs the game without drawing (for balance measurements:
+  // much faster headless), and game.time counts seconds of GAME time.
+  if (import.meta.env.DEV && new URLSearchParams(location.search).get('sim') === '1') renderer.render = () => {};
+  let gameTime = 0;
   // 🐢 / 🐇 Movement speed (Settings slider, saved on this device): 0.2x - 3x.
   // Only things that walk use it (see core/pace.ts); machines, timers and
   // flying items always run at normal speed.
@@ -688,14 +742,15 @@ async function start() {
     /* ignore */
   }
   // ✈️ Departures board: the "Next stop" chip + the full route
-  hud.initDepartures(() => departures(save.unlocked));
-  let boardSeen = -1;
+  hud.initDepartures(() => departures(save.unlocked, save.level));
+  let boardSeen = '';
   window.setInterval(() => {
-    if (save.unlocked.length === boardSeen) return; // only changes when you buy something
-    boardSeen = save.unlocked.length;
-    hud.setNext(nextChip(save.unlocked));
+    const key = `${save.unlocked.length}|${save.level}`;
+    if (key === boardSeen) return; // only changes when you buy something or level up
+    boardSeen = key;
+    hud.setNext(nextChip(save.unlocked, save.level));
   }, 1000);
-  hud.setNext(nextChip(save.unlocked));
+  hud.setNext(nextChip(save.unlocked, save.level));
 
   // 📊 Lifetime stats screen (Level panel -> "Lifetime stats")
   hud.initTotals(() => {
@@ -773,6 +828,7 @@ async function start() {
   function frame(now: number) {
     const rawMs = now - last;
     const dt = Math.min(0.05, rawMs / 1000) * testSpeed; // cap dt so a lag spike can't teleport things
+    gameTime += dt;
     tickClock(rawMs / 1000, Math.min(0.05, rawMs / 1000)); // (paying for things runs on real time)
     last = now;
     watchQuality(rawMs);
@@ -842,6 +898,8 @@ async function start() {
     openVolcano,
     weather,
     switchWorld,
+    get time() { return gameTime; }, // (seconds of game time, for tests)
+    get autoTotal() { return autoTotal; }, // (cash collected by helpers so far, for tests)
   };
 }
 

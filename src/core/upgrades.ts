@@ -42,6 +42,10 @@ export const up = {
   bonus: (lv: number) => 1 + lv * 0.06,       // collectors' cash multiplier
 };
 
+
+/** The colony's pads by zone: later zones' buildings earn more, so their pads cost more. */
+export const COLONY_ZONE_BASE: Record<string, number> = { nest: 60, brood: 250, hangar: 750 };
+
 /**
  * Base price of a level-1 upgrade in each world (later levels x1.85 each).
  * Roughly the price of that world's cheapest unlock tiles.
