@@ -439,6 +439,8 @@ export class HomeWorld {
   private cafeOpen = false;
   // The neighbor with an order: walking in, waiting, or walking out
   private neighbor: { model: CreatureModel; state: 'in' | 'wait' | 'out'; path: THREE.Vector3[] } | null = null;
+  /** Just bought a tile here: the next one on this spot (the farm levels share one) waits until you step off. */
+  private stepOff: Zone | null = null;
   private nextOrderT: number = HOME.order.wait;
 
   constructor(private hud: Hud, private sfx: Sfx, public save: SaveData, private progress: Progress) {
@@ -688,33 +690,41 @@ export class HomeWorld {
         break;
       }
       case 'ai-farm3': {
-        // The Carrier: basket -> farm, and (once the café is open) farm -> café, turn about
+        // The Carrier: basket -> farm, and (once the café is open) farm -> café, turn about.
+        // (The café run only when there are packs to take and room on its shelf for a load,
+        // and if a pick-up spot stays empty it switches jobs: it never stalls the farm.)
+        // Each trip it picks a job that can be finished (packs to take and room on the café's
+        // shelf / crumbs in the basket and room in the farm), taking turns when both can.
+        // Nothing to do: it waits by the basket and looks again a few seconds later.
         let flip = false;
-        this.antWorker('🐜 CARRIER', -5, -1, () => {
+        const idle = new Stack(new THREE.Group(), gridLayout(1, 1, 0, 0, 0), 1); // (always empty)
+        const carrier: Worker = this.antWorker('🐜 CARRIER', -5, -1, () => {
           flip = !flip;
-          const cafe = this.cafe;
-          if (!flip && cafe?.shelf) return { src: this.farm.output, srcZone: this.farm.outZone, dst: cafe.shelf, dstZone: cafe.staffZone };
+          const load = carrier.stack.max;
           const basket = this.basket!;
-          return { src: basket.stack, srcZone: basket.zone, dst: this.farm.input, dstZone: this.farm.inZone };
+          const cafe = this.cafe;
+          const toCafe = !!cafe?.shelf && this.farm.output.count > 0 && cafe.shelf.count + load <= cafe.shelf.max;
+          const toFarm = basket.stack.count > 0 && this.farm.input.count + load <= this.farm.input.max;
+          if (cafe?.shelf && toCafe && (!flip || !toFarm)) return { src: this.farm.output, srcZone: this.farm.outZone, dst: cafe.shelf, dstZone: cafe.staffZone };
+          if (toFarm) return { src: basket.stack, srcZone: basket.zone, dst: this.farm.input, dstZone: this.farm.inZone };
+          return { src: idle, srcZone: basket.zone, dst: this.farm.input, dstZone: this.farm.inZone };
         }, { color: 0xe63946, flat: true }, animate);
+        carrier.patience = 5;
         this.farm.setLevel(3);
         // ...and the delivery crate turns up by the south fence
         this.crate = new Crate(this.scene, 9, 7);
         this.blockers.push(this.crate.blocker);
         grow(this.crate.group);
+        if (this.home.crate.away === 0) {
+          for (const [t, n] of Object.entries(this.home.crate.got)) for (let i = 0; i < n; i++) this.crate.stack.addInstant(t as ItemType);
+        }
         break;
       }
       case 'ai-cafe':
         this.openCafe(animate);
         break;
       case 'ai-farm4': {
-        const cafe = this.cafe;
-        if (cafe) {
-          const ant = this.antModel(0xe63946);
-          cafe.hireStaff(ant, animate, '🐜 CASHIER');
-          const g = cafe.group.position;
-          ant.root.position.set(g.x - 0.3, 1.66, g.z + 0.9); // (up on the counter, where you can see it)
-        }
+        this.cafe?.hireStaff(this.antModel(0xe63946), animate, '🐜 CASHIER');
         this.farm.setLevel(4);
         break;
       }
@@ -765,13 +775,16 @@ export class HomeWorld {
     patio.receiveShadow = true;
     this.scene.add(patio);
     // The café (a desk that sells your snack packs) + its cash pad
-    const pad = new CashPad(this.scene, 21, 2.5);
+    // (the desk sits level with the gate, so the Carrier ant walks through it, not the fence)
+    const pad = new CashPad(this.scene, 21, -4);
     this.cashPads.push(pad);
-    const cafe = new Desk(this.scene, 23, -3, this.flyers, pad, null, {
+    const cafe = new Desk(this.scene, 23, 1.5, this.flyers, pad, null, {
       mode: 'cafe', sells: 'snack', awning: 0x2d6cdf, label: '☕ CORNER CAFÉ', color: 0xd9a066, kinds: CAFE_KINDS,
       interval: HOME.cafe.interval, queueMax: HOME.cafe.queueMax, serve: HOME.cafe.serve,
-      entry: [new THREE.Vector3(32, 0, 15), new THREE.Vector3(32, 0, 2)],
-      exit: (from) => [new THREE.Vector3(from.x, 0, 2), new THREE.Vector3(32, 0, 15)],
+      entry: [new THREE.Vector3(33, 0, 15), new THREE.Vector3(33, 0, 5)],
+      exit: (from) => [new THREE.Vector3(from.x, 0, 5), new THREE.Vector3(33, 0, 15)],
+      staffOnCounter: true,
+      staff2: () => this.antModel(0x2a9d8f),
     });
     cafe.onServe = (byPlayer) => {
       this.progress.addXp(byPlayer ? CONFIG.xp.sale : CONFIG.xp.autoSale);
@@ -783,7 +796,7 @@ export class HomeWorld {
     this.blockers.push(cafe.blocker);
     // Patio tables with umbrellas
     const tables: THREE.Object3D[] = [];
-    for (const [tx, tz, color] of [[28, 7, 0xe63946], [33, -7, 0x2a9d8f], [19.5, -8, 0xf4a261]] as [number, number, number][]) {
+    for (const [tx, tz, color] of [[28, -6, 0xe63946], [33, -8, 0x2a9d8f], [19.5, 8, 0xf4a261]] as [number, number, number][]) {
       const t = new THREE.Group();
       t.position.set(tx, 0, tz);
       t.add(box(1.4, 0.1, 1.4, mat(0xf4f1de, 0.5), 0, 1.0, 0), box(0.1, 1.0, 0.1, mat(0x5a5f66, 0.4, 0.5), 0, 0.5, 0), box(0.07, 2.6, 0.07, mat(0x5a5f66, 0.4, 0.5), 0, 1.3, 0));
@@ -796,7 +809,7 @@ export class HomeWorld {
       this.blockers.push({ minX: tx - 0.8, maxX: tx + 0.8, minZ: tz - 0.8, maxZ: tz + 0.8 });
     }
     // 🎁 The chest
-    this.chest = new Chest(this.scene, 31, 7, this.home.chest);
+    this.chest = new Chest(this.scene, 28, 8.5, this.home.chest);
     if (animate) {
       for (const o of [patio, cafe.group, pad.group, this.chest.group, ...tables]) this.flyers.grow(o);
       this.hud.banner('☕ The Corner Café is yours!', 'It buys your snack packs. Something is hidden on the new plot…', 4500);
@@ -832,7 +845,8 @@ export class HomeWorld {
     if (n === 0) return HOME.order.first;
     if (n === 1) return HOME.order.second;
     const o = HOME.order;
-    return o.min + Math.floor(Math.random() * (o.max - o.min + 1)) + Math.floor((this.save.level - 1) / 3);
+    const n2 = o.min + Math.floor(Math.random() * (o.max - o.min + 1)) + Math.floor((this.save.level - 1) / 3);
+    return Math.min(n2, 30); // (the order basket holds 40)
   }
 
   /** The neighbor with the open order walks in (or, after a reload, is already there). */
@@ -1107,11 +1121,12 @@ export class HomeWorld {
     });
     trash.wait(dt, onBin, this.bin.mouth, this.camera);
     // 9) Unlock tiles: stand on one to pour cash in
+    if (this.stepOff && !this.stepOff.contains(p)) this.stepOff = null;
     for (const t of this.tiles) {
       if (!t.mesh.visible) continue;
       const affordable = this.save.cash >= 1 && !t.locked;
       t.update(dt, affordable && this.save.cash >= t.remaining);
-      if (affordable && t.zone.contains(p)) {
+      if (affordable && t.zone.contains(p) && !this.stepOff) {
         const rate = Math.max(t.def.cost / CONFIG.unlockDrainTime, CONFIG.unlockMinRate);
         const pay = Math.min(this.save.cash, rate * dt * clock.scale, t.def.cost - t.paid);
         t.paid += pay;
@@ -1119,7 +1134,10 @@ export class HomeWorld {
         this.save.paid[t.def.id] = t.paid;
         this.hud.setCash(this.save.cash);
         this.sfx.unlockTick();
-        if (t.paid >= t.def.cost - 1e-6) this.unlock(t);
+        if (t.paid >= t.def.cost - 1e-6) {
+          this.unlock(t);
+          this.stepOff = t.zone;
+        }
       }
     }
     this.updatePlotSign(dt);

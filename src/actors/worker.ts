@@ -67,6 +67,13 @@ export class Worker {
   level = 1;
   /** Called with each level gained (the world shows a little "LEVEL UP"). */
   onLevel: (level: number) => void = () => {};
+  /**
+   * Seconds to wait empty-handed at a source that stays empty before picking a
+   * new route (Infinity = wait for it). 🏝️ Anthill Island's Carrier has two jobs,
+   * so it switches to the other one instead of standing around.
+   */
+  patience = Infinity;
+  private starved = 0;
   private state: State = 'toSource';
   private route: Route | null = null;
   private target = new THREE.Vector3();
@@ -159,6 +166,14 @@ export class Worker {
         break;
       case 'load': {
         animateCreature(this.model, dt, 0);
+        // Nothing here and nothing in hand for too long: try another route
+        this.starved = this.stack.count === 0 && !r.src.canPop() ? this.starved + dt : 0;
+        if (this.starved > this.patience) {
+          this.starved = 0;
+          this.route = null;
+          this.state = 'toSource';
+          break;
+        }
         // Catch up on every item due this frame (a slow frame mustn't slow the
         // work), but don't bank up a burst while waiting.
         const iv = CONFIG.worker.pickupInterval / this.mult;

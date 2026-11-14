@@ -116,6 +116,7 @@ export function slotSummary(slot: Slot) {
  * for the time spent in other slots.
  */
 export function switchSlot(current: SaveData, slot: Slot) {
+  if (locked) return; // (already switching: a second tap would write this game into the new slot)
   try {
     current.lastSeen = 0; // paused: no offline income while you're elsewhere
     localStorage.setItem(keyFor(activeSlot()), JSON.stringify(current));

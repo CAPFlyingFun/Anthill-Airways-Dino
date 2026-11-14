@@ -106,6 +106,10 @@ export interface DeskOpts {
   vips?: boolean;            // check-in: some passengers are 👑 VIPs
   fee?: number;              // check-in: what each guest pays (default: an airline ticket)
   serve: number;             // seconds between each sale / check-in step
+  /** 🏝️ Anthill Island: staff are ants, standing up on the counter (people stand behind it). */
+  staffOnCounter?: boolean;
+  /** Who the 2nd cashier is (default: a crew member). */
+  staff2?: () => CreatureModel;
   entry: THREE.Vector3[];    // waypoints from outside to the back of the line
   exit: (from: THREE.Vector3) => THREE.Vector3[]; // where they go when done
 }
@@ -184,6 +188,7 @@ export class Desk {
     this.staff = model;
     this.staffTitle = title;
     model.root.position.set(this.x - 1.4, 0, this.z + 0.9);
+    if (this.opts.staffOnCounter) model.root.position.set(this.x - 0.3, 1.66, this.z + 0.9);
     model.root.rotation.y = Math.PI / 2; // face the line
     titleTag(model, title, TITLE.human);
     this.scene.add(model.root);
@@ -198,8 +203,9 @@ export class Desk {
     if (this.staff2) return;
     this.lines = 2;
     const kinds: HumanKind[] = ['h-crew1', 'h-crew3', 'h-crew4', 'h-balance'];
-    const model = person(kinds[Math.floor(Math.random() * kinds.length)]);
+    const model = this.opts.staff2?.() ?? person(kinds[Math.floor(Math.random() * kinds.length)]);
     model.root.position.set(this.x - 1.4, 0, this.z - 0.9);
+    if (this.opts.staffOnCounter) model.root.position.set(this.x - 0.3, 1.66, this.z - 0.9);
     model.root.rotation.y = Math.PI / 2;
     titleTag(model, `${this.staffTitle || '💵 CASHIER'} 2`, TITLE.human);
     this.scene.add(model.root);

@@ -197,6 +197,7 @@ export async function startHome({ app, renderer, save, hud, sfx, input, progress
   let qualityWait = 4;
   const watchQuality = (rawMs: number) => {
     if (document.hidden) return;
+    if (rawMs > 250) return; // (back from the background: that frame spans the time away)
     qualityWait -= rawMs / 1000;
     if (qualityWait > 0) return;
     frameSum += rawMs;
